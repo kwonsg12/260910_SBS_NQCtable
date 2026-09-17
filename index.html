@@ -27,6 +27,11 @@
   nav button{background:none;border:none;color:#c7cdd6;padding:14px 18px;font-size:14px;cursor:pointer;border-bottom:3px solid transparent;}
   nav button.active{color:#fff;border-bottom-color:var(--blue);font-weight:700;}
   main{max-width:1500px;margin:0 auto;padding:24px;}
+  .storage-status{max-width:1452px;margin:16px auto 0;padding:12px 16px;background:#eaf1ff;border:1px solid #cfd6e0;border-radius:8px;font-size:14px;line-height:1.6;}
+  .storage-status[data-state="error"],.storage-status[data-state="conflict"],.storage-status[data-state="recovered"]{background:#fff2df;border-color:#d97706;}
+  .storage-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .storage-actions button:not([hidden]){margin-top:8px;}
+  [hidden]{display:none!important;}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px 26px;margin-bottom:20px;}
   .panel h2{margin:0 0 16px;font-size:17px;}
   .panel h2 .sub{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:8px;}
@@ -188,7 +193,7 @@
   <div class="sbs-logo" aria-label="SBS logo"><img src="./sbs-logo.png" alt="SBS 로고"></div>
 </header>
 
-<nav id="tabbar">
+<nav id="tabbar" inert>
   <button data-tab="schedule" class="active">근무표</button>
   <button data-tab="request">휴가 신청</button>
   <button data-tab="protect">비번 보장 신청</button>
@@ -197,7 +202,20 @@
   <button data-tab="settings">설정</button>
 </nav>
 
-<main>
+<div id="storageStatus" class="storage-status" data-state="loading" role="status" aria-live="polite">
+  <span id="storageStatusText">저장된 데이터를 확인하는 중입니다.</span>
+  <div class="storage-actions">
+    <button class="btn secondary" id="storageRetryBtn" type="button" hidden>다시 시도</button>
+    <button class="btn secondary" id="storageReloadBtn" type="button" hidden>최신 근무표 불러오기</button>
+    <button class="btn secondary" id="storageExportBtn" type="button" hidden>내 변경 내려받기</button>
+  </div>
+  <div id="storageDiscardConfirm" hidden>
+    <p>최신 근무표를 불러오면 현재 화면의 미저장 변경과 입력은 사라집니다. 저장하지 못한 변경은 내려받을 수 있습니다. 아직 적용하지 않은 입력은 별도로 복사해주세요.</p>
+    <button class="btn secondary" id="storageDiscardBtn" type="button">현재 변경을 버리고 불러오기</button>
+    <button class="btn secondary" id="storageKeepBtn" type="button">계속 편집</button>
+  </div>
+</div>
+<main inert>
   <section id="tab-schedule">
     <div class="panel" id="schedulePageRoot">
       <div class="schedule-toolbar">
@@ -622,7 +640,7 @@
   };
 
   const STORE_KEY = 'ncq_schedule_v1';
-  let STATE = loadState();
+  let STATE = normalizeState();
   if (Array.isArray(STATE.employees) && STATE.employees.length) EMPLOYEES = STATE.employees;
   let pendingScheduleRanges = [];
   let pendingBulkFills = [];
@@ -669,41 +687,228 @@
   function addDays(date, n){ const d = new Date(date); d.setDate(d.getDate() + n); return d; }
   function empName(id){ return EMPLOYEES.find(e => e.id === id)?.name || id; }
 
-  // 서버(server.js)가 떠 있으면 페이지 로드 시점에 그 데이터를 우선 사용한다.
-  // 동기 XHR을 쓰는 이유: loadState()는 STATE 초기화 시 한 번만 동기적으로
-  // 호출되고, 이후 2000줄 넘는 기존 로직이 STATE가 이미 채워져 있다고 가정하고
-  // 동작한다 — 여기만 서버와 동기화하면 나머지 코드는 전혀 손댈 필요가 없다.
-  // 서버 없이 그냥 정적 파일(file:// 또는 예전 http.server)로 열었을 때는
-  // 요청이 실패하므로 이전처럼 localStorage만 쓰는 방식으로 자동 대체된다.
-  function fetchServerStateSync(){
-    try{
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', '/api/state', false);
-      xhr.send(null);
-      if (xhr.status === 200) {
-        const parsed = JSON.parse(xhr.responseText);
-        if (parsed && parsed.state) return parsed.state;
+  // BEGIN STATE SYNC: UI에 의존하지 않는 단일 탭 저장 대기열.
+  function createStateSync({ read, write, apply, changed, drafts, debounceMs = 300 }) {
+    let revision = null, pending = null, timer = null;
+    let busy = false, ready = false, blocked = false, status = 'loading', draftStored = true;
+    function info() { return { revision, dirty: pending !== null, busy, ready, status, draftStored }; }
+    function report(next) { status = next; changed(info()); }
+    function cancelTimer() { clearTimeout(timer); timer = null; }
+    function remember() {
+      try {
+        if (pending === null) drafts.clear();
+        else drafts.save({ baseRevision: revision, state: JSON.parse(pending) });
+        draftStored = true;
+      } catch { draftStored = false; }
+    }
+    async function reload(restoreDraft = false) {
+      if (busy) return false;
+      cancelTimer();
+      busy = true;
+      report('loading');
+      let draft = null;
+      if (restoreDraft) {
+        try { draft = drafts.read(); } catch { draftStored = false; }
       }
-    }catch(e){ /* 서버 없음 → localStorage로 대체 */ }
-    return null;
+      const recover = draft && Number.isSafeInteger(draft.baseRevision) && draft.baseRevision >= 0
+        && draft.state && typeof draft.state === 'object' && !Array.isArray(draft.state);
+      try {
+        const result = await read();
+        apply(recover ? draft.state : (result.state || {}));
+        revision = recover ? draft.baseRevision : result.revision;
+        pending = recover ? JSON.stringify(draft.state) : null;
+        ready = true;
+        blocked = !!recover;
+        remember();
+        busy = false;
+        report(recover ? (revision === result.revision ? 'recovered' : 'conflict') : 'saved');
+        return true;
+      } catch {
+        if (recover && !ready) {
+          apply(draft.state);
+          revision = draft.baseRevision;
+          pending = JSON.stringify(draft.state);
+          ready = true;
+          remember();
+        }
+        blocked = true;
+        busy = false;
+        report('error');
+        return false;
+      }
+    }
+    function enqueue(state) {
+      if (!ready || (busy && status === 'loading')) return false;
+      pending = JSON.stringify(state);
+      remember();
+      cancelTimer();
+      if (blocked) { report(status); return true; }
+      if (!busy) {
+        report('pending');
+        timer = setTimeout(flush, debounceMs);
+      } else report('saving');
+      return true;
+    }
+    async function flush() {
+      cancelTimer();
+      if (busy || blocked || pending === null || !ready) return false;
+      busy = true;
+      const sent = pending, baseRevision = revision;
+      report('saving');
+      try {
+        const result = await write(JSON.parse(sent), baseRevision);
+        if (result.ok !== true || result.revision !== baseRevision + 1) throw new Error('Invalid save response');
+        revision = result.revision;
+        // 저장 중 추가된 편집은 새 버전을 기준으로 이어서 저장한다.
+        if (pending === sent) pending = null;
+        remember();
+        busy = false;
+        report(pending === null ? 'saved' : 'pending');
+        if (pending !== null) timer = setTimeout(flush, 0);
+        return true;
+      } catch (error) {
+        blocked = true;
+        busy = false;
+        report(error.status === 409 ? 'conflict' : 'error');
+        return false;
+      }
+    }
+    function retry() {
+      if (busy || status === 'conflict') return Promise.resolve(false);
+      if (!ready || pending === null) return reload(!ready);
+      blocked = false;
+      return flush();
+    }
+    return { reload, enqueue, retry, info };
+  }
+  // END STATE SYNC
+
+  const LOCAL_MODE = location.protocol === 'file:' || new URLSearchParams(location.search).get('storage') === 'local';
+  const DRAFT_KEY = STORE_KEY + '_pending';
+  let formHasEdits = false;
+  let localSaveFailed = false;
+  let stateSync = null;
+
+  async function stateRequest(method = 'GET', payload) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const response = await fetch('/api/state', {
+        method, cache: 'no-store', signal: controller.signal,
+        headers: payload ? { 'Content-Type': 'application/json' } : {},
+        body: payload ? JSON.stringify(payload) : undefined
+      });
+      if (!response.ok) {
+        const error = new Error('Server request failed');
+        error.status = response.status;
+        throw error;
+      }
+      const result = await response.json();
+      if (!Number.isSafeInteger(result.revision) || result.revision < 0) throw new Error('Unsupported server version');
+      if (method === 'GET' && (result.state !== null &&
+        (!result.state || typeof result.state !== 'object' || Array.isArray(result.state)))) {
+        throw new Error('Invalid state response');
+      }
+      return result;
+    } finally { clearTimeout(timeout); }
   }
 
-  let pushStateTimer = null;
-  function pushStateToServer(){
-    clearTimeout(pushStateTimer);
-    pushStateTimer = setTimeout(() => {
-      fetch('/api/state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: STATE })
-      }).catch(() => { /* 서버 없음 → localStorage만으로 계속 동작 */ });
-    }, 300);
+  function showStorageStatus(info) {
+    const messages = {
+      loading: '서버의 최신 근무표를 불러오는 중입니다.',
+      saved: info.revision === 0 ? '서버에 아직 저장된 근무표가 없습니다. 기본 근무표를 표시합니다.' : '서버에 저장된 근무표입니다. 다른 사람이 수정한 내용은 새로고침으로 확인하세요.',
+      pending: '저장 대기 중입니다. 아직 다른 PC에는 반영되지 않았습니다.',
+      saving: '서버에 저장 중입니다. 완료될 때까지 기다려주세요.',
+      conflict: '다른 사람이 먼저 저장했습니다. 내 변경은 서버에 저장되지 않았습니다. 필요하면 내 변경을 내려받고 최신 근무표를 불러오세요.',
+      error: '서버 연결 또는 저장에 실패했습니다. 내 변경은 저장 완료가 확인되지 않았습니다. 연결을 확인하고 다시 시도해주세요.',
+      recovered: '이 탭의 미저장 변경을 복구했습니다. 내용을 확인한 뒤 다시 저장하거나 최신 근무표를 불러오세요.'
+    };
+    const text = document.getElementById('storageStatusText');
+    text.textContent = messages[info.status] + (!info.draftStored ? ' 브라우저 임시 보관에도 실패했습니다. 탭을 닫기 전에 내 변경을 내려받으세요.' : '');
+    document.getElementById('storageStatus').dataset.state = info.status;
+    document.querySelector('main').inert = !info.ready || info.status === 'loading';
+    document.getElementById('tabbar').inert = !info.ready || info.status === 'loading';
+    document.getElementById('storageRetryBtn').hidden = !['error', 'recovered'].includes(info.status);
+    document.getElementById('storageReloadBtn').hidden = !info.ready;
+    document.getElementById('storageReloadBtn').disabled = info.busy;
+    document.getElementById('storageDiscardBtn').disabled = info.busy;
+    document.getElementById('storageExportBtn').hidden = !info.dirty && info.draftStored;
+    const refresh = document.getElementById('refreshHolidayBtn');
+    if (refresh) refresh.disabled = info.busy;
   }
 
-  function loadState(){
-    try{
-      const serverState = fetchServerStateSync();
-      const raw = serverState || JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+  async function initializeStorage() {
+    if (LOCAL_MODE) {
+      try { STATE = normalizeState(JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); }
+      catch { localSaveFailed = true; }
+      EMPLOYEES = STATE.employees;
+      showLocalStorageStatus();
+      return;
+    }
+    stateSync = createStateSync({
+      read: () => stateRequest(),
+      write: (state, baseRevision) => stateRequest('POST', { state, baseRevision }),
+      apply: raw => { STATE = normalizeState(raw); EMPLOYEES = STATE.employees; },
+      changed: showStorageStatus,
+      drafts: {
+        read: () => JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'),
+        save: draft => sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)),
+        clear: () => sessionStorage.removeItem(DRAFT_KEY)
+      }
+    });
+    await stateSync.reload(true);
+  }
+
+  function showLocalStorageStatus() {
+    document.getElementById('storageStatus').dataset.state = localSaveFailed ? 'error' : 'local';
+    document.getElementById('storageStatusText').textContent = localSaveFailed
+      ? '이 브라우저의 데이터 읽기 또는 저장에 실패했습니다. 탭을 닫기 전에 내 변경을 내려받으세요.'
+      : '이 브라우저에서만 사용 중입니다. 다른 PC와 공유하거나 서버에 저장하지 않습니다.';
+    document.getElementById('storageExportBtn').hidden = !localSaveFailed;
+    document.querySelector('main').inert = false;
+    document.getElementById('tabbar').inert = false;
+  }
+
+  function downloadPendingState() {
+    const blob = new Blob([JSON.stringify(STATE, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '근무표_미저장변경_' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function redrawLoadedState() {
+    formHasEdits = false;
+    pendingChain = null;
+    pendingScheduleRanges = [];
+    pendingBulkFills = [];
+    scheduleEditorEdits = {};
+    document.getElementById('modalBg').classList.remove('show');
+    closeScheduleEditor();
+    populateEmpSelects();
+    renderManualEmployeeOptions();
+    renderSettings();
+    renderAll();
+  }
+
+  async function refreshSharedState({ discard = false } = {}) {
+    if (stateSync) {
+      if (stateSync.info().busy) return;
+      if (!discard && (stateSync.info().dirty || formHasEdits)) {
+        document.getElementById('storageDiscardConfirm').hidden = false;
+        return;
+      }
+      if (!await stateSync.reload()) return;
+      document.getElementById('storageDiscardConfirm').hidden = true;
+      redrawLoadedState();
+      showToast('서버의 최신 근무표를 불러왔습니다.');
+    }
+    await refreshHolidayData({ silent: true });
+  }
+
+  function normalizeState(raw = {}){
       return {
         employees: Array.isArray(raw.employees) && raw.employees.length ? raw.employees : EMPLOYEES,
         requests: raw.requests || [],
@@ -751,14 +956,6 @@
           ]
         },
       };
-    }catch(e){
-      return {
-        employees: EMPLOYEES,
-        requests:[], protects:[], excuses:[], approvers:[], approvals:[], monthlyApprovals:{}, notifications:[], staffHistory:[],
-        scheduleSnapshots:{}, scheduleOverrides:{}, scheduleRanges:[], rotationAnchors:[], versions:[], auditLogs:[], deletedEmployeesTrash:[], employeeOrderHistory:[],
-        settings:{quotaMax:3, stationName:DEFAULT_STATION_NAME, holidaySyncHours:24, holidayApiUrl:'https://date.nager.at/api/v3/PublicHolidays', lockDay:BASE_LOCK_DAY, kakaoKey:'', kakaoSender:'', kakaoTemplate:'', smtpHost:'', smtpUser:'', smtpPass:'', clockSource:'local', externalClockOffsetMinutes:0, adminPin:'', notes:'', approvalLines:[{title:'담당',name:''},{title:'팀장',name:''},{title:'결재',name:''}]}
-      };
-    }
   }
 
   // 해당 연/월에 적용되는 직원 표시 순서를 찾는다. 그 달 이하 월 중 가장 최근에 등록된
@@ -805,8 +1002,11 @@
   }
 
   function saveState(){
-    try{ localStorage.setItem(STORE_KEY, JSON.stringify(STATE)); }catch(e){}
-    pushStateToServer();
+    if (LOCAL_MODE) {
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(STATE)); localSaveFailed = false; }
+      catch { localSaveFailed = true; }
+      showLocalStorageStatus();
+    } else if (stateSync) stateSync.enqueue(STATE);
   }
 
   function isPastDate(date){
@@ -1019,6 +1219,10 @@
   // alert()는 모달이라 떠 있는 동안 페이지가 멈추고, 그 사이 누른 클릭은 큐에 쌓이지 않고 버려진다.
   // (적용 직후 바로 다음 버튼을 누르면 "안 먹는" 것처럼 보이던 원인)
   function showToast(message, tone = 'ok'){
+    if (tone === 'ok' && stateSync?.info().dirty) {
+      message = message.replaceAll('저장되었습니다.', '저장을 요청했습니다.') + ' · 서버 저장은 상단 상태를 확인해주세요.';
+      tone = 'info';
+    }
     let host = document.getElementById('toastHost');
     if (!host) {
       host = document.createElement('div');
@@ -1613,6 +1817,7 @@
   // Phase 3에서 서버가 실제로 사내메일/카카오톡을 보낸다. 지금은 서버에 요청만 던져두고
   // 응답을 기다리지 않는다(서버가 아직 이 엔드포인트를 모르면 404가 나고 무시된다).
   function sendServerNotification(approval, targets){
+    if (LOCAL_MODE) return;
     try{
       fetch('/api/notify', {
         method: 'POST',
@@ -2727,6 +2932,25 @@
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
+    document.getElementById('storageRetryBtn').addEventListener('click', async () => {
+      const info = stateSync.info();
+      const reloading = !info.ready || !info.dirty;
+      if (await stateSync.retry() && reloading) redrawLoadedState();
+    });
+    document.getElementById('storageReloadBtn').addEventListener('click', refreshSharedState);
+    document.getElementById('storageExportBtn').addEventListener('click', downloadPendingState);
+    document.getElementById('storageDiscardBtn').addEventListener('click', () => refreshSharedState({ discard: true }));
+    document.getElementById('storageKeepBtn').addEventListener('click', () => {
+      document.getElementById('storageDiscardConfirm').hidden = true;
+    });
+    document.querySelector('main').addEventListener('input', () => { formHasEdits = true; });
+    window.addEventListener('beforeunload', event => {
+      if (stateSync?.info().dirty || localSaveFailed || formHasEdits) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    });
+    await initializeStorage();
     populateEmpSelects();
     populateYearSelect();
     populateMonthSelect();
@@ -2818,11 +3042,7 @@
     $('#anchorStartDate').addEventListener('change', () => { updateAnchorModeUI(); renderRotationAnchorPreview(); });
     $('#anchorEmp').addEventListener('change', renderRotationAnchorPreview);
     $('#anchorStartShift').addEventListener('change', renderRotationAnchorPreview);
-    $('#refreshHolidayBtn').addEventListener('click', async () => {
-      await refreshHolidayData({ silent: true });
-      renderAll();
-      showToast('근무표를 새로고침했습니다. 휴일 및 휴가 반영 상태를 다시 확인하세요.');
-    });
+    $('#refreshHolidayBtn').addEventListener('click', refreshSharedState);
 
     renderRequestHint();
     renderSettings();

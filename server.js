@@ -36,19 +36,27 @@ app.use((req, res, next) => {
 // 현재 저장된 근무표 상태 전체를 반환. 서버에 아직 아무것도 없으면 state:null
 // (이 경우 index.html은 기본값으로 초기화한다).
 app.get('/api/state', (req, res) => {
+  res.set('Cache-Control', 'no-store');
   const row = getState();
-  res.json({ state: row ? row.state : null, updatedAt: row ? row.updatedAt : null });
+  res.json({ state: row ? row.state : null, updatedAt: row ? row.updatedAt : null, revision: row ? row.revision : 0 });
 });
 
-// 근무표 상태 전체를 덮어써 저장한다. index.html의 saveState()가 STATE 전체를
-// 그대로 보내온다 (localStorage.setItem 하던 자리를 대체).
+// 처음 읽은 버전과 DB 버전이 일치할 때만 전체 상태를 저장한다.
 app.post('/api/state', (req, res) => {
   const state = req.body && req.body.state;
   if (!state || typeof state !== 'object' || Array.isArray(state)) {
     return res.status(400).json({ error: 'invalid state payload' });
   }
-  const updatedAt = setState(state);
-  res.json({ ok: true, updatedAt });
+  const baseRevision = req.body.baseRevision;
+  if (baseRevision === undefined) {
+    return res.status(428).json({ error: 'revision_required' });
+  }
+  if (!Number.isSafeInteger(baseRevision) || baseRevision < 0) {
+    return res.status(400).json({ error: 'invalid_revision' });
+  }
+  const saved = setState(state, baseRevision);
+  if (!saved) return res.status(409).json({ error: 'state_conflict' });
+  res.json({ ok: true, ...saved });
 });
 
 // 승인 요청이 생기면 브라우저가 이 엔드포인트를 호출한다. 실제 사내메일/카카오톡

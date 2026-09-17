@@ -17,31 +17,43 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS kv_store (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 1
   );
 `);
+
+// 기존 DB도 데이터 이동 없이 사용한다. 과거 상태는 버전 1부터 시작한다.
+if (!db.prepare('PRAGMA table_info(kv_store)').all().some(column => column.name === 'revision')) {
+  db.exec('ALTER TABLE kv_store ADD COLUMN revision INTEGER NOT NULL DEFAULT 1');
+}
 
 const STATE_KEY = 'schedule_state';
 
 function getState() {
-  const row = db.prepare('SELECT value, updated_at FROM kv_store WHERE key = ?').get(STATE_KEY);
+  const row = db.prepare('SELECT value, updated_at, revision FROM kv_store WHERE key = ?').get(STATE_KEY);
   if (!row) return null;
-  try {
-    return { state: JSON.parse(row.value), updatedAt: row.updated_at };
-  } catch (e) {
-    return null;
-  }
+  // 손상된 DB를 빈 DB로 오인해 초기값으로 덮어쓰지 않는다.
+  return { state: JSON.parse(row.value), updatedAt: row.updated_at, revision: row.revision };
 }
 
-const upsertStmt = db.prepare(`
-  INSERT INTO kv_store (key, value, updated_at) VALUES (?, ?, ?)
-  ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+const insertStmt = db.prepare(`
+  INSERT OR IGNORE INTO kv_store (key, value, updated_at, revision) VALUES (?, ?, ?, 1)
+`);
+const updateStmt = db.prepare(`
+  UPDATE kv_store SET value = ?, updated_at = ?, revision = revision + 1
+  WHERE key = ? AND revision = ?
 `);
 
-function setState(stateObj) {
+function setState(stateObj, baseRevision) {
+  if (!Number.isSafeInteger(baseRevision) || baseRevision < 0) throw new Error('Invalid base revision');
   const updatedAt = new Date().toISOString();
-  upsertStmt.run(STATE_KEY, JSON.stringify(stateObj), updatedAt);
-  return updatedAt;
+  const value = JSON.stringify(stateObj);
+  // 버전 검사와 쓰기를 한 SQL에서 처리해 별도 연결의 동시 저장도 보호한다.
+  const result = baseRevision === 0
+    ? insertStmt.run(STATE_KEY, value, updatedAt)
+    : updateStmt.run(value, updatedAt, STATE_KEY, baseRevision);
+  if (result.changes !== 1) return null;
+  return { updatedAt, revision: baseRevision + 1 };
 }
 
 module.exports = { db, getState, setState };
