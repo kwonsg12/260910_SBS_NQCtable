@@ -10,13 +10,32 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
-const { getState, setState } = require('./db');
+const { db, getState, setState } = require('./db');
+const { createSecurity, publicState, targets } = require('./security');
+const { readFileSync } = require('node:fs');
+const { createHash } = require('node:crypto');
 const { notifyApprovers, getBaseUrl } = require('./notifier');
 
 const app = express();
+// A local HTTPS reverse proxy may forward the original protocol.
+app.set('trust proxy', 'loopback');
 const PORT = Number(process.env.PORT) || 8000;
+const security = createSecurity({ db, getState, setState });
+const scriptHashes = [...readFileSync(path.join(__dirname, 'index.html'), 'utf8').replace(/\r\n?/g, '\n').matchAll(/<script>([\s\S]*?)<\/script>/g)]
+  .map(match => "'sha256-" + createHash('sha256').update(match[1]).digest('base64') + "'");
 
 app.use(express.json({ limit: '15mb' }));
+app.use((req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Content-Security-Policy', "script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net " + scriptHashes.join(' ') + "; script-src-attr 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+  if (req.path.startsWith('/api/')) {
+    res.set('Cache-Control', 'no-store');
+    if (req.method === 'POST' && req.get('Origin') && req.get('Origin') !== req.protocol + '://' + req.get('Host')) {
+      return res.status(403).json({ error: '다른 사이트에서 보낸 요청은 허용하지 않습니다.' });
+    }
+  }
+  next();
+});
 
 // 프로젝트 폴더에는 DB·로그·서버 코드도 있으므로 폴더 전체를 공개하지 않는다.
 // 브라우저에서 사용할 파일을 추가할 때는 이 목록에 URL과 파일명을 명시한다.
@@ -33,41 +52,47 @@ app.use((req, res, next) => {
   res.sendFile(path.join(__dirname, file));
 });
 
+app.post('/api/auth/admin', (req, res) => res.json(security.login(req)));
+app.post('/api/approvals/decision', (req, res) => res.json(security.decide(req)));
+
 // 현재 저장된 근무표 상태 전체를 반환. 서버에 아직 아무것도 없으면 state:null
 // (이 경우 index.html은 기본값으로 초기화한다).
 app.get('/api/state', (req, res) => {
   res.set('Cache-Control', 'no-store');
   const row = getState();
-  res.json({ state: row ? row.state : null, updatedAt: row ? row.updatedAt : null, revision: row ? row.revision : 0 });
+  res.json({ state: row ? publicState(row.state) : null, updatedAt: row ? row.updatedAt : null, revision: row ? row.revision : 0 });
 });
 
-// 처음 읽은 버전과 DB 버전이 일치할 때만 전체 상태를 저장한다.
+// 검증·PIN 보호·버전 충돌 처리는 security.save가 전담한다.
 app.post('/api/state', (req, res) => {
-  const state = req.body && req.body.state;
-  if (!state || typeof state !== 'object' || Array.isArray(state)) {
-    return res.status(400).json({ error: 'invalid state payload' });
-  }
-  const baseRevision = req.body.baseRevision;
-  if (baseRevision === undefined) {
-    return res.status(428).json({ error: 'revision_required' });
-  }
-  if (!Number.isSafeInteger(baseRevision) || baseRevision < 0) {
-    return res.status(400).json({ error: 'invalid_revision' });
-  }
-  const saved = setState(state, baseRevision);
-  if (!saved) return res.status(409).json({ error: 'state_conflict' });
-  res.json({ ok: true, ...saved });
+  res.json(security.save(req));
 });
 
 // 승인 요청이 생기면 브라우저가 이 엔드포인트를 호출한다. 실제 사내메일/카카오톡
 // 발송은 notifier가 담당하며, 설정이 안 되어 있으면 콘솔 로그만 남기고 넘어간다.
-app.post('/api/notify', async (req, res) => {
-  const { approval, approvers } = req.body || {};
-  if (!approval || !Array.isArray(approvers)) {
-    return res.status(400).json({ error: 'invalid notify payload' });
-  }
-  const results = await notifyApprovers(approval, approvers);
-  res.json({ ok: true, results });
+const notificationTimes = new Map();
+app.post('/api/notify', async (req, res, next) => {
+  try {
+    const state = getState()?.state;
+    const approval = state?.approvals?.find(a => a.id === req.body?.approval?.id);
+    if (!approval || approval.status !== 'pending') return res.status(400).json({ error: '저장된 승인 대기 건만 알림을 보낼 수 있습니다.' });
+    const now = Date.now();
+    for (const [id, time] of notificationTimes) if (now - time >= 60000) notificationTimes.delete(id);
+    if (notificationTimes.has(approval.id)) return res.status(429).json({ error: '이 신청의 알림을 방금 보냈습니다.' });
+    notificationTimes.set(approval.id, now);
+    const allowed = targets(state, approval.requestedBy);
+    const approvers = state.approvers.filter(a => allowed.includes(a.id) && approval.approverIds.includes(a.id));
+    const results = await notifyApprovers({
+      ...approval, requestedByName: state.employees?.find(e => e.id === approval.requestedBy)?.name || ''
+    }, approvers);
+    res.json({ ok: true, results });
+  } catch (error) { next(error); }
+});
+
+app.use((error, req, res, next) => {
+  if (res.headersSent) return next(error);
+  const status = error.status || 500;
+  res.status(status).json({ error: status < 500 ? error.message : (status === 503 ? error.message : '서버 처리에 실패했습니다.') });
 });
 
 app.listen(PORT, '0.0.0.0', () => {

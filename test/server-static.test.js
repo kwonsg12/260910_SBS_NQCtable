@@ -11,14 +11,15 @@ const { test } = require('node:test');
 
 const projectRoot = path.resolve(__dirname, '..');
 
-function request(port, pathname, method = 'GET', body) {
+function request(port, pathname, method = 'GET', body, adminToken) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? undefined : JSON.stringify(body);
     const req = http.request({
       hostname: '127.0.0.1', port, path: pathname, method,
       headers: payload === undefined ? {} : {
         'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
+        'Content-Length': Buffer.byteLength(payload),
+        ...(adminToken ? { 'X-Admin-Token': adminToken } : {})
       }
     }, res => {
       const chunks = [];
@@ -59,7 +60,7 @@ test('HTTP file boundary and existing API routes', { timeout: 30000 }, async t =
   });
 
   for (const file of [
-    'server.js', 'db.js', 'notifier.js', 'kakao-notify.ps1',
+    'server.js', 'db.js', 'security.js', 'notifier.js', 'kakao-notify.ps1',
     'index.html', 'sbs-logo.png', 'package.json', 'package-lock.json',
     'README.md', 'app.js', 'styles.css'
   ]) {
@@ -75,13 +76,14 @@ test('HTTP file boundary and existing API routes', { timeout: 30000 }, async t =
     fs.mkdirSync(path.dirname(path.join(fixture, file)), { recursive: true });
     fs.writeFileSync(path.join(fixture, file), 'TEST_SENTINEL=private-fixture-only\n');
   }
+  const adminPassword = 'test-admin-password-only';
   const port = await unusedPort();
   child = spawn(process.execPath, [path.join(fixture, 'server.js')], {
     cwd: fixture,
     env: {
       ...process.env, PORT: String(port),
       NODE_PATH: path.join(projectRoot, 'node_modules'),
-      SMTP_HOST: '', KAKAO_AUTOMATION: 'false'
+      SMTP_HOST: '', KAKAO_AUTOMATION: 'false', ADMIN_PASSWORD: adminPassword
     },
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe']
@@ -130,28 +132,31 @@ test('HTTP file boundary and existing API routes', { timeout: 30000 }, async t =
   });
 
   await t.test('state API reads and writes the isolated database', async () => {
+    const login = await request(port, '/api/auth/admin', 'POST', { password: adminPassword });
+    assert.equal(login.status, 200);
+    const token = JSON.parse(login.body).token;
     const initial = await request(port, '/api/state');
     assert.equal(JSON.parse(initial.body).state, null);
-    const state = { employees: [], requests: [], marker: 'disposable-test' };
+    const state = { employees: [], requests: [], settings: { quotaMax: 3 }, marker: 'disposable-test' };
     const baseRevision = JSON.parse(initial.body).revision ?? 0;
-    const saved = await request(port, '/api/state', 'POST', { state, baseRevision });
-    assert.equal(saved.status, 200);
+    const saved = await request(port, '/api/state', 'POST', { state, baseRevision }, token);
+    assert.equal(saved.status, 200, saved.body);
     assert.equal(JSON.parse(saved.body).ok, true);
     const loaded = await request(port, '/api/state');
-    assert.deepEqual(JSON.parse(loaded.body).state, state);
+    assert.deepEqual(JSON.parse(loaded.body).state, { ...state, approvers: [] });
     assert.ok(JSON.parse(loaded.body).updatedAt);
-    assert.equal((await request(port, '/api/state', 'POST', { state: [] })).status, 400);
+    assert.equal((await request(port, '/api/state', 'POST', { state: [], baseRevision: JSON.parse(loaded.body).revision }, token)).status, 400);
   });
 
   await t.test('notification API still validates requests without sending messages', async () => {
     const res = await request(port, '/api/notify', 'POST', {});
     assert.equal(res.status, 400);
-    assert.equal(JSON.parse(res.body).error, 'invalid notify payload');
+    assert.equal(JSON.parse(res.body).error, '저장된 승인 대기 건만 알림을 보낼 수 있습니다.');
   });
 
   await t.test('existing private files and unlisted files return 404 for GET and HEAD', async () => {
     for (const file of [
-      ...privateFiles, 'geunmupyo.db', 'server.js', 'db.js', 'notifier.js',
+      ...privateFiles, 'geunmupyo.db', 'server.js', 'db.js', 'security.js', 'notifier.js',
       'kakao-notify.ps1', 'package.json', 'package-lock.json', 'README.md',
       'app.js', 'styles.css', 'missing-file.txt'
     ]) {

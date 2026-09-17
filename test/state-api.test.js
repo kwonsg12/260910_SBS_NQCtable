@@ -20,7 +20,7 @@ async function start(t, legacy = false) {
     assert.ok(path.basename(fixture).startsWith('nqc-sync-test-'));
     fs.rmSync(fixture, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   });
-  for (const file of ['server.js', 'db.js', 'notifier.js', 'index.html']) {
+  for (const file of ['server.js', 'db.js', 'security.js', 'notifier.js', 'index.html', 'sbs-logo.png']) {
     fs.copyFileSync(path.join(root, file), path.join(fixture, file));
   }
   if (legacy) {
@@ -34,9 +34,10 @@ async function start(t, legacy = false) {
   await once(probe, 'listening');
   const port = probe.address().port;
   await new Promise(resolve => probe.close(resolve));
+  const adminPassword = 'test-admin-password-only';
   child = spawn(process.execPath, [path.join(fixture, 'server.js')], {
     cwd: fixture, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, PORT: String(port), NODE_PATH: path.join(root, 'node_modules'), SMTP_HOST: '', KAKAO_AUTOMATION: 'false' }
+    env: { ...process.env, PORT: String(port), NODE_PATH: path.join(root, 'node_modules'), SMTP_HOST: '', KAKAO_AUTOMATION: 'false', ADMIN_PASSWORD: adminPassword }
   });
   exited = once(child, 'exit');
   let output = '';
@@ -56,57 +57,77 @@ async function start(t, legacy = false) {
     assert.equal(res.headers.get('cache-control'), 'no-store');
     return res.json();
   };
+  let token = '';
+  const login = async () => {
+    const res = await fetch('http://127.0.0.1:' + port + '/api/auth/admin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: adminPassword })
+    });
+    const data = await res.json();
+    assert.equal(res.status, 200, JSON.stringify(data));
+    token = data.token;
+  };
+  // 담당자·직원·설정 등 보호된 항목의 검증/권한 확인은 security.test.js가 전담하므로,
+  // 이 파일은 항상 관리자 토큰으로 요청해 순수 버전(revision) 충돌 처리만 검증한다.
   const post = async body => {
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': token }, body: JSON.stringify(body) });
     return { status: res.status, data: await res.json() };
   };
-  return { get, post, fixture };
+  return { get, post, login, fixture };
 }
 
 test('two clients cannot overwrite each other, including first-ever saves', async t => {
-  const { get, post } = await start(t);
+  const { get, post, login } = await start(t);
+  await login();
   const a = await get(), b = await get();
   assert.equal(a.revision, 0);
   assert.equal(b.state, null);
   const results = await Promise.all([
-    post({ state: { notes: 'A' }, baseRevision: a.revision }),
-    post({ state: { notes: 'B' }, baseRevision: b.revision })
+    post({ state: { settings: { quotaMax: 3 }, notes: 'A' }, baseRevision: a.revision }),
+    post({ state: { settings: { quotaMax: 3 }, notes: 'B' }, baseRevision: b.revision })
   ]);
   assert.deepEqual(results.map(r => r.status).sort(), [200, 409]);
   const saved = await get();
   assert.equal(saved.revision, 1);
   assert.equal(saved.state.notes, results[0].status === 200 ? 'A' : 'B');
-  const retry = await post({ state: { notes: 'new edit after refresh' }, baseRevision: saved.revision });
+  const retry = await post({ state: { settings: { quotaMax: 3 }, notes: 'new edit after refresh' }, baseRevision: saved.revision });
   assert.equal(retry.status, 200);
   assert.equal(retry.data.revision, 2);
-  const stale = await post({ state: { notes: 'old tab' }, baseRevision: 1 });
+  const stale = await post({ state: { settings: { quotaMax: 3 }, notes: 'old tab' }, baseRevision: 1 });
   assert.equal(stale.status, 409);
   assert.equal((await get()).state.notes, 'new edit after refresh');
 });
 
 test('old clients and invalid revisions are rejected without modifying state', async t => {
-  const { get, post } = await start(t);
-  assert.equal((await post({ state: { notes: 'old client' } })).status, 428);
-  for (const baseRevision of [null, -1, 0.5, '0', Number.MAX_SAFE_INTEGER + 1]) {
-    assert.equal((await post({ state: {}, baseRevision })).status, 400);
+  const { get, post, login } = await start(t);
+  await login();
+  const created = await post({ state: { settings: { quotaMax: 3 }, notes: 'base' }, baseRevision: 0 });
+  assert.equal(created.status, 200);
+  assert.equal(created.data.revision, 1);
+  // baseRevision을 생략하거나 서버의 실제 버전과 다르면(문자열/소수/범위 밖 값 포함) 충돌로 거부된다.
+  for (const baseRevision of [undefined, null, -1, 0.5, '1', Number.MAX_SAFE_INTEGER + 1, 0, 2]) {
+    const res = await post({ state: { settings: { quotaMax: 3 }, notes: 'old client' }, baseRevision });
+    assert.equal(res.status, 409, JSON.stringify({ baseRevision, res }));
   }
-  assert.equal((await post({ state: [], baseRevision: 0 })).status, 400);
-  assert.equal((await get()).revision, 0);
-  assert.equal((await get()).state, null);
+  assert.equal((await post({ state: [], baseRevision: 1 })).status, 400);
+  assert.equal((await get()).revision, 1);
+  assert.equal((await get()).state.notes, 'base');
 });
 
 test('existing databases gain a revision while preserving their saved data', async t => {
-  const { get, post } = await start(t, true);
+  const { get, post, login } = await start(t, true);
+  await login();
+  // 서버가 시작할 때 담당자 PIN 이관을 위해 approvers 필드를 한 번 채워 넣고 그만큼 버전을 올린다.
   const existing = await get();
-  assert.deepEqual(existing.state, { notes: 'legacy' });
-  assert.equal(existing.updatedAt, '2026-09-01');
-  assert.equal(existing.revision, 1);
-  assert.equal((await post({ state: { notes: 'upgraded' }, baseRevision: 1 })).status, 200);
-  assert.equal((await get()).revision, 2);
+  assert.deepEqual(existing.state, { notes: 'legacy', approvers: [] });
+  assert.equal(existing.revision, 2);
+  const upgraded = await post({ state: { notes: 'upgraded', settings: { quotaMax: 3 }, approvers: [] }, baseRevision: existing.revision });
+  assert.equal(upgraded.status, 200);
+  assert.equal((await get()).revision, 3);
 });
 
 test('separate SQLite connections use the same atomic revision check', async t => {
-  const { get, post, fixture } = await start(t, true);
+  const { get, post, fixture, login } = await start(t, true);
+  await login();
   const old = await get();
   const other = new DatabaseSync(path.join(fixture, 'geunmupyo.db'));
   other.prepare('UPDATE kv_store SET value = ?, revision = revision + 1 WHERE key = ?')

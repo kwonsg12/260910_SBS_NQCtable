@@ -32,8 +32,12 @@ const STATE_KEY = 'schedule_state';
 function getState() {
   const row = db.prepare('SELECT value, updated_at, revision FROM kv_store WHERE key = ?').get(STATE_KEY);
   if (!row) return null;
-  // 손상된 DB를 빈 DB로 오인해 초기값으로 덮어쓰지 않는다.
-  return { state: JSON.parse(row.value), updatedAt: row.updated_at, revision: row.revision };
+  try {
+    // 손상된 DB를 빈 DB로 오인해 초기값으로 덮어쓰지 않는다.
+    return { state: JSON.parse(row.value), updatedAt: row.updated_at, revision: row.revision };
+  } catch (e) {
+    throw new Error('저장된 근무표 JSON을 읽을 수 없습니다.', { cause: e });
+  }
 }
 
 const insertStmt = db.prepare(`

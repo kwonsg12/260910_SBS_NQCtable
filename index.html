@@ -184,6 +184,12 @@
 </style>
 </head>
 <body>
+<section style="padding:10px 24px;background:#fff7dd;border-bottom:1px solid #e2e6ec">
+  <span id="securityStatus" role="status">승인·설정 변경은 서버에서 권한을 확인합니다.</span>
+  <button id="securityLogin" type="button" class="btn secondary">관리자 인증</button>
+  <button id="securityRetry" type="button" class="btn secondary">저장 재시도</button>
+  <button id="securityLogout" type="button" class="btn secondary">인증 해제</button>
+</section>
 
 <header>
   <div class="header-copy">
@@ -369,7 +375,7 @@
         <div>
           <h3 style="font-size:13.5px;">카카오톡 알림톡</h3>
           <label>발송 대행사 API Key (예: Solapi/Aligo/NHN Toast)</label>
-          <input type="text" id="setKakaoKey" placeholder="예: NCS****************" style="width:100%;">
+          <input type="text" id="setKakaoKey" placeholder="예: NCS****************" style="width:100%;" disabled title="서버 설정 사용">
           <label style="margin-top:8px;">발신 프로필(카카오 채널) ID</label>
           <input type="text" id="setKakaoSender" placeholder="@우리회사관제실" style="width:100%;">
           <label style="margin-top:8px;">승인된 알림톡 템플릿 코드</label>
@@ -382,11 +388,11 @@
           <label style="margin-top:8px;">발신 계정</label>
           <input type="text" id="setSmtpUser" placeholder="noreply@company.com" style="width:100%;">
           <label style="margin-top:8px;">앱 비밀번호 / API Key</label>
-          <input type="password" id="setSmtpPass" placeholder="********" style="width:100%;">
+          <input type="password" id="setSmtpPass" placeholder="********" style="width:100%;" disabled title="서버 SMTP_PASS 사용">
         </div>
       </div>
-      <div class="row" style="margin-top:14px;"><button class="btn" id="settingsSaveBtn">브라우저에 임시 저장</button></div>
-      <p class="quota">⚠️ 이 값들은 데모 편의를 위해 브라우저 localStorage에만 저장됩니다. 실제 서비스에서는 절대 프론트엔드에 API Key/비밀번호를 두지 말고 백엔드 서버 환경변수(.env)에서만 다루세요.</p>
+      <div class="row" style="margin-top:14px;"><button class="btn" id="settingsSaveBtn">설정 저장</button></div>
+      <p class="quota">관리자 인증 후 서버에 저장합니다. 실제 발송에 사용하는 비밀번호·키는 서버 .env에서 설정합니다.</p>
     </div>
     <div class="panel">
       <h2>담당자(승인권자) 관리 <span class="sub">승인 요청을 받을 사람</span></h2>
@@ -404,7 +410,7 @@
         <div>
           <label>카카오톡 표시 이름 (선택)</label>
           <input type="text" id="approverKakao" placeholder="카카오톡 친구 목록에 보이는 이름" style="width:100%;">
-          <label style="margin-top:8px;">승인 PIN (선택)</label>
+          <label style="margin-top:8px;">승인 PIN (필수, 6자 이상)</label>
           <input type="password" id="approverPin" placeholder="승인 시 확인용" style="width:100%;">
         </div>
       </div>
@@ -476,9 +482,9 @@
       <div class="row" style="margin-top:14px;">
         <div style="min-width:220px;">
           <label>관리자 PIN</label>
-          <input type="password" id="adminPin" placeholder="수정 기능 보호용 PIN">
+          <input type="password" id="adminPin" placeholder="수정 기능 보호용 PIN" disabled title="서버 ADMIN_PASSWORD 사용">
         </div>
-          <p class="quota">관리자 인증은 추후 서버 연동 예정입니다. 현재는 PIN 없이 수정 기능을 사용할 수 있습니다.</p>
+          <p class="quota">상단 ‘관리자 인증’에서 서버 관리자 비밀번호로 인증하면 15분 동안 설정과 근무표를 수정할 수 있습니다. 비밀번호는 서버 .env의 ADMIN_PASSWORD에서 관리합니다.</p>
       </div>
     </div>
     <div class="panel">
@@ -595,6 +601,31 @@
 </div>
 
 <script>
+  document.getElementById('securityLogin').addEventListener('click', loginAdmin);
+  document.getElementById('securityRetry').addEventListener('click', () => flushPendingState().catch(error => securityMessage(error.message)));
+  document.getElementById('securityLogout').addEventListener('click', () => {
+    adminToken = ''; adminUntil = 0; securityMessage('이 화면의 관리자 인증을 해제했습니다.');
+  });
+  document.addEventListener('click', async event => {
+    const button = event.target.closest('[data-security-action]');
+    if (!button) return;
+    const { securityAction: action, id, emp, date } = button.dataset;
+    if (action === 'approve' || action === 'reject') await decideApproval(id, action === 'approve');
+    else if (action === 'remove') removeApprover(id);
+    else if (action === 'excuse') submitExcuse(emp, date);
+    else if (action === 'cancel-request') cancelRequest(id);
+    else if (action === 'cancel-protect') cancelProtect(id);
+    else if (action === 'pin' && requireAdmin('담당자 PIN 변경')) {
+      const input = await askCredential('새 담당자 PIN (6자 이상)');
+      if (!input) return;
+      if (input.secret.length < 6) { securityMessage('PIN을 6자 이상 입력해주세요.'); return; }
+      pendingApproverPins[id] = input.secret;
+      const actor = approverById(id);
+      if (actor) actor.pinConfigured = true;
+      saveState();
+      renderAll();
+    }
+  });
   // routine: 4조 교대 루틴 근무자 여부. 이 사람들끼리만 서로 대근을 선다(1순위).
   // 이후 추가되는 인원(적응 중이거나 상근자)은 routine:false 라 자동 대근 대상이 아니다.
   let EMPLOYEES = [
@@ -638,6 +669,64 @@
     '2028-02-24':'설날', '2028-02-25':'설날', '2028-02-26':'설날',
     '2028-05-22':'부처님오신날', '2028-10-03':'추석', '2028-10-04':'추석', '2028-10-05':'추석'
   };
+
+  // Credentials live only in memory. Shared state/localStorage never contain PINs.
+  let adminToken = '', adminUntil = 0;
+  const pendingApproverPins = Object.create(null);
+  function securityMessage(message) {
+    const node = document.getElementById('securityStatus');
+    if (node) node.textContent = message;
+  }
+  async function securityRequest(url, body) {
+    if (LOCAL_MODE) throw new Error('승인·관리자 기능은 공유 서버에서 열어주세요.');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
+      body: JSON.stringify(body)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 403) adminUntil = 0;
+      throw new Error(result.error || '서버 요청에 실패했습니다.');
+    }
+    return result;
+  }
+  function askCredential(title, withReason = false) {
+    return new Promise(resolve => {
+      const dialog = document.createElement('dialog');
+      dialog.style.cssText = 'border:1px solid #cbd5e1;border-radius:12px;padding:24px;max-width:440px;width:90%';
+      dialog.innerHTML = '<form><h3></h3><label>비밀번호 / PIN<input type="password" name="secret" autocomplete="off" required maxlength="128" style="display:block;width:100%;margin:8px 0"></label><label class="reason">반려 사유<textarea name="reason" maxlength="2000" style="display:block;width:100%"></textarea></label><div class="row" style="margin-top:16px"><button type="submit" class="btn">확인</button><button type="button" class="btn secondary">취소</button></div></form>';
+      dialog.querySelector('h3').textContent = title;
+      dialog.querySelector('.reason').style.display = withReason ? 'block' : 'none';
+      dialog.querySelector('textarea').required = withReason;
+      const done = value => { dialog.close(); dialog.remove(); resolve(value); };
+      dialog.querySelector('form').addEventListener('submit', event => {
+        event.preventDefault();
+        done({ secret: dialog.querySelector('input').value, reason: dialog.querySelector('textarea').value.trim() });
+      });
+      dialog.querySelector('[type=button]').addEventListener('click', () => done(null));
+      dialog.addEventListener('cancel', event => { event.preventDefault(); done(null); });
+      document.body.append(dialog);
+      dialog.showModal();
+    });
+  }
+  async function loginAdmin() {
+    const input = await askCredential('서버 관리자 인증');
+    if (!input) return;
+    try {
+      const result = await securityRequest('/api/auth/admin', { password: input.secret });
+      adminToken = result.token;
+      adminUntil = Date.now() + 15 * 60 * 1000;
+      securityMessage('관리자 인증 완료(15분). 하려던 작업을 다시 눌러주세요.');
+      // 인증 전에는 저장이 막혀 있었을 수 있으니, 밀린 변경이 있으면 지금 바로 반영한다.
+      if (stateSync && stateSync.info().dirty) await stateSync.retry();
+    } catch (error) { securityMessage(error.message); }
+  }
+  // stateSync가 저장을 전담하므로, 저장 대기 중인 변경을 지금 바로 반영해야 할 때(관리자
+  // 인증 직후, 승인 처리 직전 등) 디바운스를 건너뛰고 즉시 시도만 해준다.
+  async function flushPendingState() {
+    if (stateSync && stateSync.info().dirty) await stateSync.retry();
+  }
 
   const STORE_KEY = 'ncq_schedule_v1';
   let STATE = normalizeState();
@@ -795,11 +884,13 @@
     try {
       const response = await fetch('/api/state', {
         method, cache: 'no-store', signal: controller.signal,
-        headers: payload ? { 'Content-Type': 'application/json' } : {},
+        headers: payload ? { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken } : {},
         body: payload ? JSON.stringify(payload) : undefined
       });
       if (!response.ok) {
-        const error = new Error('Server request failed');
+        if (response.status === 403) adminUntil = 0;
+        const body = await response.json().catch(() => ({}));
+        const error = new Error(body.error || 'Server request failed');
         error.status = response.status;
         throw error;
       }
@@ -847,7 +938,16 @@
     }
     stateSync = createStateSync({
       read: () => stateRequest(),
-      write: (state, baseRevision) => stateRequest('POST', { state, baseRevision }),
+      write: (state, baseRevision) => {
+        const pins = { ...pendingApproverPins };
+        return stateRequest('POST', { state, baseRevision, approverPins: pins }).then(result => {
+          for (const [id, pin] of Object.entries(pins)) if (pendingApproverPins[id] === pin) delete pendingApproverPins[id];
+          return result;
+        }, error => {
+          if (error.status !== 409) securityMessage(error.message);
+          throw error;
+        });
+      },
       apply: raw => { STATE = normalizeState(raw); EMPLOYEES = STATE.employees; },
       changed: showStorageStatus,
       drafts: {
@@ -1086,7 +1186,11 @@
     STATE.auditLogs.unshift({ id: uid(), action, details, at: new Date().toISOString() });
   }
   function requireAdmin(action){
-    addAuditLog('임시 관리자 수정', { action });
+    if (!adminToken || Date.now() >= adminUntil) {
+      securityMessage(action + ': 상단의 관리자 인증을 먼저 눌러주세요.');
+      return false;
+    }
+    addAuditLog('관리자 수정', { action });
     return true;
   }
 
@@ -1326,13 +1430,13 @@
       if (isHoliday) dayClass.push('holiday');
       if (isSaturday) dayClass.push('weekend');
       const dateColClass = isHoliday ? 'day-holiday' : (isSaturday ? 'day-saturday' : 'day-weekday');
-      thead += `<th class="${dayClass.join(' ')} ${dateColClass}" title="${info ? info.name : ''}"><span class="date-num">${d}</span><span class="date-week">${WEEKDAY_KO[date.getDay()]}</span></th>`;
+      thead += `<th class="${dayClass.join(' ')} ${dateColClass}" title="${escapeAttribute(info ? info.name : '')}"><span class="date-num">${d}</span><span class="date-week">${WEEKDAY_KO[date.getDay()]}</span></th>`;
     }
     thead += '</tr>';
 
     let rows = '';
     getActiveStaff(y, m).forEach(emp => {
-      let r = `<tr><td class="name" style="width:150px;">${emp.name}</td>`;
+      let r = `<tr><td class="name" style="width:150px;">${escapeAttribute(emp.name)}</td>`;
       for(let d = 1; d <= daysInMonth; d++){
         const date = new Date(y, m, d);
         const info = getHolidayInfo(date);
@@ -1354,7 +1458,7 @@
         const cellClass = sh === '휴가' ? 'cell-휴가' : sh === '대일' ? 'cell-대일' : isSubstitute && (sh === '야' || sh === '조') ? 'cell-대근' : isStandardShift(sh) ? 'cell-' + sh : 'cell-custom';
         const cellClasses = [cellClass, dateColClass];
         if (isProtectedOn(emp.id, date)) cellClasses.push('cell-protected');
-        r += `<td class="${cellClasses.join(' ')}"${span > 1 ? ` colspan="${span}"` : ''}>${sh}</td>`;
+        r += `<td class="${escapeAttribute(cellClasses.join(' '))}"${span > 1 ? ` colspan="${span}"` : ''}>${escapeAttribute(sh)}</td>`;
       }
       r += '</tr>';
       rows += r;
@@ -1507,8 +1611,8 @@
     if(result.error){ alert('⚠ ' + result.error); return; }
     pendingChain = {empId, type, startDate: fmt(date), chain: result.chain};
     const lines = result.chain.map(c => {
-      if(c.empId === empId) return `📅 ${c.date} — <b>${empName(empId)}</b>: ${c.label}`;
-      return `↳ 📅 ${c.date} — <b>${empName(c.empId)}</b>: ${c.label} (원래는 비번이었음)`;
+      if(c.empId === empId) return `📅 ${escapeAttribute(c.date)} — <b>${escapeAttribute(empName(empId))}</b>: ${escapeAttribute(c.label)}`;
+      return `↳ 📅 ${escapeAttribute(c.date)} — <b>${escapeAttribute(empName(c.empId))}</b>: ${escapeAttribute(c.label)} (원래는 비번이었음)`;
     });
     $('#modalChain').innerHTML = lines.join('<br>');
     $('#modalTitle').textContent = '대근 배정 미리보기 — 확정 시 즉시 알림 발송';
@@ -1535,7 +1639,7 @@
       }
     });
     if (req.status === 'pending'){
-      const chainTxt = req.chain.map(c => `${c.date} ${empName(c.empId)}: ${c.label}`).join('\n');
+      const chainTxt = req.chain.map(c => `${escapeAttribute(c.date)} ${escapeAttribute(empName(c.empId))}: ${escapeAttribute(c.label)}`).join('\n');
       createApproval({
         type: 'leave',
         refId: req.id,
@@ -1560,11 +1664,11 @@
       const statusTag = r.status === 'pending' ? '<span class="tag warn">승인대기</span>'
         : r.status === 'cancelled' ? (r.cancelledAt ? '<span class="tag" style="background:#f3f4f6;color:#6b7684;">취소됨</span>' : '<span class="tag" style="background:#fee2e2;color:#dc2626;">반려됨</span>')
         : '<span class="tag" style="background:#eafbea;color:#16a34a;">확정</span>';
-      const chainTxt = r.chain.map(c => `${c.date} ${empName(c.empId)}:${c.label}`).join(' → ');
-      return `<div class="list-item">${tag}${statusTag}<b>${empName(r.empId)}</b> — ${r.startDate} 부터
-        <div class="meta">${chainTxt}</div>
+      const chainTxt = r.chain.map(c => `${escapeAttribute(c.date)} ${escapeAttribute(empName(c.empId))}:${escapeAttribute(c.label)}`).join(' → ');
+      return `<div class="list-item">${tag}${statusTag}<b>${escapeAttribute(empName(r.empId))}</b> — ${escapeAttribute(r.startDate)} 부터
+        <div class="meta">${escapeAttribute(chainTxt)}</div>
         <div class="meta">신청시각: ${new Date(r.submittedAt).toLocaleString('ko-KR')}</div>
-        ${r.status !== 'cancelled' ? `<div class="row" style="margin-top:6px;"><button class="btn ghost" onclick="cancelRequest('${r.id}')">취소</button></div>` : ''}
+        ${r.status !== 'cancelled' ? `<div class="row" style="margin-top:6px;"><button class="btn ghost" data-security-action="cancel-request" data-id="${escapeAttribute(r.id)}">취소</button></div>` : ''}
       </div>`;
     }).join('');
   }
@@ -1697,10 +1801,10 @@
         : p.status === 'cancelled' ? '<span class="tag" style="background:#f3f4f6;color:#6b7684;">취소됨</span>'
         : '<span class="tag" style="background:#eafbea;color:#16a34a;">확정</span>';
       const cancellable = p.status !== 'rejected' && p.status !== 'cancelled';
-      return `<div class="list-item">${statusTag}<b>${empName(p.empId)}</b> — ${p.date} 대근 불가(비번 보장)
-        ${p.reason ? `<div class="meta">사유: ${p.reason}</div>` : ''}
+      return `<div class="list-item">${statusTag}<b>${escapeAttribute(empName(p.empId))}</b> — ${escapeAttribute(p.date)} 대근 불가(비번 보장)
+        ${p.reason ? `<div class="meta">사유: ${escapeAttribute(p.reason)}</div>` : ''}
         <div class="meta">신청시각: ${new Date(p.submittedAt).toLocaleString('ko-KR')}</div>
-        ${cancellable ? `<div class="row" style="margin-top:6px;"><button class="btn ghost" onclick="cancelProtect('${p.id}')">취소</button></div>` : ''}
+        ${cancellable ? `<div class="row" style="margin-top:6px;"><button class="btn ghost" data-security-action="cancel-protect" data-id="${escapeAttribute(p.id)}">취소</button></div>` : ''}
       </div>`;
     }).join('');
   }
@@ -1733,12 +1837,12 @@
     else {
       wrap.innerHTML = mine.map(m => {
         const already = STATE.excuses.find(e => e.empId === empId && e.date === m.date);
-        return `<div class="list-item"><b>${m.date}</b> — ${m.label} (${empName(m.sourceEmp)}님 휴가 대근)
-          <div class="meta">${already ? `제출된 불가 사유: "${already.reason}"` : ''}</div>
+        return `<div class="list-item"><b>${escapeAttribute(m.date)}</b> — ${escapeAttribute(m.label)} (${escapeAttribute(empName(m.sourceEmp))}님 휴가 대근)
+          <div class="meta">${already ? `제출된 불가 사유: "${escapeAttribute(already.reason)}"` : ''}</div>
           ${already ? '' : `<div style="margin-top:6px;">
-            <textarea placeholder="대근 불가 사유 (25일 00시 전까지 제출)" id="excuse-${m.date}-${empId}"></textarea>
+            <textarea placeholder="대근 불가 사유 (25일 00시 전까지 제출)" id="excuse-${escapeAttribute(m.date)}-${escapeAttribute(empId)}"></textarea>
             <div class="row" style="margin-top:8px;">
-              <button class="btn" onclick="submitExcuse('${empId}','${m.date}')">불가 사유 제출</button>
+              <button class="btn" data-security-action="excuse" data-emp="${escapeAttribute(empId)}" data-date="${escapeAttribute(m.date)}">불가 사유 제출</button>
             </div>
           </div>`}
         </div>`;
@@ -1759,12 +1863,8 @@
   }
 
   function approveProtect(id, ok){
-    const p = STATE.protects.find(x => x.id === id);
-    if(!p) return;
-    p.status = ok ? 'approved' : 'rejected';
-    notifyAll(p.empId, ok ? '✅ 비번 보장 승인' : '❌ 비번 보장 반려', `${p.date} 비번 보장 신청이 ${ok ? '승인' : '반려'}되었습니다.`);
-    saveState();
-    renderAll();
+    const approval = STATE.approvals.find(a => a.type === 'protect' && a.refId === id && a.status === 'pending');
+    if (approval) decideApproval(approval.id, ok);
   }
 
   // ───────────────────────── 담당자 승인 (Phase 2) ─────────────────────────
@@ -1785,7 +1885,7 @@
       const tokens = scope.split(/[,\s]+/).filter(Boolean);
       return tokens.some(t => t === empId || (emp && t === emp.name));
     });
-    return matched.length ? matched : all;
+    return empId === null ? all : matched;
   }
 
   const APPROVAL_TYPE_LABEL = { leave: '휴가·대근 배정', protect: '비번 보장 초과', monthly: '월간 근무표 확정' };
@@ -1810,7 +1910,8 @@
     // 화면 안 알림 로그(기존 동작)
     targets.forEach(a => notify('email', a.id, `📋 승인 요청 — ${APPROVAL_TYPE_LABEL[type] || type}`, `${title}\n${summary}`));
     // 서버를 통해 실제 사내메일/카카오톡 발송 (서버가 없으면 조용히 무시됨)
-    sendServerNotification(approval, targets);
+    // 저장이 완료된 승인 요청만 서버가 조회해 발송합니다.
+    setTimeout(() => flushPendingState().then(() => sendServerNotification(approval, targets)).catch(error => securityMessage(error.message)), 0);
     return approval;
   }
 
@@ -1846,68 +1947,21 @@
     const targets = findApproversFor(aboutEmpId);
     targets.forEach(a => notify('email', a.id, title, body));
     if (!targets.length) return;
-    sendServerNotification({ id: '', type: 'info', title, summary: body, requestedByName: aboutEmpId ? empName(aboutEmpId) : '', requestedAt: new Date().toISOString() }, targets);
+    // 일반 안내는 화면 알림에 기록합니다. 실제 발송은 저장된 승인 요청에 한정합니다.
   }
 
-  function decideApproval(id, ok){
+  async function decideApproval(id, ok){
     const approval = STATE.approvals.find(a => a.id === id);
-    if (!approval || approval.status !== 'pending') return;
-
-    const approverId = $('#approvalActorSelect')?.value || '';
-    const actor = approverById(approverId);
-    if (!actor){ alert('먼저 승인함 상단에서 본인(담당자)을 선택해주세요. 담당자는 설정 탭에서 등록합니다.'); return; }
-    if (actor.pin){
-      const entered = prompt(`${actor.name} 담당자 PIN을 입력해주세요.`);
-      if (entered === null) return;
-      if (String(entered) !== String(actor.pin)){ alert('PIN이 일치하지 않습니다.'); return; }
-    }
-    let reason = '';
-    if (!ok){
-      reason = prompt('반려 사유를 입력해주세요.') || '';
-      if (!reason.trim()){ alert('반려 사유가 필요합니다.'); return; }
-    }
-
-    approval.status = ok ? 'approved' : 'rejected';
-    approval.decidedBy = actor.id;
-    approval.decidedAt = new Date().toISOString();
-    approval.decisionReason = reason.trim();
-    addAuditLog(ok ? '승인' : '반려', { approvalId: approval.id, type: approval.type, by: actor.name, reason: approval.decisionReason });
-
-    applyApprovalDecision(approval, ok, actor);
-
-    if (approval.requestedBy){
-      notifyAll(approval.requestedBy,
-        ok ? '✅ 승인되었습니다' : '❌ 반려되었습니다',
-        `${approval.title} — ${actor.name} 담당자가 ${ok ? '승인' : '반려'}했습니다.${approval.decisionReason ? ` 사유: ${approval.decisionReason}` : ''}`);
-    }
-    saveState();
-    renderAll();
-    showToast(ok ? '승인 처리했습니다.' : '반려 처리했습니다.', ok ? 'ok' : 'warn');
-  }
-
-  // 승인/반려 결과를 실제 데이터에 반영한다.
-  function applyApprovalDecision(approval, ok, actor){
-    if (approval.type === 'leave'){
-      const req = STATE.requests.find(r => r.id === approval.refId);
-      if (req){
-        // 반려하면 'cancelled'가 되어 근무표의 대근 배정이 자동으로 원상복구된다
-        // (findChainAssignment가 cancelled를 건너뛰기 때문).
-        req.status = ok ? 'confirmed' : 'cancelled';
-      }
-    } else if (approval.type === 'protect'){
-      const pro = STATE.protects.find(p => p.id === approval.refId);
-      if (pro) pro.status = ok ? 'approved' : 'rejected';
-    } else if (approval.type === 'monthly'){
-      if (ok){
-        STATE.monthlyApprovals[approval.refId] = {
-          approverId: actor.id,
-          approverName: actor.name,
-          at: new Date().toISOString()
-        };
-      } else {
-        delete STATE.monthlyApprovals[approval.refId];
-      }
-    }
+    const actor = approverById($('#approvalActorSelect')?.value || '');
+    if (!approval || approval.status !== 'pending' || !actor) return;
+    if (!approval.approverIds?.includes(actor.id)) { securityMessage('이 신청의 담당자를 선택해주세요.'); return; }
+    try {
+      await flushPendingState();
+      const input = await askCredential(actor.name + ' 담당자 PIN', !ok);
+      if (!input) return;
+      await securityRequest('/api/approvals/decision', { id, approverId: actor.id, pin: input.secret, approved: ok, reason: input.reason });
+      location.reload();
+    } catch (error) { securityMessage(error.message); }
   }
 
   function renderApprovalInbox(){
@@ -1916,7 +1970,7 @@
       const prev = actorSel.value;
       const approvers = getApprovers();
       actorSel.innerHTML = approvers.length
-        ? approvers.map(a => `<option value="${a.id}">${a.name}${a.scope ? ` (${a.scope})` : ''}</option>`).join('')
+        ? approvers.map(a => `<option value="${escapeAttribute(a.id)}">${escapeAttribute(a.name)}${a.scope ? ` (${escapeAttribute(a.scope)})` : ''}</option>`).join('')
         : '<option value="">등록된 담당자가 없습니다 — 설정 탭에서 등록</option>';
       if (prev && approvers.some(a => a.id === prev)) actorSel.value = prev;
     }
@@ -1925,12 +1979,12 @@
     const pend = pendingApprovals();
     if (pend.length === 0){ wrap.innerHTML = '<p class="empty">승인 대기 건이 없습니다.</p>'; return; }
     wrap.innerHTML = pend.map(a => `<div class="list-item">
-      <span class="tag warn">${APPROVAL_TYPE_LABEL[a.type] || a.type}</span><b>${a.title}</b>
-      <div class="meta">${String(a.summary || '').replace(/\n/g, '<br>')}</div>
-      <div class="meta">요청시각: ${new Date(a.requestedAt).toLocaleString('ko-KR')}${a.approverIds?.length ? ` · 담당: ${a.approverIds.map(approverName).join(', ')}` : ''}</div>
+      <span class="tag warn">${escapeAttribute(APPROVAL_TYPE_LABEL[a.type] || a.type)}</span><b>${escapeAttribute(a.title)}</b>
+      <div class="meta">${escapeAttribute(a.summary || '').replace(/\n/g, '<br>')}</div>
+      <div class="meta">요청시각: ${new Date(a.requestedAt).toLocaleString('ko-KR')}${a.approverIds?.length ? ` · 담당: ${escapeAttribute(a.approverIds.map(approverName).join(', '))}` : ''}</div>
       <div class="row" style="margin-top:8px;">
-        <button class="btn" onclick="decideApproval('${a.id}',true)">승인</button>
-        <button class="btn secondary" onclick="decideApproval('${a.id}',false)">반려</button>
+        <button class="btn" data-security-action="approve" data-id="${escapeAttribute(a.id)}">승인</button>
+        <button class="btn secondary" data-security-action="reject" data-id="${escapeAttribute(a.id)}">반려</button>
       </div>
     </div>`).join('');
   }
@@ -1944,8 +1998,8 @@
       const tag = a.status === 'approved'
         ? '<span class="tag" style="background:#eafbea;color:#16a34a;">승인</span>'
         : '<span class="tag" style="background:#fee2e2;color:#dc2626;">반려</span>';
-      return `<div class="list-item">${tag}<b>${a.title}</b>
-        <div class="meta">${approverName(a.decidedBy)} · ${a.decidedAt ? new Date(a.decidedAt).toLocaleString('ko-KR') : ''}${a.decisionReason ? ` · 사유: ${a.decisionReason}` : ''}</div>
+      return `<div class="list-item">${tag}<b>${escapeAttribute(a.title)}</b>
+        <div class="meta">${escapeAttribute(approverName(a.decidedBy))} · ${a.decidedAt ? new Date(a.decidedAt).toLocaleString('ko-KR') : ''}${a.decisionReason ? ` · 사유: ${escapeAttribute(a.decisionReason)}` : ''}</div>
       </div>`;
     }).join('');
   }
@@ -1957,26 +2011,32 @@
     const approvers = getApprovers();
     if (!approvers.length){ wrap.innerHTML = '<p class="empty">등록된 담당자가 없습니다. 아래에서 추가해주세요.</p>'; return; }
     wrap.innerHTML = approvers.map(a => `<div class="list-item">
-      <b>${a.name}</b> <span class="meta" style="display:inline;">${a.scope ? `담당: ${a.scope}` : '담당: 전체'}</span>
-      <div class="meta">사내메일: ${a.email || '<span style="color:#dc2626;">미등록</span>'} · 카카오톡 이름: ${a.kakaoChatName || '미등록'} · PIN: ${a.pin ? '설정됨' : '없음'}</div>
+      <b>${escapeAttribute(a.name)}</b> <span class="meta" style="display:inline;">${a.scope ? `담당: ${escapeAttribute(a.scope)}` : '담당: 전체'}</span>
+      <div class="meta">사내메일: ${escapeAttribute(a.email || '미등록')} · 카카오톡 이름: ${escapeAttribute(a.kakaoChatName || '미등록')} · PIN: ${a.pinConfigured ? '설정됨' : '없음(설정 필요)'}</div>
       <div class="row" style="margin-top:6px;">
-        <button class="btn secondary" onclick="removeApprover('${a.id}')">삭제</button>
+        <button class="btn secondary" data-security-action="remove" data-id="${escapeAttribute(a.id)}">삭제</button>
+        <button class="btn secondary" data-security-action="pin" data-id="${escapeAttribute(a.id)}">PIN 변경</button>
       </div>
     </div>`).join('');
   }
 
   function addApprover(){
+    if (!requireAdmin('설정 변경')) return;
     const name = $('#approverName').value.trim();
     if (!name){ alert('담당자 이름을 입력해주세요.'); return; }
     const email = $('#approverEmail').value.trim();
     if (!email){ alert('사내메일 주소를 입력해주세요. 승인 요청이 이 주소로 발송됩니다.'); return; }
+    const pin = $('#approverPin').value;
+    if (pin.length < 6 || pin.length > 128) { securityMessage('담당자 PIN은 6~128자로 입력해주세요.'); return; }
+    const id = uid();
+    pendingApproverPins[id] = pin;
     STATE.approvers.push({
-      id: uid(),
+      id,
       name,
       scope: $('#approverScope').value.trim(),
       email,
       kakaoChatName: $('#approverKakao').value.trim(),
-      pin: $('#approverPin').value.trim()
+      pinConfigured: true
     });
     addAuditLog('담당자 추가', { name });
     saveState();
@@ -1986,10 +2046,12 @@
   }
 
   function removeApprover(id){
+    if (!requireAdmin('설정 변경')) return;
     const target = approverById(id);
     if (!target) return;
     if (!confirm(`담당자 "${target.name}"을(를) 삭제할까요?`)) return;
     STATE.approvers = getApprovers().filter(a => a.id !== id);
+    delete pendingApproverPins[id];
     addAuditLog('담당자 삭제', { name: target.name });
     saveState();
     renderAll();
@@ -2055,7 +2117,7 @@
     const pending = STATE.approvals.some(a => a.status === 'pending' && a.type === 'monthly' && a.refId === key);
     const btn = $('#requestMonthlyBtn');
     if (done){
-      box.innerHTML = `<span class="tag" style="background:#eafbea;color:#16a34a;">확정 승인</span> ${done.approverName} · ${new Date(done.at).toLocaleString('ko-KR')}`;
+      box.innerHTML = `<span class="tag" style="background:#eafbea;color:#16a34a;">확정 승인</span> ${escapeAttribute(done.approverName)} · ${new Date(done.at).toLocaleString('ko-KR')}`;
       if (btn) btn.disabled = true;
     } else if (pending){
       box.innerHTML = '<span class="tag warn">담당자 승인 대기중</span>';
@@ -2098,8 +2160,8 @@
       const stampedAt = (index === 0 && stamp) ? `<div class="approval-date">${new Date(stamp.at).toLocaleDateString('ko-KR')}</div>` : '';
       return `
       <div class="approval-cell">
-        <div class="approval-title">${line.title}</div>
-        <div class="approval-name">${name || '□'}</div>
+        <div class="approval-title">${escapeAttribute(line.title)}</div>
+        <div class="approval-name">${escapeAttribute(name || '□')}</div>
         ${stampedAt}
       </div>
     `;
@@ -2129,6 +2191,7 @@
   }
 
   function saveNotesSection(){
+    if (!requireAdmin('설정 변경')) return;
     const input = $('#scheduleNotesInput');
     if (!input) return;
     STATE.settings.notes = input.value;
@@ -2209,8 +2272,8 @@
     if(STATE.notifications.length === 0){ wrap.innerHTML = '<p class="empty">발송 로그가 없습니다.</p>'; return; }
     wrap.innerHTML = STATE.notifications.map(n => `<div class="list-item">
       <span class="tag ${n.channel === 'kakao' ? 'kakao' : 'email'}">${n.channel === 'kakao' ? '카카오톡' : '이메일'}</span>
-      <b>${n.to}</b> — ${n.title}
-      <div class="meta">${n.body}</div>
+      <b>${escapeAttribute(n.to)}</b> — ${escapeAttribute(n.title)}
+      <div class="meta">${escapeAttribute(n.body)}</div>
       <div class="meta">${new Date(n.at).toLocaleString('ko-KR')}</div>
     </div>`).join('');
   }
@@ -2240,6 +2303,7 @@
     if ($('#approvalName2')) $('#approvalName2').value = approval[1]?.name || '';
   }
   function applyApprovalLines(){
+    if (!requireAdmin('설정 변경')) return;
     STATE.settings.approvalLines = [
       { title: $('#approvalTitle1').value.trim() || '담당', name: $('#approvalName1').value.trim() },
       { title: $('#approvalTitle2').value.trim() || '팀장', name: $('#approvalName2').value.trim() }
@@ -2250,6 +2314,7 @@
   }
 
   function saveSettings(){
+    if (!requireAdmin('설정 변경')) return;
     STATE.settings.kakaoKey = $('#setKakaoKey').value;
     STATE.settings.kakaoSender = $('#setKakaoSender').value;
     STATE.settings.kakaoTemplate = $('#setKakaoTemplate').value;
@@ -2264,7 +2329,7 @@
     STATE.settings.clockSource = $('#clockSourceSelect').value || 'local';
     STATE.settings.externalClockUrl = $('#externalClockUrl').value.trim() || 'https://worldtimeapi.org/api/timezone/Asia/Seoul';
     STATE.settings.externalClockOffsetMinutes = Number($('#clockOffsetMinutes').value) || 0;
-    STATE.settings.adminPin = $('#adminPin').value.trim();
+    // 관리자 비밀번호와 발송 비밀키는 서버 .env에서 설정합니다.
     STATE.settings.approvalLines = [
       { title: $('#approvalTitle1').value.trim() || '담당', name: $('#approvalName1').value.trim() },
       { title: $('#approvalTitle2').value.trim() || '팀장', name: $('#approvalName2').value.trim() }
@@ -2275,12 +2340,13 @@
     showToast('관리자 설정이 저장되었습니다.');
   }
   function saveQuota(){
+    if (!requireAdmin('설정 변경')) return;
     STATE.settings.quotaMax = Number($('#setQuotaMax').value) || 3;
     saveState();
     renderAll();
   }
   function escapeAttribute(value){
-    return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;');
   }
 
   function isStandardShift(value){
@@ -2310,7 +2376,7 @@
   }
 
   function renderManualEmployeeOptions(){
-    const options = EMPLOYEES.map(emp => `<option value="${emp.id}">${escapeAttribute(emp.name)}</option>`).join('');
+    const options = EMPLOYEES.map(emp => `<option value="${escapeAttribute(emp.id)}">${escapeAttribute(emp.name)}</option>`).join('');
     ['#rangeEditEmp', '#bulkFillEmp', '#anchorEmp', '#anchorRefEmp'].forEach(selector => {
       const select = $(selector);
       if (!select) return;
@@ -2330,8 +2396,8 @@
       body.innerHTML = draft.map((employee, index) => `
         <tr data-index="${index}">
           <td><input type="text" data-field="name" value="${escapeAttribute(employee.name)}" placeholder="이름"></td>
-          <td><input type="date" data-field="startDate" value="${employee.startDate || ''}"></td>
-          <td><input type="date" data-field="endDate" value="${employee.endDate || ''}"></td>
+          <td><input type="date" data-field="startDate" value="${escapeAttribute(employee.startDate || '')}"></td>
+          <td><input type="date" data-field="endDate" value="${escapeAttribute(employee.endDate || '')}"></td>
           <td><input type="checkbox" data-field="routine" style="width:auto;" ${isRoutineWorker(employee) ? 'checked' : ''}></td>
           <td><input type="text" data-field="pin" maxlength="12" value="${escapeAttribute(employee.pin || '')}" placeholder="선택"></td>
           <td style="white-space:nowrap;">
@@ -2442,10 +2508,10 @@
     const ended = getEndedEmployees();
     if (!ended.length) { container.innerHTML = '<p class="empty">종료된 직원이 없습니다.</p>'; return; }
     container.innerHTML = ended.map(employee => `
-      <div class="list-item" data-emp-id="${employee.id}">
+      <div class="list-item" data-emp-id="${escapeAttribute(employee.id)}">
         <div class="row" style="justify-content:space-between;align-items:center;">
-          <div><strong>${escapeAttribute(employee.name)}</strong><div class="meta">${employee.startDate || '-'} ~ ${employee.endDate}</div></div>
-          <button class="btn danger hard-delete-btn" type="button" data-emp-id="${employee.id}">완전 삭제</button>
+          <div><strong>${escapeAttribute(employee.name)}</strong><div class="meta">${escapeAttribute(employee.startDate || '-')} ~ ${escapeAttribute(employee.endDate)}</div></div>
+          <button class="btn danger hard-delete-btn" type="button" data-emp-id="${escapeAttribute(employee.id)}">완전 삭제</button>
         </div>
       </div>`).join('');
     container.querySelectorAll('.hard-delete-btn').forEach(button => {
@@ -2481,6 +2547,7 @@
   }
 
   function hardDeleteEmployee(empId){
+    if (!requireAdmin('설정 변경')) return;
     const index = EMPLOYEES.findIndex(employee => employee.id === empId);
     if (index < 0) return;
     const [removedEmployee] = EMPLOYEES.splice(index, 1);
@@ -2509,7 +2576,7 @@
     container.innerHTML = trash.map((employee, index) => `
       <div class="list-item">
         <div class="row" style="justify-content:space-between;align-items:center;">
-          <div><strong>${escapeAttribute(employee.name)}</strong><div class="meta">${employee.startDate || '-'} ~ ${employee.endDate || '-'} · 삭제됨: ${new Date(employee.deletedAt).toLocaleString('ko-KR')}</div></div>
+          <div><strong>${escapeAttribute(employee.name)}</strong><div class="meta">${escapeAttribute(employee.startDate || '-')} ~ ${escapeAttribute(employee.endDate || '-')} · 삭제됨: ${new Date(employee.deletedAt).toLocaleString('ko-KR')}</div></div>
           <button class="btn secondary restore-employee-btn" type="button" data-index="${index}">복구</button>
         </div>
       </div>`).join('');
@@ -2519,6 +2586,7 @@
   }
 
   function restoreDeletedEmployee(index){
+    if (!requireAdmin('설정 변경')) return;
     const trash = STATE.deletedEmployeesTrash || [];
     const entry = trash[index];
     if (!entry) return;
@@ -2544,7 +2612,7 @@
     if (!list) return;
     const ranges = [...STATE.scheduleRanges, ...pendingScheduleRanges];
     list.innerHTML = ranges.length
-      ? `병합 범위 ${ranges.length}건: ${ranges.slice(-5).map(range => `<span>${escapeAttribute(empName(range.empId))} ${range.startDate}~${range.endDate} ${escapeAttribute(range.value)} <button type="button" class="btn ghost remove-schedule-range" data-range-id="${range.id || ''}">해제</button></span>`).join(' / ')}`
+      ? `병합 범위 ${ranges.length}건: ${ranges.slice(-5).map(range => `<span>${escapeAttribute(empName(range.empId))} ${escapeAttribute(range.startDate)}~${escapeAttribute(range.endDate)} ${escapeAttribute(range.value)} <button type="button" class="btn ghost remove-schedule-range" data-range-id="${escapeAttribute(range.id || '')}">해제</button></span>`).join(' / ')}`
       : '아직 저장된 병합 범위가 없습니다.';
     list.querySelectorAll('.remove-schedule-range').forEach(button => {
       button.addEventListener('click', () => removeScheduleRange(button.dataset.rangeId));
@@ -2604,7 +2672,7 @@
     }).join('');
     const emp = EMPLOYEES.find(e => e.id === empId);
     const notice = emp && (emp.startDate || '') > startDate
-      ? `<div>참고: ${escapeAttribute(emp.name)}님의 적용 시작일(${emp.startDate}) 이전 날짜는 근무표에 표시되지 않습니다.</div>`
+      ? `<div>참고: ${escapeAttribute(emp.name)}님의 적용 시작일(${escapeAttribute(emp.startDate)}) 이전 날짜는 근무표에 표시되지 않습니다.</div>`
       : '';
     const clashNote = clashCount
       ? '<div>⚠ 표시는 같은 날 같은 근무를 맡는 다른 직원이 있다는 뜻입니다. 증원 상황에서는 정상일 수 있어 차단하지 않습니다.</div>'
@@ -2618,7 +2686,7 @@
     const anchors = [...(STATE.rotationAnchors || [])].sort((a, b) => a.startDate < b.startDate ? 1 : -1);
     if (!anchors.length) { list.innerHTML = '아직 지정된 로테이션 시작점이 없습니다.'; return; }
     list.innerHTML = `지정된 로테이션 시작점 ${anchors.length}건: ` + anchors.slice(0, 8).map(anchor =>
-      `<span>${escapeAttribute(empName(anchor.empId))} ${anchor.startDate}부터 "${escapeAttribute(anchor.startShift)}" 시작 <button type="button" class="btn ghost remove-rotation-anchor" data-anchor-id="${anchor.id}">해제</button></span>`
+      `<span>${escapeAttribute(empName(anchor.empId))} ${escapeAttribute(anchor.startDate)}부터 "${escapeAttribute(anchor.startShift)}" 시작 <button type="button" class="btn ghost remove-rotation-anchor" data-anchor-id="${escapeAttribute(anchor.id)}">해제</button></span>`
     ).join(' / ');
     list.querySelectorAll('.remove-rotation-anchor').forEach(button => {
       button.addEventListener('click', () => removeRotationAnchor(button.dataset.anchorId));
@@ -2710,7 +2778,7 @@
     if (!list) return;
     if (!pendingBulkFills.length) { list.innerHTML = '아직 등록된 적응기간 채우기가 없습니다.'; return; }
     list.innerHTML = `대기 중인 적응기간 채우기 ${pendingBulkFills.length}건 (아래 "근무표 변경 적용"을 눌러야 저장됩니다): ` + pendingBulkFills.map(fill =>
-      `<span>${escapeAttribute(empName(fill.empId))} ${fill.startDate}~${fill.endDate} [${fill.pattern.map(escapeAttribute).join(',')}] <button type="button" class="btn ghost remove-bulk-fill" data-fill-id="${fill.id}">해제</button></span>`
+      `<span>${escapeAttribute(empName(fill.empId))} ${escapeAttribute(fill.startDate)}~${escapeAttribute(fill.endDate)} [${fill.pattern.map(escapeAttribute).join(',')}] <button type="button" class="btn ghost remove-bulk-fill" data-fill-id="${escapeAttribute(fill.id)}">해제</button></span>`
     ).join(' / ');
     list.querySelectorAll('.remove-bulk-fill').forEach(button => {
       button.addEventListener('click', () => removeBulkFill(button.dataset.fillId));
@@ -2759,7 +2827,7 @@
         const pendingFill = active && !pendingRange ? getPendingBulkFill(emp.id, date) : null;
         const value = active ? scheduleEditorCellValue(emp.id, date) : '';
         const cellClass = !active ? 'edit-inactive' : ((pendingRange || pendingFill) ? 'edit-covered' : '');
-        row += `<td class="${cellClass}"><input type="text" maxlength="4" value="${escapeAttribute(value)}" data-emp-id="${emp.id}" data-date="${fmt(date)}" ${active ? '' : 'disabled'}></td>`;
+        row += `<td class="${escapeAttribute(cellClass)}"><input type="text" maxlength="4" value="${escapeAttribute(value)}" data-emp-id="${escapeAttribute(emp.id)}" data-date="${fmt(date)}" ${active ? '' : 'disabled'}></td>`;
       }
       return row + '</tr>';
     }).join('');
@@ -3024,6 +3092,7 @@
     $('#approverAddBtn').addEventListener('click', addApprover);
     openApprovalFromLink();
     $('#settingsSaveBtn').addEventListener('click', saveSettings);
+    $('#adminSettingsSaveBtn').addEventListener('click', saveSettings);
     $('#quotaSaveBtn').addEventListener('click', saveQuota);
     $('#addEmployeeRowBtn').addEventListener('click', settingsEmployeeEditor.addRow);
     $('#applyEmployeeEditorBtn').addEventListener('click', () => {
