@@ -46,12 +46,20 @@ function validateSave(previous, incoming, admin) {
   if (!Number.isInteger(next.settings.quotaMax) || next.settings.quotaMax < 1 || next.settings.quotaMax > 31) fail(400, '보장 횟수는 1~31 정수여야 합니다.');
   if (!previous && !admin) fail(403, '최초 공유 저장소 설정은 관리자 인증이 필요합니다.');
   if (!admin) {
-    for (const key of ['settings', 'employees', 'approvers', 'scheduleOverrides', 'scheduleSnapshots', 'scheduleRanges', 'rotationAnchors', 'deletedEmployeesTrash', 'versions']) {
+    for (const key of ['settings', 'employees', 'approvers', 'scheduleOverrides', 'scheduleSnapshots', 'scheduleRanges', 'rotationAnchors', 'deletedEmployeesTrash']) {
       if (!equal(old[key], next[key])) fail(403, '설정·직원·수동 근무 변경은 관리자 인증이 필요합니다.');
     }
   }
   // Even administrators must use the decision endpoint. Old approvals cannot be removed/replaced.
   if (!equal(old.monthlyApprovals || {}, next.monthlyApprovals || {})) fail(409, '월 확정은 승인함에서 처리해주세요.');
+  // versions(월 확정본·변경 이력 등 과거 스냅샷)는 항목 형태가 제각각이라 id 스키마를 강제하지
+  // 않는다. 대신 append-only만 강제한다 — 기존 항목은 (관리자 포함) 순서 포함 그대로 남아야
+  // 하고 뒤에 새 항목만 추가할 수 있다. 실제 월 확정 기록은 decide()가 별도로 관리한다.
+  const oldVersions = Array.isArray(old.versions) ? old.versions : [];
+  const nextVersions = Array.isArray(next.versions) ? next.versions : [];
+  if (nextVersions.length < oldVersions.length || oldVersions.some((v, i) => !equal(v, nextVersions[i]))) {
+    fail(409, '기존 변경 이력은 수정할 수 없습니다. 새로고침 후 다시 시도하세요.');
+  }
   for (const key of ['requests', 'protects', 'approvals']) {
     for (const before of list(old, key)) {
       if (!equal(before, list(next, key).find(item => item.id === before.id))) fail(409, '기존 신청/승인이 변경되었습니다. 새로고침 후 다시 시도하세요.');
@@ -79,7 +87,9 @@ function validateSave(previous, incoming, admin) {
     counted.push(req);
   }
   const approvals = added('approvals');
-  const seen = new Set(list(old, 'approvals').filter(a => a.status !== 'rejected').map(a => a.type + ':' + a.refId));
+  // 대기 중인 중복 요청만 막는다 — monthly는 재확정을 위해 같은 월(refId)로 반복 요청되므로,
+  // 이미 승인/반려되어 처리가 끝난 건까지 막으면 재확정 요청 자체가 불가능해진다.
+  const seen = new Set(list(old, 'approvals').filter(a => a.status === 'pending').map(a => a.type + ':' + a.refId));
   for (const approval of approvals) {
     const key = approval.type + ':' + approval.refId;
     if (seen.has(key)) fail(400, '같은 신청의 승인 요청이 이미 있습니다.');
@@ -195,8 +205,23 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
       if (!approval.approverIds?.includes(actor.id) || !targets(state, approval.requestedBy).includes(actor.id)) fail(403, '이 신청을 담당하는 승인권자가 아닙니다.');
       const at = new Date().toISOString();
       if (approval.type === 'monthly') {
-        state.monthlyApprovals ||= {};
-        if (approved) state.monthlyApprovals[approval.refId] = { approverId: actor.id, approverName: actor.name, at };
+        // 재확정 요청을 반려해도 이전 확정본과 승인 도장은 그대로 둔다.
+        if (approved) {
+          state.monthlyApprovals ||= {};
+          if (approval.scheduleSnapshot) {
+            // 신청 시 첨부된 스냅샷을 그대로 확정본으로 보관한다 — 서버는 근무표를 다시 계산하지 않는다.
+            state.versions ||= [];
+            const number = Math.max(0, ...state.versions.filter(v => v.kind === 'monthly-approved' && v.monthKey === approval.refId).map(v => v.number)) + 1;
+            const version = {
+              id: 'ver_' + randomBytes(12).toString('hex'), kind: 'monthly-approved', monthKey: approval.refId, number,
+              approvalId: approval.id, approverId: actor.id, approverName: actor.name, at, snapshot: approval.scheduleSnapshot
+            };
+            state.versions.push(version);
+            state.monthlyApprovals[approval.refId] = { versionId: version.id, number, approverId: actor.id, approverName: actor.name, at };
+          } else {
+            state.monthlyApprovals[approval.refId] = { approverId: actor.id, approverName: actor.name, at };
+          }
+        }
       } else if (['leave', 'protect'].includes(approval.type)) {
         const request = state[approval.type === 'leave' ? 'requests' : 'protects']?.find(r => r.id === approval.refId);
         if (!request || request.status !== 'pending') fail(409, '신청 상태가 변경되었습니다.');

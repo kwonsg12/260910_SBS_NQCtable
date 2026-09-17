@@ -200,6 +200,54 @@ test('monthly and excess protection decisions update the linked record', async t
   assert.equal(saved.monthlyApprovals['2026-10'].approverId, 'a1');
 });
 
+test('approving a monthly request with a schedule snapshot stores a versioned confirmation', async t => {
+  const state = seed();
+  const snapshot = { monthKey: '2026-10', stationName: '관제실', notes: '', approvalLines: [], employees: [] };
+  state.approvals.push({ id: 'month1', type: 'monthly', refId: '2026-10', requestedBy: null, approverIds: ['a1', 'a2'], status: 'pending', scheduleSnapshot: snapshot, baseVersionId: null });
+  const f = await fixture(t, state);
+  assert.equal((await f.api('/api/approvals/decision', { id: 'month1', approverId: 'a1', pin: '123456', approved: true })).status, 200);
+  const saved = await f.state();
+  const version = saved.versions.find(v => v.kind === 'monthly-approved' && v.monthKey === '2026-10');
+  assert.equal(version.number, 1);
+  assert.equal(version.approverId, 'a1');
+  assert.deepEqual(version.snapshot, snapshot);
+  assert.equal(saved.monthlyApprovals['2026-10'].versionId, version.id);
+  assert.equal(saved.monthlyApprovals['2026-10'].number, 1);
+  // 재확정 요청을 반려하면 이전 확정본과 도장은 그대로 남는다.
+  state.approvals.push({ id: 'month2', type: 'monthly', refId: '2026-10', requestedBy: null, approverIds: ['a1', 'a2'], status: 'pending', scheduleSnapshot: snapshot, baseVersionId: version.id });
+  await f.save({ ...saved, approvals: [...saved.approvals, state.approvals.at(-1)] }, true);
+  assert.equal((await f.api('/api/approvals/decision', { id: 'month2', approverId: 'a1', pin: '123456', approved: false, reason: '재확인 필요' })).status, 200);
+  const afterReject = await f.state();
+  assert.equal(afterReject.monthlyApprovals['2026-10'].versionId, version.id);
+  assert.equal(afterReject.versions.filter(v => v.kind === 'monthly-approved').length, 1);
+  // 같은 표를 다시 확정하면 이전 확정본을 덮어쓰지 않고 새 버전을 추가한다.
+  const secondSnapshot = { ...snapshot, notes: '변경됨' };
+  state.approvals.push({ id: 'month3', type: 'monthly', refId: '2026-10', requestedBy: null, approverIds: ['a1', 'a2'], status: 'pending', scheduleSnapshot: secondSnapshot, baseVersionId: version.id });
+  await f.save({ ...afterReject, approvals: [...afterReject.approvals, state.approvals.at(-1)] }, true);
+  assert.equal((await f.api('/api/approvals/decision', { id: 'month3', approverId: 'a2', pin: '654321', approved: true })).status, 200);
+  const afterSecondApproval = await f.state();
+  const versions = afterSecondApproval.versions.filter(v => v.kind === 'monthly-approved');
+  assert.equal(versions.length, 2);
+  assert.equal(versions[1].number, 2);
+  assert.equal(afterSecondApproval.monthlyApprovals['2026-10'].number, 2);
+  assert.equal(versions[0].snapshot.notes, '');
+});
+
+test('existing version history cannot be edited or removed through the generic save endpoint', async t => {
+  const state = seed();
+  state.versions = [{ id: 'v1', kind: 'monthly-approved', monthKey: '2026-10', number: 1, snapshot: { notes: 'first' } }];
+  const f = await fixture(t, state);
+  const current = await f.api('/api/state');
+  // 새 이력을 뒤에 추가하는 것은 관리자 인증 없이도 허용된다.
+  const appended = { ...current.data.state, versions: [...state.versions, { id: 'v2', kind: 'monthly-change', changes: [] }] };
+  assert.equal((await f.save(appended, false)).status, 200);
+  // 기존 항목을 고치거나 지우는 것은 관리자라도 거부된다.
+  const tampered = { ...current.data.state, versions: [{ id: 'v1', kind: 'monthly-approved', monthKey: '2026-10', number: 1, snapshot: { notes: 'forged' } }] };
+  assert.equal((await f.save(tampered, true)).status, 409);
+  const removed = { ...current.data.state, versions: [] };
+  assert.equal((await f.save(removed, true)).status, 409);
+});
+
 test('notification recipients/content are taken from stored approval, not client-supplied addresses', async t => {
   const f = await fixture(t);
   const response = await f.api('/api/notify', { approval: { id: 'p1', title: 'FORGED' }, approvers: [{ email: 'forged@example.invalid' }] });

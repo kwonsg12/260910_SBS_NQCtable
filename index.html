@@ -128,7 +128,7 @@
   .grid3{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:12px;}
   @media print {
     body{background:#fff;}
-    header, nav, main > section:not(#tab-schedule), .schedule-toolbar .schedule-nav, .schedule-toolbar .schedule-tools .btn, .schedule-toolbar .schedule-tools .clock-wrap, .schedule-actions-row, .date-selection-panel, .legend, #lockBanner, #monthlyApprovalStatus, .notes-panel{display:none !important;}
+    header, nav, main > section:not(#tab-schedule), .schedule-toolbar .schedule-nav, .schedule-toolbar .schedule-tools .btn, .schedule-toolbar .schedule-tools .clock-wrap, .schedule-actions-row, .date-selection-panel, .legend, #lockBanner, #monthlyApprovalStatus, .notes-panel, #monthlyVersionPanel{display:none !important;}
     main{max-width:none;padding:0;}
     .panel{border:none;box-shadow:none;padding:0;margin:0 0 10px;}
     .schedule-toolbar{margin-bottom:8px;}
@@ -251,6 +251,7 @@
         </div>
       </div>
       <div id="monthlyApprovalStatus" style="font-size:12.5px;color:var(--muted);margin:6px 0 2px;"></div>
+      <details id="monthlyVersionPanel" data-html2canvas-ignore="true" style="margin:12px 0;"><summary>확정본·변경 이력 보기</summary><div id="monthlyVersionContent"></div></details>
       <div id="lockBanner"></div>
       <div class="schedule-sheet-header">
         <div></div>
@@ -1102,6 +1103,7 @@
   }
 
   function saveState(){
+    recordMonthlyVersionChanges();
     if (LOCAL_MODE) {
       try { localStorage.setItem(STORE_KEY, JSON.stringify(STATE)); localSaveFailed = false; }
       catch { localSaveFailed = true; }
@@ -1448,8 +1450,8 @@
     const lockMoment = lockMomentFor(y,m);
     const banner = $('#lockBanner');
     banner.innerHTML = `<div class="banner ${locked ? 'locked' : 'open'}">
-      <span><span class="pill ${locked ? 'locked' : 'open'}">${locked ? '확정됨' : '계획중'}</span>
-      ${y}년 ${m + 1}월 근무표는 ${locked ? `${lockMoment.getFullYear()}.${lockMoment.getMonth()+1}.${lockMoment.getDate()} 00:00에 확정되었습니다.` : `${lockMoment.getFullYear()}.${lockMoment.getMonth()+1}.${lockMoment.getDate()} 00:00에 확정 예정. 그 전까지 휴가 신청 시 대근이 즉시 확정 반영됩니다.`}</span>
+      <span><span class="pill ${locked ? 'locked' : 'open'}">${locked ? '신청 기준일 경과' : '계획중'}</span>
+      ${y}년 ${m + 1}월 근무표는 ${locked ? `${lockMoment.getFullYear()}.${lockMoment.getMonth()+1}.${lockMoment.getDate()} 00:00에 신청 기준일이 지났습니다. 담당자 확정 여부는 위 승인 상태를 확인하세요.` : `${lockMoment.getFullYear()}.${lockMoment.getMonth()+1}.${lockMoment.getDate()} 00:00이 신청 기준일입니다. 그 전까지 휴가 신청 시 대근이 즉시 확정 반영됩니다.`}</span>
     </div>`;
 
     const daysInMonth = new Date(y, m + 1, 0).getDate();
@@ -2000,6 +2002,10 @@
     const actor = approverById($('#approvalActorSelect')?.value || '');
     if (!approval || approval.status !== 'pending' || !actor) return;
     if (!approval.approverIds?.includes(actor.id)) { securityMessage('이 신청의 담당자를 선택해주세요.'); return; }
+    if (ok && approval.type === 'monthly'){
+      const error = monthlyApprovalError(approval);
+      if (error){ alert(error); return; }
+    }
     try {
       await flushPendingState();
       const input = await askCredential(actor.name + ' 담당자 PIN', !ok);
@@ -2105,10 +2111,101 @@
   // ── 월간 근무표 확정 요청 ──
   function monthKeyOf(year, monthIndex){ return `${year}-${String(monthIndex + 1).padStart(2, '0')}`; }
 
+  // 월 확정본에는 화면에 표시한 근무·이름·비고만 보관한다. 전체 STATE/PIN은 복사하지 않는다.
+  function monthlySnapshot(key){
+    const [year, month] = key.split('-').map(Number);
+    const days = new Date(year, month, 0).getDate();
+    return {
+      monthKey: key, stationName: STATE.settings.stationName || DEFAULT_STATION_NAME,
+      notes: STATE.settings.notes || '',
+      approvalLines: getApprovalLines().map(line => ({ title: line.title, name: line.name })),
+      employees: getActiveStaff(year, month - 1).map(emp => ({
+        id: emp.id, name: emp.name, startDate: emp.startDate || '', endDate: emp.endDate || '',
+        shifts: Array.from({ length: days }, (_, i) => {
+          const date = new Date(year, month - 1, i + 1);
+          return isEmployeeActiveOnDate(emp, date) ? String(getShiftForDate(emp.id, date) ?? '') : null;
+        })
+      }))
+    };
+  }
+  function monthlySnapshotDiff(before, after){
+    const changes = [];
+    function compare(label, a, b){
+      if (a !== b) changes.push({ label, before: a == null ? '미적용' : String(a), after: b == null ? '미적용' : String(b) });
+    }
+    compare('방송국명', before.stationName, after.stationName);
+    compare('비고', before.notes, after.notes);
+    compare('결재란', JSON.stringify(before.approvalLines), JSON.stringify(after.approvalLines));
+    const ids = new Set([...before.employees, ...after.employees].map(emp => emp.id));
+    for (const id of ids){
+      const a = before.employees.find(emp => emp.id === id), b = after.employees.find(emp => emp.id === id);
+      if (!a || !b) { compare('직원 구성: ' + (b || a).name, a?.name, b?.name); continue; }
+      compare('직원 이름: ' + a.name, a.name, b.name);
+      compare(b.name + ' 적용 시작', a.startDate, b.startDate);
+      compare(b.name + ' 적용 종료', a.endDate, b.endDate);
+      for (let i = 0; i < Math.max(a.shifts.length, b.shifts.length); i++){
+        compare(b.name + ' · ' + after.monthKey + '-' + String(i + 1).padStart(2, '0'), a.shifts[i], b.shifts[i]);
+      }
+    }
+    compare('직원 표시 순서', before.employees.map(e => e.id).join(','), after.employees.map(e => e.id).join(','));
+    return changes;
+  }
+  function approvedMonthlyVersion(key){
+    const id = STATE.monthlyApprovals[key]?.versionId;
+    return STATE.versions.find(v => v.kind === 'monthly-approved' && v.id === id && v.monthKey === key) || null;
+  }
+  function monthlyApprovalError(approval){
+    if (!approval.scheduleSnapshot) return '확정 요청 당시 표가 없는 이전 요청입니다. 반려 후 새 확정 요청을 보내주세요.';
+    if ((STATE.monthlyApprovals[approval.refId]?.versionId || null) !== approval.baseVersionId) return '기준 확정본이 바뀌었습니다. 반려 후 다시 요청해주세요.';
+    if (monthlySnapshotDiff(approval.scheduleSnapshot, monthlySnapshot(approval.refId)).length) return '확정 요청 이후 근무표가 변경되었습니다. 반려 후 변경된 표로 다시 요청해주세요.';
+    return '';
+  }
+  // 승인이 확정되면 서버(security.js decide())가 이 확정본(version)과 monthlyApprovals 도장을
+  // 함께 기록한다 — 신청 시 첨부한 scheduleSnapshot을 그대로 사용하므로 클라이언트에서
+  // 다시 계산할 필요가 없다. 여기서는 확정 이후 근무표가 바뀌었는지만 추적한다.
+  function recordMonthlyVersionChanges(){
+    for (const key of Object.keys(STATE.monthlyApprovals)){
+      const approved = approvedMonthlyVersion(key);
+      if (!approved) continue; // 기존 도장만으로 과거 확정본을 만들어내지 않는다.
+      const last = [...STATE.versions].reverse().find(v => v.kind === 'monthly-change' && v.versionId === approved.id);
+      const snapshot = monthlySnapshot(key);
+      const changes = monthlySnapshotDiff(last ? last.snapshot : approved.snapshot, snapshot);
+      if (!changes.length) continue;
+      STATE.versions.push({ id: uid(), kind: 'monthly-change', monthKey: key, versionId: approved.id, at: new Date().toISOString(), changes, snapshot });
+    }
+  }
+  function currentMonthlyStamp(key){
+    const version = approvedMonthlyVersion(key);
+    return version && !monthlySnapshotDiff(version.snapshot, monthlySnapshot(key)).length ? STATE.monthlyApprovals[key] : null;
+  }
+  function renderMonthlyVersions(key){
+    const container = $('#monthlyVersionContent');
+    if (!container) return;
+    const versions = STATE.versions.filter(v => v.kind === 'monthly-approved' && v.monthKey === key);
+    if (!versions.length){ container.textContent = '보관된 확정본이 없습니다. 기존 승인 기록의 당시 표는 복원할 수 없습니다.'; return; }
+    const selectedId = container.querySelector('select')?.value;
+    const selected = versions.find(v => v.id === selectedId) || versions[versions.length - 1];
+    const snapshot = selected.snapshot;
+    const escape = escapeAttribute;
+    const diff = monthlySnapshotDiff(snapshot, monthlySnapshot(key));
+    const changesHtml = changes => changes.map(c => '<li>' + escape(c.label) + ': ' + escape(c.before) + ' → ' + escape(c.after) + '</li>').join('');
+    const history = STATE.versions.filter(v => v.kind === 'monthly-change' && v.versionId === selected.id);
+    const days = snapshot.employees[0]?.shifts.length || new Date(Number(key.slice(0,4)), Number(key.slice(5)), 0).getDate();
+    container.innerHTML = '<label>보관된 확정본 <select aria-label="보관된 확정본">' +
+      versions.map(v => '<option value="' + escape(v.id) + '"' + (v.id === selected.id ? ' selected' : '') + '>v' + v.number + ' · ' + escape(v.approverName) + ' · ' + escape(new Date(v.at).toLocaleString('ko-KR')) + '</option>').join('') +
+      '</select></label><p><b>' + escape(snapshot.stationName) + ' · ' + escape(key) + ' 확정본 v' + selected.number + '</b></p>' +
+      '<div style="overflow:auto"><table><thead><tr><th>직원</th>' + Array.from({length:days},(_,i)=>'<th>'+(i+1)+'</th>').join('') + '</tr></thead><tbody>' +
+      snapshot.employees.map(emp=>'<tr><th>'+escape(emp.name)+'</th>'+emp.shifts.map(shift=>'<td>'+escape(shift ?? '')+'</td>').join('')+'</tr>').join('') +
+      '</tbody></table></div><p style="white-space:pre-wrap">비고: ' + escape(snapshot.notes) + '</p>' +
+      '<p>현재 표와 다른 항목: ' + diff.length + '건</p><ul>' + changesHtml(diff) + '</ul>' +
+      '<h4>이 확정 이후 저장된 변경 이력</h4>' + (history.length ? history.map(event=>'<details><summary>'+escape(new Date(event.at).toLocaleString('ko-KR'))+' · '+event.changes.length+'건</summary><ul>'+changesHtml(event.changes)+'</ul></details>').join('') : '<p>저장된 변경이 없습니다.</p>');
+    container.querySelector('select').addEventListener('change', () => renderMonthlyVersions(key));
+  }
+
   function requestMonthlyApproval(){
     const { year, monthIndex } = getCurrentMonthView();
     const key = monthKeyOf(year, monthIndex);
-    if (STATE.monthlyApprovals[key]){
+    if (currentMonthlyStamp(key)){
       alert(`${year}년 ${monthIndex + 1}월 근무표는 이미 확정되었습니다.`);
       return;
     }
@@ -2121,13 +2218,16 @@
       return;
     }
     const staff = getActiveStaff(year, monthIndex);
-    createApproval({
+    const snapshot = monthlySnapshot(key);
+    const approval = createApproval({
       type: 'monthly',
       refId: key,
       requestedBy: null,
       title: `${year}년 ${monthIndex + 1}월 근무표 확정 요청`,
       summary: `근무 인원 ${staff.length}명 (${staff.map(e => e.name).join(', ')})\n승인하면 결재란에 담당자 이름과 확정 일시가 표시됩니다.`
     });
+    approval.scheduleSnapshot = snapshot;
+    approval.baseVersionId = STATE.monthlyApprovals[key]?.versionId || null;
     saveState();
     renderAll();
     showToast('담당자에게 월 근무표 확정 요청을 보냈습니다.');
@@ -2159,18 +2259,20 @@
     const { year, monthIndex } = getCurrentMonthView();
     const key = monthKeyOf(year, monthIndex);
     const done = STATE.monthlyApprovals[key];
+    const version = approvedMonthlyVersion(key);
     const pending = STATE.approvals.some(a => a.status === 'pending' && a.type === 'monthly' && a.refId === key);
+    const changes = version ? monthlySnapshotDiff(version.snapshot, monthlySnapshot(key)) : [];
+    const current = !!version && !changes.length;
+    box.textContent = version
+      ? '확정본 v' + version.number + ' · ' + done.approverName + ' · ' + new Date(done.at).toLocaleString('ko-KR') + (current ? ' · 현재 표와 일치' : ' · 확정 후 변경 ' + changes.length + '건 — 재확정 필요')
+      : done ? '기존 승인 기록은 있지만 당시 확정본이 없습니다. 현재 표를 다시 확정해주세요.' : '아직 확정 요청 전입니다.';
+    if (pending) box.textContent += ' · 담당자 승인 대기중';
     const btn = $('#requestMonthlyBtn');
-    if (done){
-      box.innerHTML = `<span class="tag" style="background:#eafbea;color:#16a34a;">확정 승인</span> ${escapeAttribute(done.approverName)} · ${new Date(done.at).toLocaleString('ko-KR')}`;
-      if (btn) btn.disabled = true;
-    } else if (pending){
-      box.innerHTML = '<span class="tag warn">담당자 승인 대기중</span>';
-      if (btn) btn.disabled = true;
-    } else {
-      box.innerHTML = '<span class="meta" style="display:inline;">아직 확정 요청 전입니다.</span>';
-      if (btn) btn.disabled = false;
+    if (btn){
+      btn.disabled = pending || current;
+      btn.textContent = done ? '변경된 근무표 재확정 요청' : '이 달 근무표 확정 요청';
     }
+    renderMonthlyVersions(key);
   }
 
   function getDefaultApprovalLines(){
@@ -2199,9 +2301,11 @@
     const approvalLines = getApprovalLines();
     // 이 달 근무표가 담당자 승인을 받았으면 첫 번째 결재칸(담당)에 승인자 이름을 자동으로 찍는다.
     const { year, monthIndex } = getCurrentMonthView();
-    const stamp = STATE.monthlyApprovals[monthKeyOf(year, monthIndex)];
+    const key = monthKeyOf(year, monthIndex);
+    const stamp = currentMonthlyStamp(key);
+    const requiresApproval = !!STATE.monthlyApprovals[key] && !stamp;
     block.innerHTML = approvalLines.map((line, index) => {
-      const name = (index === 0 && stamp) ? stamp.approverName : line.name;
+      const name = index === 0 && requiresApproval ? '재확정 필요' : (index === 0 && stamp) ? stamp.approverName : line.name;
       const stampedAt = (index === 0 && stamp) ? `<div class="approval-date">${new Date(stamp.at).toLocaleDateString('ko-KR')}</div>` : '';
       return `
       <div class="approval-cell">
@@ -2241,6 +2345,8 @@
     if (!input) return;
     STATE.settings.notes = input.value;
     saveState();
+    renderMonthlyApprovalStatus();
+    renderApprovalBlock();
     input.readOnly = true;
     const editBtn = $('#editNotesBtn');
     const applyBtn = $('#applyNotesBtn');
@@ -2252,7 +2358,9 @@
   function buildExportName(kind){
     const { year, monthIndex } = getCurrentMonthView();
     const now = getToday();
-    const finalState = isLocked(year, monthIndex, now) ? '최종' : '예정';
+    const key = monthKeyOf(year, monthIndex);
+    const stamp = currentMonthlyStamp(key);
+    const finalState = stamp ? '확정v' + stamp.number : STATE.monthlyApprovals[key] ? '재확정필요' : '미확정';
     return `${year}년 ${monthIndex + 1}월 통합관제실 근무표(${finalState})_${kind}`;
   }
 
