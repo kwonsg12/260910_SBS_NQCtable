@@ -37,6 +37,20 @@ node server.js
    `npm i -g pm2 pm2-windows-startup` 후 `pm2 start server.js --name geunmupyo`)
    나 `NSSM`으로 Windows 서비스로 등록해두는 것을 권장합니다.
 
+## 서버에서 공개하는 파일
+
+`node server.js`는 `/`, `/index`, `/index.html`과 화면에서 사용하는
+`/sbs-logo.png`만 파일로 제공합니다. 승인 링크의 `/?approve=...`도 그대로
+사용할 수 있습니다. DB, 로그, 서버 소스, 설정 파일과 의존성 폴더는 파일
+다운로드로 제공하지 않습니다. DB 위치와 기존 `/api/state`, `/api/notify`
+동작은 동일합니다. API의 사용자 인증·권한 검사는 별도 개선 범위입니다.
+
+새 이미지나 CSS·JS 파일을 화면에서 참조할 때는 `server.js`의 `publicFiles`
+목록에도 추가해야 합니다. `*.log` 파일은 Git 추적 대상에서 제외됩니다.
+
+`npm test`로 공개 파일·차단 경로·기존 API를 검증합니다. 테스트는 임시 폴더의
+별도 서버와 DB를 사용하며, 실제 근무표 DB나 메일·카카오톡 발송을 사용하지 않습니다.
+
 ## 실행 방법 (서버 없이, 이 PC 한 대에서만 테스트할 때)
 
 서버 없이 빠르게 화면만 확인하고 싶다면 기존처럼 정적 파일 서버로도 열 수
@@ -44,7 +58,7 @@ node server.js
 PC와 공유되지 않습니다.
 
 ```bash
-python -m http.server 8000
+python -m http.server 8000 --bind 127.0.0.1
 ```
 
 ```text

@@ -5,7 +5,8 @@
   "description": "통합관제실 근무표 시스템 - 사내망 서버",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=22.5"

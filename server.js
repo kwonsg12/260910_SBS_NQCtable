@@ -17,7 +17,21 @@ const app = express();
 const PORT = Number(process.env.PORT) || 8000;
 
 app.use(express.json({ limit: '15mb' }));
-app.use(express.static(__dirname, { extensions: ['html'] }));
+
+// 프로젝트 폴더에는 DB·로그·서버 코드도 있으므로 폴더 전체를 공개하지 않는다.
+// 브라우저에서 사용할 파일을 추가할 때는 이 목록에 URL과 파일명을 명시한다.
+const publicFiles = new Map([
+  ['/', 'index.html'],
+  ['/index', 'index.html'],
+  ['/index.html', 'index.html'],
+  ['/sbs-logo.png', 'sbs-logo.png']
+]);
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const file = publicFiles.get(req.path);
+  if (!file) return next();
+  res.sendFile(path.join(__dirname, file));
+});
 
 // 현재 저장된 근무표 상태 전체를 반환. 서버에 아직 아무것도 없으면 state:null
 // (이 경우 index.html은 기본값으로 초기화한다).
