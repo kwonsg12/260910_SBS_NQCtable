@@ -15,6 +15,7 @@ const { createSecurity, publicState, targets } = require('./security');
 const { readFileSync } = require('node:fs');
 const { createHash } = require('node:crypto');
 const { notifyApprovers, getBaseUrl } = require('./notifier');
+const { createWorkbook } = require('./excel-export');
 
 const app = express();
 // A local HTTPS reverse proxy may forward the original protocol.
@@ -54,6 +55,20 @@ app.use((req, res, next) => {
 
 app.post('/api/auth/admin', (req, res) => res.json(security.login(req)));
 app.post('/api/approvals/decision', (req, res) => res.json(security.decide(req)));
+
+// 화면에 표시된 근무값으로 다운로드만 생성하며 공유 상태는 변경하지 않는다.
+app.post('/api/export/excel', async (req, res) => {
+  try {
+    const buffer = await createWorkbook(req.body);
+    res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.set('Cache-Control', 'no-store');
+    res.attachment(`schedule-${req.body.year}-${String(req.body.month).padStart(2, '0')}.xlsx`);
+    res.send(buffer);
+  } catch (error) {
+    if (!error.status) console.error('엑셀 생성 오류:', error);
+    res.status(error.status || 500).json({error:error.status ? error.message : '엑셀 파일을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.'});
+  }
+});
 
 // 현재 저장된 근무표 상태 전체를 반환. 서버에 아직 아무것도 없으면 state:null
 // (이 경우 index.html은 기본값으로 초기화한다).

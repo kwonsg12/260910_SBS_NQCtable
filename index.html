@@ -246,7 +246,8 @@
       <div class="schedule-actions-row">
         <div class="export-actions">
           <button class="btn" id="requestMonthlyBtn" type="button">이 달 근무표 확정 요청</button>
-          <button class="btn secondary export" id="exportPdfBtn" type="button">PDF 내보내기</button>
+        <button class="btn secondary export" id="exportPdfBtn" type="button">PDF 내보내기</button>
+        <button class="btn secondary export" id="exportExcelBtn" type="button" title="샘플 양식 · NC 교대근무자 최대 4명 · TC 추가 인원 · 설정된 일근자">엑셀 내보내기</button>
           <button class="btn secondary" id="refreshHolidayBtn" type="button">새로고침</button>
         </div>
       </div>
@@ -447,6 +448,9 @@
         <div>
           <label>방송국명</label>
           <input type="text" id="stationName" placeholder="통합관제실">
+          <label for="dayWorkerName" style="margin-top:8px;">엑셀 일근자 이름</label>
+          <input type="text" id="dayWorkerName" maxlength="50" placeholder="서예찬" aria-describedby="dayWorkerNameHelp">
+          <p id="dayWorkerNameHelp" class="muted">엑셀의 별도 일근 행에 표시할 이름입니다. 비워두면 서예찬으로 출력됩니다.</p>
         </div>
         <div>
           <label>휴일 자동 갱신 간격(시간)</label>
@@ -1036,6 +1040,7 @@
         settings: {
           quotaMax: raw.settings?.quotaMax ?? 3,
           stationName: raw.settings?.stationName || DEFAULT_STATION_NAME,
+          dayWorkerName: typeof raw.settings?.dayWorkerName === 'string' ? raw.settings.dayWorkerName.trim() || '서예찬' : '서예찬',
           holidaySyncHours: raw.settings?.holidaySyncHours ?? 24,
           holidayApiUrl: raw.settings?.holidayApiUrl || 'https://date.nager.at/api/v3/PublicHolidays',
           lockDay: raw.settings?.lockDay ?? BASE_LOCK_DAY,
@@ -2364,6 +2369,42 @@
     return `${year}년 ${monthIndex + 1}월 통합관제실 근무표(${finalState})_${kind}`;
   }
 
+  async function exportExcel(){
+    const btn = $('#exportExcelBtn');
+    btn.disabled = true;
+    try {
+      const {year, monthIndex} = getCurrentMonthView();
+      const activeStaff = getActiveStaff(year, monthIndex);
+      const staff = activeStaff.filter(isRoutineWorker);
+      const tcStaff = activeStaff.filter(emp => !isRoutineWorker(emp));
+      if (staff.length > 4) throw new Error('샘플 양식에는 NC 교대근무자를 4명까지 넣을 수 있습니다. 등록 인원을 확인해 주세요.');
+      const dates = Array.from({length:new Date(year, monthIndex + 1, 0).getDate()}, (_, i) => new Date(year, monthIndex, i + 1));
+      const response = await fetch('/api/export/excel', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({year, month:monthIndex + 1, dayWorkerName:STATE.settings.dayWorkerName || '서예찬',
+          holidays:dates.map(date => !!getHolidayInfo(date)),
+          tcStaff:tcStaff.map(emp => ({name:emp.name, shifts:dates.map(date =>
+            isEmployeeActiveOnDate(emp, date) ? effectiveShift(emp.id, date) : '')})),
+          staff:staff.map(emp => ({name:emp.name, shifts:dates.map(date =>
+            isEmployeeActiveOnDate(emp, date) ? effectiveShift(emp.id, date) : '')}))})
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || '엑셀 다운로드 서버에 연결하지 못했습니다. 서버를 최신 버전으로 실행해 주세요.');
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${year}년 ${monthIndex + 1}월 통합관제실 근무표.xlsx`;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      showToast(`엑셀을 내려받았습니다. NC ${staff.length}명 · TC ${tcStaff.length}명 · 일근 ${STATE.settings.dayWorkerName || '서예찬'}`);
+    } catch(error) {
+      console.error('엑셀 생성 오류:', error);
+      alert(error.message || '엑셀 생성 중 오류가 발생했습니다.');
+    } finally { btn.disabled = false; }
+  }
+
   async function exportPdf(){
     const btn = $('#exportPdfBtn');
     const actions = $('.schedule-actions-row');
@@ -2434,6 +2475,7 @@
   function renderSettings(){
     const s = STATE.settings;
     if ($('#stationName')) $('#stationName').value = s.stationName || DEFAULT_STATION_NAME;
+    if ($('#dayWorkerName')) $('#dayWorkerName').value = s.dayWorkerName || '서예찬';
     if ($('#setKakaoKey')) $('#setKakaoKey').value = s.kakaoKey || '';
     if ($('#setKakaoSender')) $('#setKakaoSender').value = s.kakaoSender || '';
     if ($('#setKakaoTemplate')) $('#setKakaoTemplate').value = s.kakaoTemplate || '';
@@ -2476,6 +2518,7 @@
     STATE.settings.smtpPass = $('#setSmtpPass').value;
     STATE.settings.quotaMax = Number($('#setQuotaMax').value) || 3;
     STATE.settings.stationName = $('#stationName').value.trim() || DEFAULT_STATION_NAME;
+    STATE.settings.dayWorkerName = $('#dayWorkerName').value.trim() || '서예찬';
     STATE.settings.holidaySyncHours = Number($('#holidaySyncHours').value) || 24;
     STATE.settings.holidayApiUrl = $('#holidayApiUrl').value.trim() || 'https://date.nager.at/api/v3/PublicHolidays';
     STATE.settings.lockDay = Number($('#lockDayInput').value) || BASE_LOCK_DAY;
@@ -3241,6 +3284,7 @@
     $('#applyNotesBtn').addEventListener('click', saveNotesSection);
     $('#approvalApplyBtn').addEventListener('click', applyApprovalLines);
     $('#exportPdfBtn').addEventListener('click', exportPdf);
+    $('#exportExcelBtn').addEventListener('click', exportExcel);
     $('#requestMonthlyBtn').addEventListener('click', requestMonthlyApproval);
     $('#approverAddBtn').addEventListener('click', addApprover);
     openApprovalFromLink();
