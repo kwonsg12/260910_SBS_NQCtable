@@ -144,13 +144,13 @@ test('configured day worker name replaces default with and without TC', async ()
 test('day worker setting saves, reloads, renders and defaults for existing data', async () => {
   const html=await fs.readFile(path.join(__dirname,'../index.html'),'utf8');
   const extract=(start,end)=>html.slice(html.indexOf(start),html.indexOf(end));
-  const code=extract('  function loadState(){','  function getOrderedEmployeeIds(')
+  const code=extract('  function normalizeState(raw = {}){','  function getOrderedEmployeeIds(')
     +extract('  function renderSettings(){','  function applyApprovalLines(){')
     +extract('  function saveSettings(){','  function saveQuota(){');
   const fields=new Map(); let saved;
   const context={STATE:{settings:{},auditLogs:[]},EMPLOYEES:[],DEFAULT_STATION_NAME:'통합관제실',BASE_LOCK_DAY:25,STORE_KEY:'test',
     $:id=>{if(!fields.has(id))fields.set(id,{value:''});return fields.get(id);},
-    fetchServerStateSync:()=>saved,localStorage:{getItem:()=>null},
+    requireAdmin:()=>true,loadState:()=>context.normalizeState(saved),
     saveState:()=>{saved=JSON.parse(JSON.stringify(context.STATE));},
     getApprovalLines:()=>[],renderAll(){},updateLiveClock(){},showToast(){}};
   vm.createContext(context);vm.runInContext(code,context);

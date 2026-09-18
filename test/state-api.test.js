@@ -20,7 +20,7 @@ async function start(t, legacy = false) {
     assert.ok(path.basename(fixture).startsWith('nqc-sync-test-'));
     fs.rmSync(fixture, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   });
-  for (const file of ['server.js', 'db.js', 'security.js', 'notifier.js', 'index.html', 'sbs-logo.png']) {
+  for (const file of ['server.js', 'excel-export.js', 'db.js', 'security.js', 'notifier.js', 'index.html', 'sbs-logo.png']) {
     fs.copyFileSync(path.join(root, file), path.join(fixture, file));
   }
   if (legacy) {

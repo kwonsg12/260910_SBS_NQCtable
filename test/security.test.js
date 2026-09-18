@@ -29,7 +29,7 @@ function seed() {
 }
 async function fixture(t, initial = seed(), adminPassword = password) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'nqc-security-'));
-  for (const file of ['server.js', 'db.js', 'security.js', 'notifier.js', 'index.html', 'sbs-logo.png']) copyFileSync(path.join(root, file), path.join(dir, file));
+  for (const file of ['server.js', 'excel-export.js', 'db.js', 'security.js', 'notifier.js', 'index.html', 'sbs-logo.png']) copyFileSync(path.join(root, file), path.join(dir, file));
   if (initial) {
     const db = new DatabaseSync(path.join(dir, 'geunmupyo.db'));
     db.exec('CREATE TABLE kv_store (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)');
