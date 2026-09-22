@@ -29,7 +29,7 @@ function seed() {
 }
 async function fixture(t, initial = seed(), adminPassword = password) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'nqc-security-'));
-  for (const file of ['server.js', 'db.js', 'security.js', 'notifier.js', 'index.html', 'sbs-logo.png']) copyFileSync(path.join(root, file), path.join(dir, file));
+  for (const file of ['server.js', 'db.js', 'security.js', 'notifier.js', 'digest.js', 'index.html', 'sbs-logo.png']) copyFileSync(path.join(root, file), path.join(dir, file));
   if (initial) {
     const db = new DatabaseSync(path.join(dir, 'geunmupyo.db'));
     db.exec('CREATE TABLE kv_store (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)');
@@ -42,7 +42,7 @@ async function fixture(t, initial = seed(), adminPassword = password) {
   await new Promise(resolve => socket.close(resolve));
   const child = spawn(process.execPath, ['server.js'], {
     cwd: dir, windowsHide: true,
-    env: { ...process.env, PORT: String(port), ADMIN_PASSWORD: adminPassword, SMTP_HOST: '', SMTP_USER: '', SMTP_PASS: '', KAKAO_AUTOMATION: 'false', NODE_PATH: path.join(root, 'node_modules') },
+    env: { ...process.env, PORT: String(port), ADMIN_PASSWORD: adminPassword, SMTP_HOST: '', SMTP_USER: '', SMTP_PASS: '', NODE_PATH: path.join(root, 'node_modules') },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let output = '';

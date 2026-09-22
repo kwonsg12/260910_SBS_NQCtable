@@ -20,7 +20,7 @@ async function start(t, legacy = false) {
     assert.ok(path.basename(fixture).startsWith('nqc-sync-test-'));
     fs.rmSync(fixture, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   });
-  for (const file of ['server.js', 'db.js', 'security.js', 'notifier.js', 'index.html', 'sbs-logo.png']) {
+  for (const file of ['server.js', 'db.js', 'security.js', 'notifier.js', 'digest.js', 'index.html', 'sbs-logo.png']) {
     fs.copyFileSync(path.join(root, file), path.join(fixture, file));
   }
   if (legacy) {
@@ -37,7 +37,7 @@ async function start(t, legacy = false) {
   const adminPassword = 'test-admin-password-only';
   child = spawn(process.execPath, [path.join(fixture, 'server.js')], {
     cwd: fixture, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, PORT: String(port), NODE_PATH: path.join(root, 'node_modules'), SMTP_HOST: '', KAKAO_AUTOMATION: 'false', ADMIN_PASSWORD: adminPassword }
+    env: { ...process.env, PORT: String(port), NODE_PATH: path.join(root, 'node_modules'), SMTP_HOST: '', ADMIN_PASSWORD: adminPassword }
   });
   exited = once(child, 'exit');
   let output = '';

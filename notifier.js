@@ -1,14 +1,12 @@
-// 승인 요청 알림 발송 (Phase 3)
+// 메일 발송 (Gmail 공용 계정 → 사내메일)
 //
-// 1차/신뢰 채널: 사내메일(SMTP)  — 설정되어 있으면 항상 발송한다.
-// 보조 채널: 카카오톡           — 이 PC에 로그인된 KakaoTalk 데스크톱 클라이언트를
-//                                자동화해서 보낸다. 실패해도 메일 발송에는 영향이 없다.
+// SMTP 설정(.env의 SMTP_HOST 등)이 있으면 실제로 발송하고, 비어 있으면 발송을 건너뛰고
+// 콘솔에만 남긴다(개발 중에도 서버가 죽지 않도록).
 //
-// 설정이 비어 있으면 발송을 건너뛰고 콘솔에만 남긴다(개발 중에도 서버가 죽지 않도록).
+// 승인 요청 메일(notifyApprovers)은 요청이 생긴 즉시, 변경 내용 요약(digest.js)은
+// 하루 한 번 이 모듈의 sendMail로 발송한다.
 
 const os = require('os');
-const path = require('path');
-const { execFile } = require('child_process');
 
 let nodemailer = null;
 try {
@@ -16,8 +14,6 @@ try {
 } catch (e) {
   // nodemailer 미설치 시에도 서버는 뜨게 둔다 (npm install 후 메일 기능 활성화)
 }
-
-const KAKAO_SCRIPT = path.join(__dirname, 'kakao-notify.ps1');
 
 // 사내망의 다른 PC가 접속할 수 있는 이 서버의 주소. .env의 APP_BASE_URL이 우선.
 function getBaseUrl() {
@@ -44,7 +40,6 @@ function getTransporter() {
     port: Number(process.env.SMTP_PORT) || 25,
     secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true'
   };
-  // 사내망 내부 발신만 허용하는 릴레이는 인증이 없는 경우가 많다.
   if (process.env.SMTP_USER) {
     options.auth = { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS || '' };
   }
@@ -52,37 +47,37 @@ function getTransporter() {
   return transporter;
 }
 
-async function sendMail(to, subject, text) {
+function isMailConfigured() {
+  return !!getTransporter();
+}
+
+async function verifyMail() {
+  const tx = getTransporter();
+  if (!tx) return { ok: false, skipped: 'SMTP 설정 없음(.env의 SMTP_HOST)' };
+  try {
+    await tx.verify();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) };
+  }
+}
+
+async function sendMail(to, subject, text, html) {
   const tx = getTransporter();
   if (!tx) return { channel: 'email', to, ok: false, skipped: 'SMTP 설정 없음(.env의 SMTP_HOST)' };
   try {
     await tx.sendMail({
+      // Gmail은 인증한 계정 주소로 발신자를 고정하므로 MAIL_FROM에는 그 주소를 써야 한다.
       from: process.env.MAIL_FROM || process.env.SMTP_USER || 'noreply@localhost',
       to,
       subject,
-      text
+      text,
+      ...(html ? { html } : {})
     });
     return { channel: 'email', to, ok: true };
   } catch (err) {
     return { channel: 'email', to, ok: false, error: String(err.message || err) };
   }
-}
-
-function sendKakao(chatName, message) {
-  return new Promise((resolve) => {
-    if (String(process.env.KAKAO_AUTOMATION || '').toLowerCase() !== 'true') {
-      return resolve({ channel: 'kakao', to: chatName, ok: false, skipped: 'KAKAO_AUTOMATION 미활성' });
-    }
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', KAKAO_SCRIPT, '-ChatName', chatName, '-Message', message],
-      { timeout: 30000 },
-      (err, stdout, stderr) => {
-        if (err) return resolve({ channel: 'kakao', to: chatName, ok: false, error: String(stderr || err.message).trim() });
-        resolve({ channel: 'kakao', to: chatName, ok: true, detail: String(stdout).trim() });
-      }
-    );
-  });
 }
 
 function buildMessage(approval) {
@@ -108,9 +103,6 @@ async function notifyApprovers(approval, approvers) {
     } else {
       results.push({ channel: 'email', to: approver.name, ok: false, skipped: '이메일 미등록' });
     }
-    if (approver.kakaoChatName) {
-      results.push(await sendKakao(approver.kakaoChatName, body));
-    }
   }
   results.forEach(r => {
     const status = r.ok ? '발송' : (r.skipped ? `건너뜀(${r.skipped})` : `실패(${r.error})`);
@@ -119,4 +111,4 @@ async function notifyApprovers(approval, approvers) {
   return results;
 }
 
-module.exports = { notifyApprovers, getBaseUrl };
+module.exports = { notifyApprovers, getBaseUrl, sendMail, isMailConfigured, verifyMail };

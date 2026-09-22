@@ -48,7 +48,7 @@ function setup(){
       c.STATE.approvals.push(approval); return approval;
     },
     localStorage: { setItem: () => saves++ }, showLocalStorageStatus(){},
-    renderAll(){}, showToast(){}, notifyAll(){}, addAuditLog(){},
+    renderAll(){}, showToast(){}, notify(){}, addAuditLog(){},
     alert: message => c.alerts.push(message), prompt: () => '반려 사유',
     location: { reload(){} },
     securityMessage: message => c.securityMessages.push(message),

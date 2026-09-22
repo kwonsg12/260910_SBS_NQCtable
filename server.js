@@ -15,6 +15,7 @@ const { createSecurity, publicState, targets } = require('./security');
 const { readFileSync } = require('node:fs');
 const { createHash } = require('node:crypto');
 const { notifyApprovers, getBaseUrl } = require('./notifier');
+const { startDigestScheduler } = require('./digest');
 
 const app = express();
 // A local HTTPS reverse proxy may forward the original protocol.
@@ -68,8 +69,8 @@ app.post('/api/state', (req, res) => {
   res.json(security.save(req));
 });
 
-// 승인 요청이 생기면 브라우저가 이 엔드포인트를 호출한다. 실제 사내메일/카카오톡
-// 발송은 notifier가 담당하며, 설정이 안 되어 있으면 콘솔 로그만 남기고 넘어간다.
+// 승인 요청이 생기면 브라우저가 이 엔드포인트를 호출한다. 실제 메일 발송은
+// notifier가 담당하며, 설정이 안 되어 있으면 콘솔 로그만 남기고 넘어간다.
 const notificationTimes = new Map();
 app.post('/api/notify', async (req, res, next) => {
   try {
@@ -99,9 +100,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`근무표 서버 실행 중 — http://localhost:${PORT}`);
   console.log(`사내망 접속 주소: ${getBaseUrl()}  (승인 메일의 링크도 이 주소로 나갑니다)`);
   console.log(process.env.SMTP_HOST
-    ? `사내메일 발송: ${process.env.SMTP_HOST}:${process.env.SMTP_PORT || 25}`
-    : '사내메일 발송: 미설정 (.env에 SMTP_HOST를 넣으면 활성화됩니다)');
-  console.log(String(process.env.KAKAO_AUTOMATION || '').toLowerCase() === 'true'
-    ? '카카오톡 자동 발송: 활성 (KakaoTalk 데스크톱이 로그인되어 있어야 합니다)'
-    : '카카오톡 자동 발송: 미설정 (.env에 KAKAO_AUTOMATION=true)');
+    ? `메일 발송: ${process.env.SMTP_HOST}:${process.env.SMTP_PORT || 25}`
+    : '메일 발송: 미설정 (.env에 SMTP_HOST를 넣으면 활성화됩니다)');
+  startDigestScheduler();
 });

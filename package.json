@@ -6,6 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "digest": "node digest.js",
     "test": "node --test"
   },
   "engines": {

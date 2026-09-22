@@ -60,7 +60,7 @@ test('HTTP file boundary and existing API routes', { timeout: 30000 }, async t =
   });
 
   for (const file of [
-    'server.js', 'db.js', 'security.js', 'notifier.js', 'kakao-notify.ps1',
+    'server.js', 'db.js', 'security.js', 'notifier.js', 'digest.js',
     'index.html', 'sbs-logo.png', 'package.json', 'package-lock.json',
     'README.md', 'app.js', 'styles.css'
   ]) {
@@ -83,7 +83,7 @@ test('HTTP file boundary and existing API routes', { timeout: 30000 }, async t =
     env: {
       ...process.env, PORT: String(port),
       NODE_PATH: path.join(projectRoot, 'node_modules'),
-      SMTP_HOST: '', KAKAO_AUTOMATION: 'false', ADMIN_PASSWORD: adminPassword
+      SMTP_HOST: '', ADMIN_PASSWORD: adminPassword
     },
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe']
@@ -157,7 +157,7 @@ test('HTTP file boundary and existing API routes', { timeout: 30000 }, async t =
   await t.test('existing private files and unlisted files return 404 for GET and HEAD', async () => {
     for (const file of [
       ...privateFiles, 'geunmupyo.db', 'server.js', 'db.js', 'security.js', 'notifier.js',
-      'kakao-notify.ps1', 'package.json', 'package-lock.json', 'README.md',
+      'digest.js', 'package.json', 'package-lock.json', 'README.md',
       'app.js', 'styles.css', 'missing-file.txt'
     ]) {
       assert.equal((await request(port, '/' + file)).status, 404, file);
