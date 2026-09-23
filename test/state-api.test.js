@@ -116,9 +116,10 @@ test('old clients and invalid revisions are rejected without modifying state', a
 test('existing databases gain a revision while preserving their saved data', async t => {
   const { get, post, login } = await start(t, true);
   await login();
-  // 서버가 시작할 때 담당자 PIN 이관을 위해 approvers 필드를 한 번 채워 넣고 그만큼 버전을 올린다.
+  // 서버가 시작할 때 담당자/직원 PIN 설정 여부 표시를 위해 approvers·employees 필드를 한 번
+  // 채워 넣고(같은 트랜잭션 안이라 저장은 한 번만 일어난다) 그만큼 버전을 올린다.
   const existing = await get();
-  assert.deepEqual(existing.state, { notes: 'legacy', approvers: [] });
+  assert.deepEqual(existing.state, { notes: 'legacy', approvers: [], employees: [] });
   assert.equal(existing.revision, 2);
   const upgraded = await post({ state: { notes: 'upgraded', settings: { quotaMax: 3 }, approvers: [] }, baseRevision: existing.revision });
   assert.equal(upgraded.status, 200);

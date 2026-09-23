@@ -54,7 +54,9 @@ app.use((req, res, next) => {
 });
 
 app.post('/api/auth/admin', (req, res) => res.json(security.login(req)));
+app.post('/api/auth/employee', (req, res) => res.json(security.employeeLogin(req)));
 app.post('/api/approvals/decision', (req, res) => res.json(security.decide(req)));
+app.post('/api/requests/cancel', (req, res) => res.json(security.cancelOwn(req)));
 
 // 현재 저장된 근무표 상태 전체를 반환. 서버에 아직 아무것도 없으면 state:null
 // (이 경우 index.html은 기본값으로 초기화한다).

@@ -28,7 +28,7 @@ function fixtureState() {
       { id: 'kimk', name: '김경율', endDate: null },
       { id: 'old', name: '퇴사자', email: 'old@sbs.test', endDate: '2026-08-31' }
     ],
-    approvers: [{ id: 'ap1', name: '팀장', email: 'lead@sbs.test', scope: '' }],
+    approvers: [{ id: 'ap1', name: '팀장', email: 'lead@sbs.test' }],
     requests: [
       {
         id: 'r1', empId: 'choi', type: 'set', startDate: '2026-09-24', submittedAt: inside, status: 'pending',
@@ -114,7 +114,7 @@ test('같은 메일 주소가 근무자와 담당자에 모두 있으면 한 통
   const { digest, cleanup } = loadDigest();
   try {
     const state = fixtureState();
-    state.approvers.push({ id: 'ap2', name: '최도인', email: 'CHOI@sbs.test', scope: '양명국' });
+    state.approvers.push({ id: 'ap2', name: '최도인', email: 'CHOI@sbs.test' });
     const list = digest.buildDigests(state, opts).filter(d => d.email.toLowerCase() === 'choi@sbs.test');
     assert.equal(list.length, 1);
     assert.match(list[0].text, /내 신청 처리 결과/);

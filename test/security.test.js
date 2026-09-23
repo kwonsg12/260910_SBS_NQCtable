@@ -16,8 +16,8 @@ function seed() {
   return {
     employees: [{ id: 'e1', name: '직원' }, { id: 'e2', name: '다른 직원' }],
     approvers: [
-      { id: 'a1', name: '담당', scope: 'e1', pin: '123456', email: 'one@example.invalid' },
-      { id: 'a2', name: '타 담당', scope: 'e2', pin: '654321', email: 'two@example.invalid' }
+      { id: 'a1', name: '담당', pin: '123456', email: 'one@example.invalid' },
+      { id: 'a2', name: '타 담당', pin: '654321', email: 'two@example.invalid' }
     ],
     requests: [{ id: 'r1', empId: 'e1', startDate: '2026-10-01', chain: [], status: 'pending' }],
     protects: [],
@@ -58,10 +58,10 @@ async function fixture(t, initial = seed(), adminPassword = password) {
     if (child.exitCode !== null || attempt === 299) throw new Error(output || 'Server startup failed');
     await new Promise(resolve => setTimeout(resolve, 50));
   }
-  let token = '';
+  let token = '', employeeToken = '';
   async function api(url, body, admin = false, headers = {}) {
     const response = await fetch(base + url, body === undefined ? {} : {
-      method: 'POST', headers: { 'Content-Type': 'application/json', ...(admin ? { 'X-Admin-Token': token } : {}), ...headers },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(admin ? { 'X-Admin-Token': token } : {}), 'X-Employee-Token': employeeToken, ...headers },
       body: JSON.stringify(body)
     });
     const text = await response.text();
@@ -73,12 +73,18 @@ async function fixture(t, initial = seed(), adminPassword = password) {
     assert.equal(response.status, 200, JSON.stringify(response.data));
     token = response.data.token;
   }
-  async function state() { return (await api('/api/state')).data.state; }
-  async function save(value, admin = false, approverPins = {}) {
-    const current = (await api('/api/state')).data;
-    return api('/api/state', { state: value, approverPins, baseRevision: current.revision ?? 0 }, admin);
+  async function loginEmployee(empId, pin) {
+    const response = await api('/api/auth/employee', { empId, pin });
+    assert.equal(response.status, 200, JSON.stringify(response.data));
+    employeeToken = response.data.token;
+    return response.data;
   }
-  return { api, login, state, save, dir };
+  async function state() { return (await api('/api/state')).data.state; }
+  async function save(value, admin = false, approverPins = {}, employeePins = {}) {
+    const current = (await api('/api/state')).data;
+    return api('/api/state', { state: value, approverPins, employeePins, baseRevision: current.revision ?? 0 }, admin);
+  }
+  return { api, login, loginEmployee, state, save, dir };
 }
 
 test('legacy secrets migrate to salted hashes; API and static paths do not disclose them', async t => {
@@ -173,9 +179,12 @@ test('unconfigured admin fails closed, while valid initialization stores public 
 
 test('new leave requests stay pending, quota is checked by server and targets cannot be forged', async t => {
   const f = await fixture(t);
+  await f.login();
+  await f.save(await f.state(), true, {}, { e1: 'employee-test-pin-1' });
+  await f.loginEmployee('e1', 'employee-test-pin-1');
   const state = await f.state();
   state.requests.push({ id: 'r2', empId: 'e1', startDate: '2026-10-03', chain: [], status: 'pending' });
-  state.approvals.push({ id: 'p2', refId: 'r2', type: 'leave', requestedBy: 'e1', approverIds: ['a1'], status: 'pending' });
+  state.approvals.push({ id: 'p2', refId: 'r2', type: 'leave', requestedBy: 'e1', approverIds: ['a1', 'a2'], status: 'pending' });
   assert.equal((await f.save(state)).status, 200);
   const forged = await f.state();
   forged.requests.push({ id: 'r3', empId: 'e1', startDate: '2026-10-04', chain: [], status: 'confirmed' });
@@ -186,6 +195,12 @@ test('new leave requests stay pending, quota is checked by server and targets ca
   const wrong = await f.state();
   wrong.approvals.push({ id: 'month', refId: '2026-10', type: 'monthly', requestedBy: null, approverIds: ['a1'], status: 'pending' });
   assert.equal((await f.save(wrong)).status, 400);
+  // 다른 사람 명의로는(로그인은 유지된 채) 신청을 추가할 수 없다. 다른 조건은 모두 유효하게
+  // 채워서(정상 상태·연결된 승인 요청) 이 실패가 오직 본인 명의 검사 때문임을 확인한다.
+  const impersonate = await f.state();
+  impersonate.requests.push({ id: 'r4', empId: 'e2', startDate: '2026-10-05', chain: [], status: 'pending' });
+  impersonate.approvals.push({ id: 'p4', refId: 'r4', type: 'leave', requestedBy: 'e2', approverIds: ['a1', 'a2'], status: 'pending' });
+  assert.equal((await f.save(impersonate)).status, 403);
 });
 
 test('monthly and excess protection decisions update the linked record', async t => {
@@ -266,7 +281,7 @@ test('UI compiles and renders untrusted approval strings as text without inline 
   const payload = '<img src=x onerror="alert(1)">\\\'';
   const nodes = { '#approvalActorSelect': { value: '' }, '#approvalList': {}, '#approvalHistory': {}, '#approverList': {} };
   const approval = { id: 'id', status: 'pending', type: 'leave', title: payload, summary: payload, approverIds: ['a'], requestedAt: new Date().toISOString() };
-  const actors = [{ id: 'a', name: payload, scope: payload, email: payload, kakaoChatName: payload }];
+  const actors = [{ id: 'a', name: payload, email: payload }];
   const context = vm.createContext({ $: selector => nodes[selector], STATE: { approvals: [approval] }, getApprovers: () => actors, pendingApprovals: () => [approval], approverName: () => payload, APPROVAL_TYPE_LABEL: { leave: '휴가' } });
   const escape = script.slice(script.indexOf('  function escapeAttribute'), script.indexOf('  function isStandardShift'));
   const render = script.slice(script.indexOf('  function renderApprovalInbox'), script.indexOf('  function addApprover'));

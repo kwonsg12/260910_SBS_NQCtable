@@ -2,7 +2,7 @@
 //
 // 하루 한 번(DIGEST_TIME, 한국 시간) 지난 요약 이후 바뀐 내용을 사람별로 모아 메일로 보낸다.
 //  - 근무자: 내게 배정된 대근, 내 휴가·비번 보장 신청의 처리 결과(반려 사유 포함)
-//  - 담당자(관리자): 담당 범위 근무자들의 휴가·비번 보장 최종 상태, 대근 불가 사유 접수
+//  - 담당자(관리자): 근무자들의 휴가·비번 보장 최종 상태, 대근 불가 사유 접수
 // 바뀐 내용이 없는 사람에게는 보내지 않는다.
 //
 // 사람마다 "마지막으로 발송한 시각"(digest_cursor)을 따로 기록하므로, 발송에 실패한 사람은
@@ -11,7 +11,6 @@
 // 수동 실행: node digest.js [--dry-run] [--check]
 
 const { db, getState } = require('./db');
-const { targets } = require('./security');
 const { sendMail, isMailConfigured, verifyMail, getBaseUrl } = require('./notifier');
 
 const TZ = 'Asia/Seoul';
@@ -66,11 +65,6 @@ function buildDigests(state, { sinceFor, until, today, baseUrl }) {
 
   const empName = id => employees.find(e => e.id === id)?.name || '알 수 없음';
   const decisionOf = (type, refId) => approvals.find(a => a.type === type && a.refId === refId);
-  const scopeOf = new Map();
-  const inScope = (person, empId) => {
-    if (!scopeOf.has(empId)) scopeOf.set(empId, targets(state, empId));
-    return scopeOf.get(empId).some(id => person.approverIds.has(id));
-  };
 
   const leaveStatus = r => {
     if (r.status === 'pending') return '승인 대기';
@@ -139,16 +133,16 @@ function buildDigests(state, { sinceFor, until, today, baseUrl }) {
 
     if (p.approverIds.size) {
       const staff = [];
-      for (const r of leaves.filter(r => !p.empIds.has(r.empId) && inScope(p, r.empId))) {
+      for (const r of leaves.filter(r => !p.empIds.has(r.empId))) {
         const subs = substitutes(r);
         staff.push(`${empName(r.empId)} 휴가 ${dayLabel(r.startDate)} (${r.type === 'day' ? '일근' : '야+조'}) [${leaveStatus(r)}]${subs ? ` — 대근: ${subs}` : ''}`);
       }
-      for (const x of pros.filter(x => x.needsApproval && !p.empIds.has(x.empId) && inScope(p, x.empId))) {
+      for (const x of pros.filter(x => x.needsApproval && !p.empIds.has(x.empId))) {
         staff.push(`${empName(x.empId)} 비번 보장(월 한도 초과) ${dayLabel(x.date)} [${protectStatus(x)}]${x.reason ? ` — 신청 사유: ${x.reason}` : ''}`);
       }
       add('근무자 휴가·비번 보장 처리 현황', staff);
 
-      const excused = excuses.filter(e => touched(e.submittedAt) && !p.empIds.has(e.empId) && inScope(p, e.empId))
+      const excused = excuses.filter(e => touched(e.submittedAt) && !p.empIds.has(e.empId))
         .map(e => `${empName(e.empId)} — ${dayLabel(e.date)} 대근 불가 사유 접수: ${e.reason}`);
       add('대근 불가 사유 접수', excused);
     }

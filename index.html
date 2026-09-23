@@ -183,11 +183,20 @@
 </style>
 </head>
 <body>
-<section style="padding:10px 24px;background:#fff7dd;border-bottom:1px solid #e2e6ec">
-  <span id="securityStatus" role="status">승인·설정 변경은 서버에서 권한을 확인합니다.</span>
-  <button id="securityLogin" type="button" class="btn secondary">관리자 인증</button>
-  <button id="securityRetry" type="button" class="btn secondary">저장 재시도</button>
-  <button id="securityLogout" type="button" class="btn secondary">인증 해제</button>
+<section style="padding:10px 24px;background:#fff7dd;border-bottom:1px solid #e2e6ec;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span id="securityStatus" role="status">승인·설정 변경은 서버에서 권한을 확인합니다.</span>
+    <button id="securityLogin" type="button" class="btn secondary">관리자 인증</button>
+    <button id="securityRetry" type="button" class="btn secondary">저장 재시도</button>
+    <button id="securityLogout" type="button" class="btn secondary">인증 해제</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span id="employeeStatus" role="status">로그인이 필요합니다.</span>
+    <select id="employeeLoginSelect" aria-label="이름"><option value="">이름 선택</option></select>
+    <input id="employeeLoginPin" type="password" placeholder="PIN" maxlength="128" style="width:100px">
+    <button id="employeeLoginBtn" type="button" class="btn secondary">직원 로그인</button>
+    <button id="employeeLogoutBtn" type="button" class="btn secondary" hidden>로그아웃</button>
+  </div>
 </section>
 
 <header>
@@ -275,6 +284,7 @@
     <div class="grid2">
       <div class="panel">
         <h2>휴가 신청</h2>
+        <p id="reqLoginNotice" class="quota" style="color:#dc2626;" hidden>상단에서 로그인 후 본인 명의로 신청할 수 있습니다.</p>
         <div class="row">
           <div><label>신청자</label><select id="reqEmp"></select></div>
           <div>
@@ -310,6 +320,7 @@
       <div class="panel">
         <h2>비번(휴식) 보장 신청 <span class="sub">규칙 6</span></h2>
         <p style="font-size:12.5px;color:var(--muted);margin-top:-6px;">비번인 날에 "대근 불가"를 미리 못 박아두는 신청입니다. 1인당 월 <b id="quotaMaxLabel">3</b>회까지 사유 없이 가능, 초과분은 팀장/담당 승인용 사유가 필수입니다.</p>
+        <p id="proLoginNotice" class="quota" style="color:#dc2626;" hidden>상단에서 로그인 후 본인 명의로 신청할 수 있습니다.</p>
         <div class="row">
           <div><label>신청자</label><select id="proEmp"></select></div>
           <div><label>보장 받을 날짜 (본인이 비번(O)인 날만 선택 가능)</label><input type="date" id="proDate"></div>
@@ -384,7 +395,7 @@
     </div>
     <div class="panel">
       <h2>담당자(승인권자) 관리 <span class="sub">승인 요청을 받을 사람</span></h2>
-      <p style="font-size:12.5px;color:var(--muted);margin-top:-6px;">여기 등록된 담당자에게 승인 요청이 사내메일로 발송되고, 담당 범위 근무자들의 휴가·비번 보장 처리 현황이 매일 요약 메일로 발송됩니다. <b>담당 범위</b>를 비워두면 전원 담당이고, 특정 인원만 맡으면 직원 이름을 쉼표로 적습니다(예: <code>최도인, 양명국</code>).</p>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:-6px;">여기 등록된 담당자 전원에게 승인 요청이 사내메일로 발송되고, 근무자들의 휴가·비번 보장 처리 현황이 매일 요약 메일로 발송됩니다.</p>
       <div id="approverList" style="margin-top:10px;"><p class="empty">등록된 담당자가 없습니다. 아래에서 추가해주세요.</p></div>
       <div class="grid2" style="margin-top:14px;">
         <div>
@@ -392,8 +403,6 @@
           <input type="text" id="approverName" placeholder="홍길동" style="width:100%;">
           <label style="margin-top:8px;">사내메일 주소</label>
           <input type="text" id="approverEmail" placeholder="hong@sbs.co.kr" style="width:100%;">
-          <label style="margin-top:8px;">담당 범위 (비우면 전체)</label>
-          <input type="text" id="approverScope" placeholder="최도인, 양명국" style="width:100%;">
         </div>
         <div>
           <label>승인 PIN (필수, 6자 이상)</label>
@@ -508,8 +517,8 @@
           <p class="quota" style="margin:0 0 8px;"><b>루틴 근무자</b> = 4조 교대로 서로 대근을 서는 인원입니다. 휴가 신청 시 <b>이 인원 중에서만</b> 대근이 자동 배정됩니다. 적응 중이거나 상근인 인원은 체크를 해제해 두세요.</p>
           <p class="quota" style="margin:0 0 8px;">▲▼로 표에 표시될 <b>직급 순서</b>를 조절하세요. 위 "편집 연도/편집 월"에 놓인 달부터 적용되며, 그 이전 달의 근무표 순서는 바뀌지 않습니다.</p>
           <p class="quota" style="margin:0 0 8px;"><b>사내메일</b>을 등록하면 그 직원에게 배정된 대근과 본인 휴가·비번 보장 신청의 처리 결과(반려 사유 포함)가 매일 요약 메일로 발송됩니다. 비워두면 메일을 받지 않습니다.</p>
-          <p class="quota" style="margin:0 0 8px;"><b>취소 PIN</b>을 설정하면 해당 직원이 휴가·비번 보장 신청 화면에서 본인 이름과 이 PIN을 입력해 본인 신청을 직접 취소할 수 있습니다. 비워두면 취소 기능을 쓸 수 없습니다.</p>
-          <div class="gridwrap"><table class="employee-edit-table"><thead><tr><th>이름</th><th style="width:24%;">사내메일</th><th>적용 시작일</th><th>종료일</th><th>루틴 근무자</th><th>취소 PIN</th><th>순서</th><th>행</th></tr></thead><tbody id="employeeEditTableBody"></tbody></table></div>
+          <p class="quota" style="margin:0 0 8px;"><b>로그인 PIN</b>을 설정하면 해당 직원이 상단 로그인 위젯에서 이름과 이 PIN으로 로그인해 휴가·비번 보장 신청을 내고 본인 신청을 취소할 수 있습니다. PIN 설정 전에는 로그인할 수 없습니다.</p>
+          <div class="gridwrap"><table class="employee-edit-table"><thead><tr><th>이름</th><th style="width:24%;">사내메일</th><th>적용 시작일</th><th>종료일</th><th>루틴 근무자</th><th>로그인 PIN</th><th>순서</th><th>행</th></tr></thead><tbody id="employeeEditTableBody"></tbody></table></div>
           <div class="row" style="margin-top:10px;">
             <button class="btn secondary" id="addEmployeeRowBtn" type="button">직원 추가</button>
             <button class="btn" id="applyEmployeeEditorBtn" type="button">직원 구성 적용</button>
@@ -593,6 +602,8 @@
   document.getElementById('securityLogout').addEventListener('click', () => {
     adminToken = ''; adminUntil = 0; securityMessage('이 화면의 관리자 인증을 해제했습니다.');
   });
+  document.getElementById('employeeLoginBtn').addEventListener('click', loginEmployee);
+  document.getElementById('employeeLogoutBtn').addEventListener('click', logoutEmployee);
   document.addEventListener('click', async event => {
     const button = event.target.closest('[data-security-action]');
     if (!button) return;
@@ -609,6 +620,16 @@
       pendingApproverPins[id] = input.secret;
       const actor = approverById(id);
       if (actor) actor.pinConfigured = true;
+      saveState();
+      renderAll();
+    }
+    else if (action === 'employee-pin' && requireAdmin('직원 PIN 변경')) {
+      const input = await askCredential('새 직원 로그인 PIN (6자 이상)');
+      if (!input) return;
+      if (input.secret.length < 6) { securityMessage('PIN을 6자 이상 입력해주세요.'); return; }
+      pendingEmployeePins[id] = input.secret;
+      const emp = EMPLOYEES.find(e => e.id === id);
+      if (emp) emp.pinConfigured = true;
       saveState();
       renderAll();
     }
@@ -659,7 +680,9 @@
 
   // Credentials live only in memory. Shared state/localStorage never contain PINs.
   let adminToken = '', adminUntil = 0;
+  let employeeToken = '', employeeUntil = 0, employeeId = '', employeeDisplayName = '';
   const pendingApproverPins = Object.create(null);
+  const pendingEmployeePins = Object.create(null);
   function securityMessage(message) {
     const node = document.getElementById('securityStatus');
     if (node) node.textContent = message;
@@ -713,6 +736,75 @@
   // 인증 직후, 승인 처리 직전 등) 디바운스를 건너뛰고 즉시 시도만 해준다.
   async function flushPendingState() {
     if (stateSync && stateSync.info().dirty) await stateSync.retry();
+  }
+
+  // 직원 로그인. 관리자 인증과 마찬가지로 토큰은 메모리에만 두고 새로고침하면 다시 로그인해야 한다.
+  function employeeMessage(message) {
+    const node = document.getElementById('employeeStatus');
+    if (node) node.textContent = message;
+  }
+  async function employeeRequest(url, body) {
+    if (LOCAL_MODE) throw new Error('로그인 기능은 공유 서버에서 열어주세요.');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Employee-Token': employeeToken },
+      body: JSON.stringify(body)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) { employeeToken = ''; employeeUntil = 0; employeeId = ''; applyEmployeeGate(); }
+      throw new Error(result.error || '서버 요청에 실패했습니다.');
+    }
+    return result;
+  }
+  function requireEmployeeLogin(action) {
+    if (!employeeToken || Date.now() >= employeeUntil) {
+      employeeMessage(action + ': 상단에서 로그인해주세요.');
+      return false;
+    }
+    return true;
+  }
+  async function loginEmployee() {
+    const empId = $('#employeeLoginSelect').value;
+    const pin = $('#employeeLoginPin').value;
+    if (!empId) { employeeMessage('이름을 선택해주세요.'); return; }
+    try {
+      const result = await employeeRequest('/api/auth/employee', { empId, pin });
+      employeeToken = result.token;
+      employeeUntil = Date.now() + 15 * 60 * 1000;
+      employeeId = result.empId;
+      employeeDisplayName = result.name;
+      $('#employeeLoginPin').value = '';
+      renderAll();
+    } catch (error) { employeeMessage(error.message); }
+  }
+  function logoutEmployee() {
+    employeeToken = ''; employeeUntil = 0; employeeId = ''; employeeDisplayName = '';
+    renderAll();
+    showToast('로그아웃했습니다.');
+  }
+  // 로그인 상태를 상단 위젯과 신청서 폼(본인 명의 고정)에 반영한다. renderAll()에서 매번 다시 호출된다.
+  function applyEmployeeGate() {
+    const loggedIn = !!employeeToken && Date.now() < employeeUntil;
+    if (!loggedIn && employeeToken) { employeeToken = ''; employeeId = ''; employeeDisplayName = ''; }
+    employeeMessage(loggedIn ? `${employeeDisplayName}님으로 로그인됨` : '로그인이 필요합니다.');
+    const selectEl = $('#employeeLoginSelect'), pinEl = $('#employeeLoginPin'), loginBtn = $('#employeeLoginBtn'), logoutBtn = $('#employeeLogoutBtn');
+    if (selectEl) selectEl.hidden = loggedIn;
+    if (pinEl) pinEl.hidden = loggedIn;
+    if (loginBtn) loginBtn.hidden = loggedIn;
+    if (logoutBtn) logoutBtn.hidden = !loggedIn;
+    ['#reqEmp', '#proEmp'].forEach(sel => {
+      const select = $(sel);
+      if (!select) return;
+      select.disabled = true;
+      select.value = loggedIn ? employeeId : '';
+    });
+    const reqBtn = $('#reqPreviewBtn'), proBtn = $('#proSubmitBtn');
+    if (reqBtn) reqBtn.disabled = !loggedIn;
+    if (proBtn) proBtn.disabled = !loggedIn;
+    const reqNotice = $('#reqLoginNotice'), proNotice = $('#proLoginNotice');
+    if (reqNotice) reqNotice.hidden = loggedIn;
+    if (proNotice) proNotice.hidden = loggedIn;
   }
 
   const STORE_KEY = 'ncq_schedule_v1';
@@ -871,11 +963,12 @@
     try {
       const response = await fetch('/api/state', {
         method, cache: 'no-store', signal: controller.signal,
-        headers: payload ? { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken } : {},
+        headers: payload ? { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken, 'X-Employee-Token': employeeToken } : {},
         body: payload ? JSON.stringify(payload) : undefined
       });
       if (!response.ok) {
         if (response.status === 403) adminUntil = 0;
+        if (response.status === 401) employeeUntil = 0;
         const body = await response.json().catch(() => ({}));
         const error = new Error(body.error || 'Server request failed');
         error.status = response.status;
@@ -927,8 +1020,10 @@
       read: () => stateRequest(),
       write: (state, baseRevision) => {
         const pins = { ...pendingApproverPins };
-        return stateRequest('POST', { state, baseRevision, approverPins: pins }).then(result => {
+        const empPins = { ...pendingEmployeePins };
+        return stateRequest('POST', { state, baseRevision, approverPins: pins, employeePins: empPins }).then(result => {
           for (const [id, pin] of Object.entries(pins)) if (pendingApproverPins[id] === pin) delete pendingApproverPins[id];
+          for (const [id, pin] of Object.entries(empPins)) if (pendingEmployeePins[id] === pin) delete pendingEmployeePins[id];
           return result;
         }, error => {
           if (error.status !== 409) securityMessage(error.message);
@@ -1001,7 +1096,7 @@
         requests: raw.requests || [],
         protects: raw.protects || [],
         excuses: raw.excuses || [],
-        // 담당자(승인권자) 명부. 이름/담당범위/사내메일/PIN
+        // 담당자(승인권자) 명부. 이름/사내메일/PIN. 전원이 모든 승인을 담당한다.
         approvers: Array.isArray(raw.approvers) ? raw.approvers : [],
         // 휴가·비번보장·월확정을 한 줄로 모아 보는 통합 승인 대기열
         approvals: Array.isArray(raw.approvals) ? raw.approvals : [],
@@ -1316,21 +1411,6 @@
     });
   }
 
-  // 휴가·비번 보장 신청을 본인이 직접 취소할 때 쓰는 본인 확인. 담당자 PIN 검증(decideApproval)과
-  // 같은 방식(이름 + PIN, prompt 기반)이며, 이름까지 맞아야 하므로 PIN만 알아서는 통과할 수 없다.
-  function verifyEmployeeIdentity(empId){
-    const emp = EMPLOYEES.find(e => e.id === empId);
-    if (!emp) return false;
-    if (!emp.pin){ alert('아직 취소용 PIN이 설정되지 않았습니다. 관리자에게 설정을 요청해주세요.'); return false; }
-    const enteredName = prompt('본인 확인 — 이름을 입력해주세요.');
-    if (enteredName === null) return false;
-    if (enteredName.trim() !== emp.name.trim()){ alert('이름이 일치하지 않습니다.'); return false; }
-    const enteredPin = prompt(`${emp.name}님 PIN을 입력해주세요.`);
-    if (enteredPin === null) return false;
-    if (String(enteredPin) !== String(emp.pin)){ alert('PIN이 일치하지 않습니다.'); return false; }
-    return true;
-  }
-
   const $ = sel => document.querySelector(sel);
   const $$ = sel => document.querySelectorAll(sel);
 
@@ -1370,6 +1450,13 @@
       select.innerHTML = opts;
       if (EMPLOYEES.some(e => e.id === current)) select.value = current;
     });
+    const loginSelect = $('#employeeLoginSelect');
+    if (loginSelect) {
+      const current = loginSelect.value;
+      loginSelect.innerHTML = '<option value="">이름 선택</option>' + opts;
+      if (EMPLOYEES.some(e => e.id === current)) loginSelect.value = current;
+    }
+    applyEmployeeGate();
   }
 
   function populateYearSelect(){
@@ -1619,6 +1706,7 @@
 
   let pendingChain = null;
   function previewChain(){
+    if (!requireEmployeeLogin('휴가 신청')) return;
     const empId = $('#reqEmp').value;
     const type = $('#reqType').value;
     const dateVal = $('#reqDate').value;
@@ -1693,26 +1781,24 @@
       return `<div class="list-item">${tag}${statusTag}<b>${escapeAttribute(empName(r.empId))}</b> — ${escapeAttribute(r.startDate)} 부터
         <div class="meta">${escapeAttribute(chainTxt)}</div>
         <div class="meta">신청시각: ${new Date(r.submittedAt).toLocaleString('ko-KR')}</div>
-        ${r.status !== 'cancelled' ? `<div class="row" style="margin-top:6px;"><button class="btn ghost" data-security-action="cancel-request" data-id="${escapeAttribute(r.id)}">취소</button></div>` : ''}
+        ${r.status !== 'cancelled' && employeeId && employeeId === r.empId ? `<div class="row" style="margin-top:6px;"><button class="btn ghost" data-security-action="cancel-request" data-id="${escapeAttribute(r.id)}">취소</button></div>` : ''}
       </div>`;
     }).join('');
   }
 
-  // 신청 본인이 이름+PIN 확인 후 휴가 신청을 취소한다. 반려와 같은 'cancelled' 상태로 만들어
-  // 대근 배정 자동 원상복구(findChainAssignment가 cancelled를 건너뜀) 로직을 그대로 재사용한다.
-  function cancelRequest(id){
+  // 로그인한 본인이 자신의 휴가 신청을 취소한다. 서버(cancelOwn)가 소유자·상태를 재검증하고
+  // 'cancelled' 상태로 만들어 대근 배정 자동 원상복구(findChainAssignment가 cancelled를 건너뜀)
+  // 로직을 그대로 재사용한다. 저장은 일반 저장 경로를 타지 않으므로 성공 후 새로고침으로 동기화한다.
+  async function cancelRequest(id){
     const req = STATE.requests.find(r => r.id === id);
     if (!req) return;
     if (req.status === 'cancelled'){ alert('이미 취소된 신청입니다.'); return; }
-    if (!verifyEmployeeIdentity(req.empId)) return;
-    req.status = 'cancelled';
-    req.cancelledAt = new Date().toISOString();
-    addAuditLog('휴가 신청 본인 취소', { requestId: req.id, empId: req.empId, empName: empName(req.empId) });
-    notify('email', req.empId, '🗑️ 휴가 신청 취소', `${req.startDate} 휴가 신청을 본인이 취소했습니다.`);
-    alertApprovers(req.empId, '휴가 신청 취소 안내', `${empName(req.empId)}님이 ${req.startDate} 휴가 신청을 취소했습니다.`);
-    saveState();
-    renderAll();
-    showToast('휴가 신청을 취소했습니다.');
+    if (!requireEmployeeLogin('휴가 신청 취소')) return;
+    if (employeeId !== req.empId){ employeeMessage('본인 신청만 취소할 수 있습니다.'); return; }
+    try {
+      await employeeRequest('/api/requests/cancel', { kind: 'request', id });
+      location.reload();
+    } catch (error) { employeeMessage(error.message); }
   }
 
   function renderProtectTab(){
@@ -1787,6 +1873,7 @@
     $('#proReasonWrap').style.display = used >= max ? 'block' : 'none';
   }
   function submitProtect(){
+    if (!requireEmployeeLogin('비번 보장 신청')) return;
     const empId = $('#proEmp').value;
     const dateVal = $('#proDate').value;
     if(!dateVal){ alert('날짜를 선택해주세요.'); return; }
@@ -1831,26 +1918,24 @@
       return `<div class="list-item">${statusTag}<b>${escapeAttribute(empName(p.empId))}</b> — ${escapeAttribute(p.date)} 대근 불가(비번 보장)
         ${p.reason ? `<div class="meta">사유: ${escapeAttribute(p.reason)}</div>` : ''}
         <div class="meta">신청시각: ${new Date(p.submittedAt).toLocaleString('ko-KR')}</div>
-        ${cancellable ? `<div class="row" style="margin-top:6px;"><button class="btn ghost" data-security-action="cancel-protect" data-id="${escapeAttribute(p.id)}">취소</button></div>` : ''}
+        ${cancellable && employeeId && employeeId === p.empId ? `<div class="row" style="margin-top:6px;"><button class="btn ghost" data-security-action="cancel-protect" data-id="${escapeAttribute(p.id)}">취소</button></div>` : ''}
       </div>`;
     }).join('');
   }
 
-  // 신청 본인이 이름+PIN 확인 후 비번 보장 신청을 취소한다. isProtectedOn 등 관련 로직은
-  // 이미 status !== 'cancelled'를 함께 걸러내고 있어 별도 수정 없이 안전하게 반영된다.
-  function cancelProtect(id){
+  // 로그인한 본인이 자신의 비번 보장 신청을 취소한다. isProtectedOn 등 관련 로직은 이미
+  // status !== 'cancelled'를 함께 걸러내고 있어 별도 수정 없이 안전하게 반영된다. 서버(cancelOwn)가
+  // 소유자·상태를 재검증하며, 일반 저장 경로를 타지 않으므로 성공 후 새로고침으로 동기화한다.
+  async function cancelProtect(id){
     const pro = STATE.protects.find(p => p.id === id);
     if (!pro) return;
     if (pro.status === 'cancelled' || pro.status === 'rejected'){ alert('이미 취소(반려)된 신청입니다.'); return; }
-    if (!verifyEmployeeIdentity(pro.empId)) return;
-    pro.status = 'cancelled';
-    pro.cancelledAt = new Date().toISOString();
-    addAuditLog('비번 보장 신청 본인 취소', { protectId: pro.id, empId: pro.empId, empName: empName(pro.empId), date: pro.date });
-    notify('email', pro.empId, '🗑️ 비번 보장 신청 취소', `${pro.date} 비번 보장 신청을 본인이 취소했습니다.`);
-    alertApprovers(pro.empId, '비번 보장 신청 취소 안내', `${empName(pro.empId)}님이 ${pro.date} 비번 보장 신청을 취소했습니다.`);
-    saveState();
-    renderAll();
-    showToast('비번 보장 신청을 취소했습니다.');
+    if (!requireEmployeeLogin('비번 보장 신청 취소')) return;
+    if (employeeId !== pro.empId){ employeeMessage('본인 신청만 취소할 수 있습니다.'); return; }
+    try {
+      await employeeRequest('/api/requests/cancel', { kind: 'protect', id });
+      location.reload();
+    } catch (error) { employeeMessage(error.message); }
   }
 
   function renderAdminTab(){
@@ -1864,14 +1949,15 @@
     else {
       wrap.innerHTML = mine.map(m => {
         const already = STATE.excuses.find(e => e.empId === empId && e.date === m.date);
+        const canSubmit = employeeId && employeeId === empId;
         return `<div class="list-item"><b>${escapeAttribute(m.date)}</b> — ${escapeAttribute(m.label)} (${escapeAttribute(empName(m.sourceEmp))}님 휴가 대근)
           <div class="meta">${already ? `제출된 불가 사유: "${escapeAttribute(already.reason)}"` : ''}</div>
-          ${already ? '' : `<div style="margin-top:6px;">
+          ${already ? '' : canSubmit ? `<div style="margin-top:6px;">
             <textarea placeholder="대근 불가 사유 (25일 00시 전까지 제출)" id="excuse-${escapeAttribute(m.date)}-${escapeAttribute(empId)}"></textarea>
             <div class="row" style="margin-top:8px;">
               <button class="btn" data-security-action="excuse" data-emp="${escapeAttribute(empId)}" data-date="${escapeAttribute(m.date)}">불가 사유 제출</button>
             </div>
-          </div>`}
+          </div>` : `<p class="meta">본인 계정으로 로그인 후 본인 배정 건에 대해서만 사유를 제출할 수 있습니다.</p>`}
         </div>`;
       }).join('');
     }
@@ -1880,6 +1966,8 @@
   }
 
   function submitExcuse(empId, date){
+    if (!requireEmployeeLogin('대근 불가 사유 제출')) return;
+    if (employeeId !== empId){ employeeMessage('본인 명의로만 사유를 제출할 수 있습니다.'); return; }
     const ta = document.getElementById(`excuse-${date}-${empId}`);
     const reason = ta ? ta.value.trim() : '';
     if(!reason){ alert('사유를 입력해주세요.'); return; }
@@ -1902,23 +1990,15 @@
   function approverById(id){ return getApprovers().find(a => a.id === id) || null; }
   function approverName(id){ return approverById(id)?.name || '미지정'; }
 
-  // 담당 범위(scope)가 비어 있으면 전원 담당. 아니면 직원 id나 이름이 들어간 담당자만 고른다.
-  function findApproversFor(empId){
-    const emp = EMPLOYEES.find(e => e.id === empId);
-    const all = getApprovers();
-    const matched = all.filter(a => {
-      const scope = String(a.scope || '').trim();
-      if (!scope || scope === 'all' || scope === '전체') return true;
-      const tokens = scope.split(/[,\s]+/).filter(Boolean);
-      return tokens.some(t => t === empId || (emp && t === emp.name));
-    });
-    return empId === null ? all : matched;
+  // 등록된 담당자 전원이 모든 승인·알림을 받는다.
+  function findApproversFor(){
+    return getApprovers();
   }
 
   const APPROVAL_TYPE_LABEL = { leave: '휴가·대근 배정', protect: '비번 보장 초과', monthly: '월간 근무표 확정' };
 
   function createApproval({type, refId, requestedBy, title, summary}){
-    const targets = findApproversFor(requestedBy);
+    const targets = findApproversFor();
     const approval = {
       id: uid(),
       type,
@@ -1970,7 +2050,7 @@
 
   // 승인 절차 없이 담당자에게 알리기만 하면 되는 건(예: 대근 불가 사유 접수)
   function alertApprovers(aboutEmpId, title, body){
-    const targets = findApproversFor(aboutEmpId);
+    const targets = findApproversFor();
     targets.forEach(a => notify('email', a.id, title, body));
     if (!targets.length) return;
     // 일반 안내는 화면 알림에 기록합니다. 실제 발송은 저장된 승인 요청에 한정합니다.
@@ -2000,7 +2080,7 @@
       const prev = actorSel.value;
       const approvers = getApprovers();
       actorSel.innerHTML = approvers.length
-        ? approvers.map(a => `<option value="${escapeAttribute(a.id)}">${escapeAttribute(a.name)}${a.scope ? ` (${escapeAttribute(a.scope)})` : ''}</option>`).join('')
+        ? approvers.map(a => `<option value="${escapeAttribute(a.id)}">${escapeAttribute(a.name)}</option>`).join('')
         : '<option value="">등록된 담당자가 없습니다 — 설정 탭에서 등록</option>';
       if (prev && approvers.some(a => a.id === prev)) actorSel.value = prev;
     }
@@ -2041,7 +2121,7 @@
     const approvers = getApprovers();
     if (!approvers.length){ wrap.innerHTML = '<p class="empty">등록된 담당자가 없습니다. 아래에서 추가해주세요.</p>'; return; }
     wrap.innerHTML = approvers.map(a => `<div class="list-item">
-      <b>${escapeAttribute(a.name)}</b> <span class="meta" style="display:inline;">${a.scope ? `담당: ${escapeAttribute(a.scope)}` : '담당: 전체'}</span>
+      <b>${escapeAttribute(a.name)}</b>
       <div class="meta">사내메일: ${escapeAttribute(a.email || '미등록')} · PIN: ${a.pinConfigured ? '설정됨' : '없음(설정 필요)'}</div>
       <div class="row" style="margin-top:6px;">
         <button class="btn secondary" data-security-action="remove" data-id="${escapeAttribute(a.id)}">삭제</button>
@@ -2063,13 +2143,12 @@
     STATE.approvers.push({
       id,
       name,
-      scope: $('#approverScope').value.trim(),
       email,
       pinConfigured: true
     });
     addAuditLog('담당자 추가', { name });
     saveState();
-    ['#approverName', '#approverScope', '#approverEmail', '#approverPin'].forEach(sel => { const el = $(sel); if (el) el.value = ''; });
+    ['#approverName', '#approverEmail', '#approverPin'].forEach(sel => { const el = $(sel); if (el) el.value = ''; });
     renderAll();
     showToast(`담당자 "${name}"을(를) 등록했습니다.`);
   }
@@ -2525,7 +2604,10 @@
           <td><input type="date" data-field="startDate" value="${escapeAttribute(employee.startDate || '')}"></td>
           <td><input type="date" data-field="endDate" value="${escapeAttribute(employee.endDate || '')}"></td>
           <td><input type="checkbox" data-field="routine" style="width:auto;" ${isRoutineWorker(employee) ? 'checked' : ''}></td>
-          <td><input type="text" data-field="pin" maxlength="12" value="${escapeAttribute(employee.pin || '')}" placeholder="선택"></td>
+          <td style="white-space:nowrap;">
+            <div class="meta" style="margin-bottom:4px;">${employee.pinConfigured ? '설정됨' : '없음'}</div>
+            <button class="btn ghost" type="button" data-security-action="employee-pin" data-id="${escapeAttribute(employee.id)}">PIN 변경</button>
+          </td>
           <td style="white-space:nowrap;">
             <button class="btn ghost move-employee-row" type="button" data-dir="up" data-index="${index}" title="위로" ${index === 0 ? 'disabled' : ''}>▲</button>
             <button class="btn ghost move-employee-row" type="button" data-dir="down" data-index="${index}" title="아래로" ${index === draft.length - 1 ? 'disabled' : ''}>▼</button>
@@ -2608,7 +2690,7 @@
       else STATE.employeeOrderHistory.push({ month: effectiveMonth, order: newOrder });
       STATE.employeeOrderHistory.sort((a, b) => a.month < b.month ? -1 : a.month > b.month ? 1 : 0);
 
-      EMPLOYEES = [...employees.map(employee => ({ ...employee, name: employee.name.trim(), phase: Number(employee.phase) || 0, routine: !!employee.routine, pin: (employee.pin || '').trim(), email: (employee.email || '').trim() })), ...removed];
+      EMPLOYEES = [...employees.map(employee => ({ ...employee, name: employee.name.trim(), phase: Number(employee.phase) || 0, routine: !!employee.routine, email: (employee.email || '').trim() })), ...removed];
       STATE.employees = EMPLOYEES;
       addAuditLog('직원 구성 편집', { employees: employees.map(employee => ({ ...employee })), removed: removed.map(employee => ({ ...employee })), orderEffectiveMonth: effectiveMonth });
       saveState();
@@ -3098,6 +3180,7 @@
   }
 
   function renderAll(){
+    applyEmployeeGate();
     renderScheduleTab();
     // 편집 패널이 화면에 실제로 보일 때만 다시 그린다.
     // (다른 탭에 있을 때는 124개 입력칸을 새로 만들 이유가 없고, 그 레이아웃 비용이 년/월 선택을 느리게 만들었다)

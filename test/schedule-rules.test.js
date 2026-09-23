@@ -31,7 +31,7 @@ function setup() {
     $: selector => fields[selector],
     uid: () => 'request' + saves,
     getApprovers: () => [],
-    notify() {}, renderAll() {}, saveState: () => saves++,
+    notify() {}, renderAll() {}, saveState: () => saves++, requireEmployeeLogin: () => true,
     createApproval: value => context.approvals.push(value)
   });
   context.alert = message => context.alerts.push(message);
