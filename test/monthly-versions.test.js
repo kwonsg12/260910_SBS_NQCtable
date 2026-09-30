@@ -34,6 +34,7 @@ function setup(){
     staff: [{ id: 'a', name: '직원', startDate: '2099-01-01' }], shift: '일',
     DEFAULT_STATION_NAME: '관제실', STORE_KEY: 'test', LOCAL_MODE: true, localSaveFailed: false,
     alerts: [], securityMessages: [], actor: { id: 'boss', name: '담당' },
+    adminToken: '', adminUntil: 0,
     getCurrentMonthView: () => ({ year: 2099, monthIndex: 0 }),
     getToday: () => new Date('2099-01-01T00:00:00'),
     getActiveStaff: () => c.staff,

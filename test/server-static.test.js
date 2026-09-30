@@ -60,7 +60,7 @@ test('HTTP file boundary and existing API routes', { timeout: 30000 }, async t =
   });
 
   for (const file of [
-    'server.js', 'db.js', 'security.js', 'notifier.js', 'digest.js',
+    'server.js', 'db.js', 'security.js', 'activityLog.js', 'notifier.js', 'digest.js',
     'index.html', 'sbs-logo.png', 'package.json', 'package-lock.json',
     'README.md', 'app.js', 'styles.css'
   ]) {
@@ -156,7 +156,7 @@ test('HTTP file boundary and existing API routes', { timeout: 30000 }, async t =
 
   await t.test('existing private files and unlisted files return 404 for GET and HEAD', async () => {
     for (const file of [
-      ...privateFiles, 'geunmupyo.db', 'server.js', 'db.js', 'security.js', 'notifier.js',
+      ...privateFiles, 'geunmupyo.db', 'server.js', 'db.js', 'security.js', 'activityLog.js', 'notifier.js',
       'digest.js', 'package.json', 'package-lock.json', 'README.md',
       'app.js', 'styles.css', 'missing-file.txt'
     ]) {

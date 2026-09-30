@@ -29,7 +29,7 @@ function seed() {
 
 async function fixture(t) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'nqc-employee-auth-'));
-  for (const file of ['server.js', 'db.js', 'security.js', 'notifier.js', 'digest.js', 'index.html', 'sbs-logo.png']) {
+  for (const file of ['server.js', 'db.js', 'security.js', 'activityLog.js', 'notifier.js', 'digest.js', 'index.html', 'sbs-logo.png']) {
     copyFileSync(path.join(root, file), path.join(dir, file));
   }
   const initial = seed();

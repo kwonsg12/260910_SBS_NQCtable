@@ -39,6 +39,15 @@ function dayLabel(ymd) {
   return `${+m[2]}월 ${+m[3]}일(${WEEKDAYS[new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay()]})`;
 }
 
+// 대근 배정된 날짜가 속한 달의 근무표는 그 전달 lockDay일에 잠긴다(index.html의 lockMomentFor와 동일한 규칙).
+// "해당 월 25일"처럼 모호하게 말하지 않고, 실제 몇월 며칠인지 바로 알 수 있게 계산해서 보여준다.
+function lockDeadlineLabel(ymd, lockDay) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd));
+  if (!m) return null;
+  const prev = new Date(Date.UTC(+m[1], +m[2] - 1 - 1, 1));
+  return `${prev.getUTCFullYear()}년 ${prev.getUTCMonth() + 1}월 ${lockDay}일`;
+}
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
@@ -108,17 +117,23 @@ function buildDigests(state, { sinceFor, until, today, baseUrl }) {
 
     if (p.empIds.size) {
       const assigned = [];
+      const activeDeadlines = new Set();
       for (const r of leaves) {
         // 신청과 동시에 취소·반려된 건은 대근자가 이전에 안내받은 적이 없으므로 알리지 않는다.
         if (r.status === 'cancelled' && within(r.submittedAt, since, until)) continue;
         for (const c of Array.isArray(r.chain) ? r.chain : []) {
           if (c.empId !== r.empId && p.empIds.has(c.empId)) {
-            assigned.push(`${dayLabel(c.date)} ${c.label} — ${empName(r.empId)}님 휴가 대근 [${chainStatus(r)}]`);
+            const status = chainStatus(r);
+            assigned.push(`${dayLabel(c.date)} ${c.label} — ${empName(r.empId)}님 휴가 대근 [${status}]`);
+            if (status !== '배정 해제') {
+              const deadline = lockDeadlineLabel(c.date, lockDay);
+              if (deadline) activeDeadlines.add(deadline);
+            }
           }
         }
       }
       add('내게 배정된 대근', assigned,
-        assigned.some(row => !row.endsWith('[배정 해제]')) ? `대근이 어려우시면 해당 월 ${lockDay}일 00시 전까지 근무표 시스템에 사유를 등록해주세요.` : '');
+        activeDeadlines.size ? `대근이 어려우시면 ${[...activeDeadlines].join(', ')} 00시 전까지 근무표 시스템에 사유를 등록해주세요.` : '');
 
       const mine = [];
       for (const r of leaves.filter(r => p.empIds.has(r.empId))) {

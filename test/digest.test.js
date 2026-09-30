@@ -69,7 +69,7 @@ test('일일 요약은 근무자·담당자별로 바뀐 내용만 골라 만든
 
     const yang = byEmail['yang@sbs.test'].text;
     assert.match(yang, /9월 24일\(목\) 대근 투입\(야\) — 최도인님 휴가 대근 \[승인 대기 중 \(예정 배정\)\]/);
-    assert.match(yang, /해당 월 25일 00시 전까지/);
+    assert.match(yang, /대근이 어려우시면 2026년 8월 25일 00시 전까지/);
     assert.match(yang, /휴가 9월 28일\(월\) \(일근\) \[반려 \(사유: 인원 부족\)\]/);
     assert.match(yang, /비번 보장 9월 26일\(토\) \[반려 \(사유: 사전 신청 기한 경과\)\]/);
 

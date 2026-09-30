@@ -160,6 +160,8 @@
   .schedule-edit-table input:disabled{background:#f1f3f5;border-color:#e2e6ec;color:#9aa4b2;}
   .schedule-edit-table .edit-inactive{background:#f7f8fa;}
   .schedule-edit-table .edit-covered input{background:#fff8e1;border-color:#f0d9a0;}
+  /* routine: 4조 교대 자동 대근 로테이션에 속한 정식 루틴 근무자 행 표시 */
+  .schedule-edit-table .routine-row td.name{border-left:4px solid #2563eb;}
   .schedule-editor-view[hidden]{display:none;}
   .schedule-editor-view+.schedule-editor-view{margin-top:22px;padding-top:18px;border-top:1px solid var(--line);}
   .employee-edit-table{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff;}
@@ -177,6 +179,7 @@
   /* opacity는 애니메이션에 맡기지 않는다. 애니메이션이 진행되지 않는 환경에서 토스트가 안 보이게 되기 때문. */
   #toastHost .toast{background:#0f172a;color:#fff;font-size:14px;font-weight:700;padding:12px 18px;border-radius:10px;box-shadow:0 8px 24px rgba(15,20,30,.25);max-width:80vw;text-align:center;opacity:1;animation:toastIn .16s ease-out;}
   #toastHost .toast.ok{background:#0f7d3a;}
+  #toastHost .toast.warn{background:#b91c1c;}
   @keyframes toastIn{from{transform:translateY(-6px);}to{transform:none;}}
   @media(max-width:800px){.grid2{grid-template-columns:1fr;}.grid3{grid-template-columns:1fr;}.schedule-sheet-header{flex-direction:column;align-items:stretch;}.approval-block{justify-content:flex-start;max-width:none;}}
   code{background:#f1f3f6;padding:1px 5px;border-radius:4px;font-size:12px;}
@@ -186,16 +189,16 @@
 <section style="padding:10px 24px;background:#fff7dd;border-bottom:1px solid #e2e6ec;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span id="securityStatus" role="status">승인·설정 변경은 서버에서 권한을 확인합니다.</span>
-    <button id="securityLogin" type="button" class="btn secondary">관리자 인증</button>
-    <button id="securityRetry" type="button" class="btn secondary">저장 재시도</button>
-    <button id="securityLogout" type="button" class="btn secondary">인증 해제</button>
   </div>
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span id="employeeStatus" role="status">로그인이 필요합니다.</span>
-    <select id="employeeLoginSelect" aria-label="이름"><option value="">이름 선택</option></select>
+    <select id="employeeLoginSelect" aria-label="이름"><option value="">이름 선택</option><option value="__admin__">관리자</option></select>
     <input id="employeeLoginPin" type="password" placeholder="PIN" maxlength="128" style="width:100px">
-    <button id="employeeLoginBtn" type="button" class="btn secondary">직원 로그인</button>
+    <button id="employeeLoginBtn" type="button" class="btn secondary">로그인</button>
     <button id="employeeLogoutBtn" type="button" class="btn secondary" hidden>로그아웃</button>
+  </div>
+  <div style="width:100%;">
+    <span id="lockStatus" role="status" style="font-size:13px;color:#92400e;" hidden></span>
   </div>
 </section>
 
@@ -514,7 +517,7 @@
             <strong>직원 구성 편집</strong>
             <span class="quota">이름 수정, 직원 추가·삭제, 적용 기간을 관리합니다. (삭제 시 이번 달까지는 기록이 유지되고 다음 달부터 제외됩니다)</span>
           </div>
-          <p class="quota" style="margin:0 0 8px;"><b>루틴 근무자</b> = 4조 교대로 서로 대근을 서는 인원입니다. 휴가 신청 시 <b>이 인원 중에서만</b> 대근이 자동 배정됩니다. 적응 중이거나 상근인 인원은 체크를 해제해 두세요.</p>
+          <p class="quota" style="margin:0 0 8px;"><b>루틴 근무자</b> = 4조 교대로 서로 대근을 서는 인원이며, 체크박스가 아니라 <b>이 표의 순서로 정해집니다</b> — 위에서부터 4명이 루틴 근무자이고, 휴가 신청 시 <b>이 4명 중에서만</b> 대근이 자동 배정됩니다. ▲▼로 위 4번째 안으로 옮기면 루틴 근무자로 편입되고, 5번째 밖으로 밀려나면 자동 대근 대상에서 빠집니다.</p>
           <p class="quota" style="margin:0 0 8px;">▲▼로 표에 표시될 <b>직급 순서</b>를 조절하세요. 위 "편집 연도/편집 월"에 놓인 달부터 적용되며, 그 이전 달의 근무표 순서는 바뀌지 않습니다.</p>
           <p class="quota" style="margin:0 0 8px;"><b>사내메일</b>을 등록하면 그 직원에게 배정된 대근과 본인 휴가·비번 보장 신청의 처리 결과(반려 사유 포함)가 매일 요약 메일로 발송됩니다. 비워두면 메일을 받지 않습니다.</p>
           <p class="quota" style="margin:0 0 8px;"><b>로그인 PIN</b>을 설정하면 해당 직원이 상단 로그인 위젯에서 이름과 이 PIN으로 로그인해 휴가·비번 보장 신청을 내고 본인 신청을 취소할 수 있습니다. PIN 설정 전에는 로그인할 수 없습니다.</p>
@@ -597,12 +600,12 @@
 </div>
 
 <script>
-  document.getElementById('securityLogin').addEventListener('click', loginAdmin);
-  document.getElementById('securityRetry').addEventListener('click', () => flushPendingState().catch(error => securityMessage(error.message)));
-  document.getElementById('securityLogout').addEventListener('click', () => {
-    adminToken = ''; adminUntil = 0; securityMessage('이 화면의 관리자 인증을 해제했습니다.');
+  document.getElementById('employeeLoginSelect').addEventListener('change', () => {
+    $('#employeeLoginPin').hidden = $('#employeeLoginSelect').value === '__admin__';
   });
-  document.getElementById('employeeLoginBtn').addEventListener('click', loginEmployee);
+  document.getElementById('employeeLoginBtn').addEventListener('click', () => {
+    if ($('#employeeLoginSelect').value === '__admin__') loginAdmin(); else loginEmployee();
+  });
   document.getElementById('employeeLogoutBtn').addEventListener('click', logoutEmployee);
   document.addEventListener('click', async event => {
     const button = event.target.closest('[data-security-action]');
@@ -624,31 +627,38 @@
       renderAll();
     }
     else if (action === 'employee-pin' && requireAdmin('직원 PIN 변경')) {
-      const input = await askCredential('새 직원 로그인 PIN (6자 이상)');
+      // draft 표에서 "직원 구성 적용"을 누르기 전의 새 직원은 아직 EMPLOYEES에 없어서
+      // PIN을 붙일 대상이 없다 — 조용히 무시하지 않고 먼저 적용하라고 안내한다.
+      const emp = EMPLOYEES.find(e => e.id === id);
+      if (!emp) { securityMessage('아직 저장되지 않은 직원입니다. 먼저 "직원 구성 적용"을 눌러 저장한 뒤 PIN을 설정해주세요.'); return; }
+      const input = await askCredential(emp.pinConfigured ? '직원 로그인 PIN 변경 (6자 이상)' : '직원 로그인 PIN 등록 (6자 이상)');
       if (!input) return;
       if (input.secret.length < 6) { securityMessage('PIN을 6자 이상 입력해주세요.'); return; }
       pendingEmployeePins[id] = input.secret;
-      const emp = EMPLOYEES.find(e => e.id === id);
-      if (emp) emp.pinConfigured = true;
+      emp.pinConfigured = true;
+      settingsEmployeeEditor.markPinConfigured(id);
       saveState();
       renderAll();
+      showToast(`${emp.name}님의 PIN을 설정했습니다.`);
     }
   });
-  // routine: 4조 교대 루틴 근무자 여부. 이 사람들끼리만 서로 대근을 선다(1순위).
-  // 이후 추가되는 인원(적응 중이거나 상근자)은 routine:false 라 자동 대근 대상이 아니다.
+  // 루틴 근무자(4조 교대, 서로 대근을 서는 인원)는 체크박스가 아니라 "직원 구성 편집" 표의
+  // 순서로 정해진다 — 그 달 활성 직원 중 위에서부터 4명이 루틴 근무자다. ▲▼로 순서를 바꾸면
+  // 그 즉시(적용 후) 루틴 근무자 구성도 함께 바뀐다.
   let EMPLOYEES = [
-    {id:'choi', name:'최도인', phase:2, startDate:'2026-01-01', endDate:null, routine:true},
-    {id:'yang', name:'양명국', phase:0, startDate:'2026-01-01', endDate:null, routine:true},
-    {id:'kimk', name:'김경율', phase:3, startDate:'2026-01-01', endDate:null, routine:true},
-    {id:'kimg', name:'김건호', phase:1, startDate:'2026-01-01', endDate:null, routine:true},
+    {id:'choi', name:'최도인', phase:2, startDate:'2026-01-01', endDate:null},
+    {id:'yang', name:'양명국', phase:0, startDate:'2026-01-01', endDate:null},
+    {id:'kimk', name:'김경율', phase:3, startDate:'2026-01-01', endDate:null},
+    {id:'kimg', name:'김건호', phase:1, startDate:'2026-01-01', endDate:null},
   ];
-  const DEFAULT_ROUTINE_IDS = ['choi', 'yang', 'kimk', 'kimg'];
+  const ROUTINE_HEADCOUNT = 4;
 
-  // routine 값이 없는 기존 저장 데이터는 기본 4인만 루틴 근무자로 본다.
-  function isRoutineWorker(emp){
+  // date 기준으로 그 달의 활성 직원 순서에서 위 ROUTINE_HEADCOUNT명 안에 드는지로 판단한다.
+  function isRoutineWorker(emp, date){
     if (!emp) return false;
-    if (typeof emp.routine === 'boolean') return emp.routine;
-    return DEFAULT_ROUTINE_IDS.includes(emp.id);
+    const ref = (date instanceof Date && !Number.isNaN(date.getTime())) ? date : getToday();
+    const top = getActiveStaff(ref.getFullYear(), ref.getMonth()).slice(0, ROUTINE_HEADCOUNT);
+    return top.some(e => e.id === emp.id);
   }
 
   const DEFAULT_STATION_NAME = '통합관제실';
@@ -701,14 +711,16 @@
     }
     return result;
   }
-  function askCredential(title, withReason = false) {
+  function askCredential(title, withReason = false, requireSecret = true) {
     return new Promise(resolve => {
       const dialog = document.createElement('dialog');
       dialog.style.cssText = 'border:1px solid #cbd5e1;border-radius:12px;padding:24px;max-width:440px;width:90%';
-      dialog.innerHTML = '<form><h3></h3><label>비밀번호 / PIN<input type="password" name="secret" autocomplete="off" required maxlength="128" style="display:block;width:100%;margin:8px 0"></label><label class="reason">반려 사유<textarea name="reason" maxlength="2000" style="display:block;width:100%"></textarea></label><div class="row" style="margin-top:16px"><button type="submit" class="btn">확인</button><button type="button" class="btn secondary">취소</button></div></form>';
+      dialog.innerHTML = '<form><h3></h3><label class="secret">비밀번호 / PIN<input type="password" name="secret" autocomplete="off" maxlength="128" style="display:block;width:100%;margin:8px 0"></label><label class="reason">반려 사유<textarea name="reason" maxlength="2000" style="display:block;width:100%"></textarea></label><div class="row" style="margin-top:16px"><button type="submit" class="btn">확인</button><button type="button" class="btn secondary">취소</button></div></form>';
       dialog.querySelector('h3').textContent = title;
       dialog.querySelector('.reason').style.display = withReason ? 'block' : 'none';
       dialog.querySelector('textarea').required = withReason;
+      dialog.querySelector('.secret').style.display = requireSecret ? 'block' : 'none';
+      dialog.querySelector('input[name=secret]').required = requireSecret;
       const done = value => { dialog.close(); dialog.remove(); resolve(value); };
       dialog.querySelector('form').addEventListener('submit', event => {
         event.preventDefault();
@@ -720,6 +732,56 @@
       dialog.showModal();
     });
   }
+  // ── 편집 잠금: 관리자/직원 중 한 쪽이 로그인(편집 시작)하면 다른 쪽은 그동안 로그인할 수
+  // 없다. 로그인 성공 직후 잠금을 받아오고, 하트비트로 유지하다가 로그아웃/탭 종료 시 풀어준다.
+  let lockHeartbeatTimer = null, lockPollTimer = null;
+  async function requestLock(url) {
+    const response = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken, 'X-Employee-Token': employeeToken }, body: '{}'
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || '서버 요청에 실패했습니다.');
+    return result;
+  }
+  function stopLockHeartbeat() {
+    if (lockHeartbeatTimer) { clearInterval(lockHeartbeatTimer); lockHeartbeatTimer = null; }
+  }
+  function startLockHeartbeat() {
+    stopLockHeartbeat();
+    lockHeartbeatTimer = setInterval(() => { requestLock('/api/lock/heartbeat').catch(() => {}); }, 45000);
+  }
+  async function releaseLockNow(admin, employee) {
+    stopLockHeartbeat();
+    try {
+      await fetch('/api/lock/release', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': admin || '', 'X-Employee-Token': employee || '' }, body: '{}'
+      });
+    } catch (e) {}
+  }
+  function releaseLockBeacon() {
+    try { navigator.sendBeacon('/api/lock/release', new Blob([JSON.stringify({ adminToken, employeeToken })], { type: 'application/json' })); }
+    catch (e) {}
+  }
+  function showLockBanner(holderName) {
+    const el = document.getElementById('lockStatus');
+    if (!el) return;
+    if (holderName) { el.textContent = `🔒 ${holderName}님이 편집 중입니다. 편집(로그인)은 그동안 제한됩니다.`; el.hidden = false; }
+    else el.hidden = true;
+  }
+  async function pollLockStatus() {
+    // 내가 이미 로그인해서 잠금을 들고 있으면 배너를 띄울 필요 없다.
+    if ((adminToken && Date.now() < adminUntil) || (employeeToken && Date.now() < employeeUntil)) { showLockBanner(null); return; }
+    try {
+      const response = await fetch('/api/lock', { cache: 'no-store' });
+      const result = await response.json().catch(() => ({}));
+      showLockBanner(result.locked ? result.holderName : null);
+    } catch (e) { /* 조회 실패는 조용히 무시한다 — 로그인 시도 시 서버가 다시 판단한다 */ }
+  }
+  function startLockPolling() {
+    pollLockStatus();
+    lockPollTimer = setInterval(pollLockStatus, 12000);
+  }
+
   async function loginAdmin() {
     const input = await askCredential('서버 관리자 인증');
     if (!input) return;
@@ -727,7 +789,19 @@
       const result = await securityRequest('/api/auth/admin', { password: input.secret });
       adminToken = result.token;
       adminUntil = Date.now() + 15 * 60 * 1000;
+      try {
+        await requestLock('/api/lock/acquire');
+      } catch (error) {
+        adminToken = ''; adminUntil = 0;
+        securityMessage(error.message);
+        showToast(error.message, 'warn');
+        applyEmployeeGate();
+        return;
+      }
+      startLockHeartbeat();
+      showLockBanner(null);
       securityMessage('관리자 인증 완료(15분). 하려던 작업을 다시 눌러주세요.');
+      applyEmployeeGate();
       // 인증 전에는 저장이 막혀 있었을 수 있으니, 밀린 변경이 있으면 지금 바로 반영한다.
       if (stateSync && stateSync.info().dirty) await stateSync.retry();
     } catch (error) { securityMessage(error.message); }
@@ -759,7 +833,9 @@
   }
   function requireEmployeeLogin(action) {
     if (!employeeToken || Date.now() >= employeeUntil) {
-      employeeMessage(action + ': 상단에서 로그인해주세요.');
+      const message = action + ': 상단에서 로그인해주세요.';
+      employeeMessage(message);
+      showToast(message, 'info');
       return false;
     }
     return true;
@@ -774,37 +850,54 @@
       employeeUntil = Date.now() + 15 * 60 * 1000;
       employeeId = result.empId;
       employeeDisplayName = result.name;
+      try {
+        await requestLock('/api/lock/acquire');
+      } catch (error) {
+        employeeToken = ''; employeeUntil = 0; employeeId = ''; employeeDisplayName = '';
+        employeeMessage(error.message);
+        showToast(error.message, 'warn');
+        renderAll();
+        return;
+      }
+      startLockHeartbeat();
+      showLockBanner(null);
       $('#employeeLoginPin').value = '';
       renderAll();
     } catch (error) { employeeMessage(error.message); }
   }
+  // 로그인 선택 목록에 "관리자"도 함께 들어있으므로, 로그아웃도 현재 로그인된 쪽(관리자/직원)을
+  // 함께 정리한다 — 위젯이 하나뿐이라 사용자가 어느 쪽인지 신경 쓸 필요가 없다.
   function logoutEmployee() {
+    releaseLockNow(adminToken, employeeToken);
+    if (adminToken) { adminToken = ''; adminUntil = 0; securityMessage('관리자 인증을 해제했습니다.'); }
     employeeToken = ''; employeeUntil = 0; employeeId = ''; employeeDisplayName = '';
     renderAll();
     showToast('로그아웃했습니다.');
   }
   // 로그인 상태를 상단 위젯과 신청서 폼(본인 명의 고정)에 반영한다. renderAll()에서 매번 다시 호출된다.
   function applyEmployeeGate() {
-    const loggedIn = !!employeeToken && Date.now() < employeeUntil;
-    if (!loggedIn && employeeToken) { employeeToken = ''; employeeId = ''; employeeDisplayName = ''; }
-    employeeMessage(loggedIn ? `${employeeDisplayName}님으로 로그인됨` : '로그인이 필요합니다.');
+    const employeeLoggedIn = !!employeeToken && Date.now() < employeeUntil;
+    if (!employeeLoggedIn && employeeToken) { employeeToken = ''; employeeId = ''; employeeDisplayName = ''; }
+    const adminLoggedIn = !!adminToken && Date.now() < adminUntil;
+    const loggedIn = employeeLoggedIn || adminLoggedIn;
+    employeeMessage(employeeLoggedIn ? `${employeeDisplayName}님으로 로그인됨` : adminLoggedIn ? '관리자로 로그인됨' : '로그인이 필요합니다.');
     const selectEl = $('#employeeLoginSelect'), pinEl = $('#employeeLoginPin'), loginBtn = $('#employeeLoginBtn'), logoutBtn = $('#employeeLogoutBtn');
     if (selectEl) selectEl.hidden = loggedIn;
-    if (pinEl) pinEl.hidden = loggedIn;
+    if (pinEl) pinEl.hidden = loggedIn || selectEl?.value === '__admin__';
     if (loginBtn) loginBtn.hidden = loggedIn;
     if (logoutBtn) logoutBtn.hidden = !loggedIn;
     ['#reqEmp', '#proEmp'].forEach(sel => {
       const select = $(sel);
       if (!select) return;
       select.disabled = true;
-      select.value = loggedIn ? employeeId : '';
+      select.value = employeeLoggedIn ? employeeId : '';
     });
     const reqBtn = $('#reqPreviewBtn'), proBtn = $('#proSubmitBtn');
-    if (reqBtn) reqBtn.disabled = !loggedIn;
-    if (proBtn) proBtn.disabled = !loggedIn;
+    if (reqBtn) reqBtn.disabled = !employeeLoggedIn;
+    if (proBtn) proBtn.disabled = !employeeLoggedIn;
     const reqNotice = $('#reqLoginNotice'), proNotice = $('#proLoginNotice');
-    if (reqNotice) reqNotice.hidden = loggedIn;
-    if (proNotice) proNotice.hidden = loggedIn;
+    if (reqNotice) reqNotice.hidden = employeeLoggedIn;
+    if (proNotice) proNotice.hidden = employeeLoggedIn;
   }
 
   const STORE_KEY = 'ncq_schedule_v1';
@@ -1026,7 +1119,9 @@
           for (const [id, pin] of Object.entries(empPins)) if (pendingEmployeePins[id] === pin) delete pendingEmployeePins[id];
           return result;
         }, error => {
-          if (error.status !== 409) securityMessage(error.message);
+          // 409(충돌)는 상단 상태줄이 이미 안내하므로 토스트를 또 띄우지 않는다. 그 외(세션 만료,
+          // 서버 오류 등)는 상태줄만으로는 놓치기 쉬워서 눈에 띄는 토스트로도 알린다.
+          if (error.status !== 409) { securityMessage(error.message); showToast('저장 실패: ' + error.message, 'warn'); }
           throw error;
         });
       },
@@ -1268,7 +1363,9 @@
   }
   function requireAdmin(action){
     if (!adminToken || Date.now() >= adminUntil) {
-      securityMessage(action + ': 상단의 관리자 인증을 먼저 눌러주세요.');
+      const message = action + ': 상단 로그인 목록에서 "관리자"를 선택해 로그인해주세요.';
+      securityMessage(message);
+      showToast(message, 'info');
       return false;
     }
     addAuditLog('관리자 수정', { action });
@@ -1322,13 +1419,13 @@
   // 비번 보장이 걸린 사람도 제외하며, 누가 어떤 이유로 빠졌는지 함께 돌려준다.
   function findByBaseShift(date, shift, exclude = []){
     const onShift = EMPLOYEES.filter(e => !exclude.includes(e.id) && isEmployeeActiveOnDate(e, date) && effectiveShift(e.id, date) === shift);
-    const routine = onShift.filter(e => isRoutineWorker(e));
+    const routine = onShift.filter(e => isRoutineWorker(e, date));
     const available = routine.filter(e => !isProtectedOn(e.id, date));
     return {
       id: available[0]?.id,
       ids: available.map(e => e.id),
       blockedByProtect: routine.filter(e => isProtectedOn(e.id, date)).map(e => e.name),
-      skippedNonRoutine: onShift.filter(e => !isRoutineWorker(e)).map(e => e.name)
+      skippedNonRoutine: onShift.filter(e => !isRoutineWorker(e, date)).map(e => e.name)
     };
   }
 
@@ -1453,8 +1550,8 @@
     const loginSelect = $('#employeeLoginSelect');
     if (loginSelect) {
       const current = loginSelect.value;
-      loginSelect.innerHTML = '<option value="">이름 선택</option>' + opts;
-      if (EMPLOYEES.some(e => e.id === current)) loginSelect.value = current;
+      loginSelect.innerHTML = '<option value="">이름 선택</option><option value="__admin__">관리자</option>' + opts;
+      if (current === '__admin__' || EMPLOYEES.some(e => e.id === current)) loginSelect.value = current;
     }
     applyEmployeeGate();
   }
@@ -2060,16 +2157,29 @@
     const approval = STATE.approvals.find(a => a.id === id);
     const actor = approverById($('#approvalActorSelect')?.value || '');
     if (!approval || approval.status !== 'pending' || !actor) return;
-    if (!approval.approverIds?.includes(actor.id)) { securityMessage('이 신청의 담당자를 선택해주세요.'); return; }
+    const isAdminSession = !!adminToken && Date.now() < adminUntil;
+    // 관리자는 이 건에 지정된 담당자가 아니어도(=담당 범위 밖이어도) 대신 처리할 수 있다.
+    if (!isAdminSession && !approval.approverIds?.includes(actor.id)) { securityMessage('이 신청의 담당자를 선택해주세요.'); return; }
     if (ok && approval.type === 'monthly'){
       const error = monthlyApprovalError(approval);
       if (error){ alert(error); return; }
     }
     try {
       await flushPendingState();
-      const input = await askCredential(actor.name + ' 담당자 PIN', !ok);
-      if (!input) return;
-      await securityRequest('/api/approvals/decision', { id, approverId: actor.id, pin: input.secret, approved: ok, reason: input.reason });
+      // 관리자는 PIN 없이 바로 처리한다. 반려 사유만 필요하면 입력받는다.
+      let secret = '', reason = '';
+      if (isAdminSession) {
+        if (!ok) {
+          const input = await askCredential(actor.name + ' 명의로 반려 — 반려 사유', true, false);
+          if (!input) return;
+          reason = input.reason;
+        }
+      } else {
+        const input = await askCredential(actor.name + ' 담당자 PIN', !ok);
+        if (!input) return;
+        secret = input.secret; reason = input.reason;
+      }
+      await securityRequest('/api/approvals/decision', { id, approverId: actor.id, pin: secret, approved: ok, reason });
       location.reload();
     } catch (error) { securityMessage(error.message); }
   }
@@ -2603,10 +2713,10 @@
           <td><input type="text" data-field="email" value="${escapeAttribute(employee.email || '')}" placeholder="hong@sbs.co.kr"></td>
           <td><input type="date" data-field="startDate" value="${escapeAttribute(employee.startDate || '')}"></td>
           <td><input type="date" data-field="endDate" value="${escapeAttribute(employee.endDate || '')}"></td>
-          <td><input type="checkbox" data-field="routine" style="width:auto;" ${isRoutineWorker(employee) ? 'checked' : ''}></td>
+          <td><span class="meta">${index < ROUTINE_HEADCOUNT ? '루틴(자동대근)' : '—'}</span></td>
           <td style="white-space:nowrap;">
             <div class="meta" style="margin-bottom:4px;">${employee.pinConfigured ? '설정됨' : '없음'}</div>
-            <button class="btn ghost" type="button" data-security-action="employee-pin" data-id="${escapeAttribute(employee.id)}">PIN 변경</button>
+            <button class="btn ghost" type="button" data-security-action="employee-pin" data-id="${escapeAttribute(employee.id)}">${employee.pinConfigured ? 'PIN 변경' : 'PIN 등록'}</button>
           </td>
           <td style="white-space:nowrap;">
             <button class="btn ghost move-employee-row" type="button" data-dir="up" data-index="${index}" title="위로" ${index === 0 ? 'disabled' : ''}>▲</button>
@@ -2641,15 +2751,22 @@
     }
 
     function open(){
-      // routine 값이 없던 기존 데이터도 이 시점에 명시적인 true/false로 정규화한다
-      draft = EMPLOYEES.map(employee => ({ ...employee, routine: isRoutineWorker(employee) }));
+      draft = EMPLOYEES.map(employee => ({ ...employee }));
       render();
+    }
+
+    // PIN 변경은 EMPLOYEES(저장된 목록)를 직접 갱신하므로, 이 표가 들고 있는 draft
+    // 사본에도 반영해줘야 "없음"/"설정됨" 표시와 버튼 문구가 바로 바뀐다.
+    function markPinConfigured(id){
+      const row = draft.find(employee => employee.id === id);
+      if (row) { row.pinConfigured = true; render(); }
     }
 
     function addRow(){
       const applyDate = fmt(stripTime(new Date()));
-      // 새로 추가되는 인원은 기본적으로 루틴 근무자가 아니다 (적응·상근 인원). 필요하면 체크해서 편입한다.
-      draft.push({ id: uid(), name: '', phase: 0, startDate: applyDate, endDate: null, routine: false });
+      // 새로 추가되는 인원은 맨 아래에 들어가므로 기본적으로 루틴 근무자가 아니다(적응·상근 인원).
+      // 루틴 근무자로 편입하려면 ▲로 위 4번째 안으로 올리면 된다.
+      draft.push({ id: uid(), name: '', phase: 0, startDate: applyDate, endDate: null });
       render();
       const lastName = document.querySelector(`#${tableBodyId} tr:last-child input[data-field="name"]`);
       if (lastName) lastName.focus();
@@ -2690,7 +2807,7 @@
       else STATE.employeeOrderHistory.push({ month: effectiveMonth, order: newOrder });
       STATE.employeeOrderHistory.sort((a, b) => a.month < b.month ? -1 : a.month > b.month ? 1 : 0);
 
-      EMPLOYEES = [...employees.map(employee => ({ ...employee, name: employee.name.trim(), phase: Number(employee.phase) || 0, routine: !!employee.routine, email: (employee.email || '').trim() })), ...removed];
+      EMPLOYEES = [...employees.map(employee => ({ ...employee, name: employee.name.trim(), phase: Number(employee.phase) || 0, email: (employee.email || '').trim() })), ...removed];
       STATE.employees = EMPLOYEES;
       addAuditLog('직원 구성 편집', { employees: employees.map(employee => ({ ...employee })), removed: removed.map(employee => ({ ...employee })), orderEffectiveMonth: effectiveMonth });
       saveState();
@@ -2701,7 +2818,7 @@
       return true;
     }
 
-    return { open, addRow, apply, render };
+    return { open, addRow, apply, render, markPinConfigured };
   }
 
   const settingsEmployeeEditor = createEmployeeEditor('employeeEditTableBody');
@@ -3028,8 +3145,10 @@
       header += `<th>${day}<br>${WEEKDAY_KO[date.getDay()]}</th>`;
     }
     header += '</tr></thead><tbody>';
-    const rows = getActiveStaff(year, monthIndex).map(emp => {
-      let row = `<tr><td class="name">${escapeAttribute(emp.name)}</td>`;
+    const rows = getActiveStaff(year, monthIndex).map((emp, staffIndex) => {
+      // 파란 테두리 = 이 달 활성 직원 순서상 위 ROUTINE_HEADCOUNT명(=자동 대근을 서로 서는
+      // 루틴 근무자). "직원 구성 편집"에서 순서를 바꾸면 그 즉시 이 표시도 따라 바뀐다.
+      let row = `<tr class="${staffIndex < ROUTINE_HEADCOUNT ? 'routine-row' : ''}"><td class="name">${escapeAttribute(emp.name)}</td>`;
       for (let day = 1; day <= daysInMonth; day += 1) {
         const date = new Date(year, monthIndex, day);
         const active = isEmployeeActiveOnDate(emp, date);
@@ -3229,7 +3348,11 @@
         event.returnValue = '';
       }
     });
+    window.addEventListener('pagehide', () => {
+      if ((adminToken && Date.now() < adminUntil) || (employeeToken && Date.now() < employeeUntil)) releaseLockBeacon();
+    });
     await initializeStorage();
+    if (!LOCAL_MODE) startLockPolling();
     populateEmpSelects();
     populateYearSelect();
     populateMonthSelect();

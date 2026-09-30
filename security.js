@@ -1,5 +1,6 @@
 const { randomBytes, scryptSync, timingSafeEqual } = require('node:crypto');
 const { isDeepStrictEqual: equal } = require('node:util');
+const activityLog = require('./activityLog');
 
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
 const secretKeys = new Set(['pin', 'adminPin', 'smtpPass', 'kakaoKey', 'pinHash', '__proto__', 'constructor', 'prototype']);
@@ -155,6 +156,17 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
     state.employees = (row.state.employees || []).map(e => ({
       ...publicState(e), pinConfigured: !!db.prepare('SELECT id FROM employee_credentials WHERE id=?').get(e.id)
     }));
+    // .env에 기본 담당자(DEFAULT_APPROVER_*)를 설정해두면, 담당자가 0명이 되지 않도록 서버가
+    // 뜰 때마다 그 담당자를 등록/동기화한다. PIN은 화면에서 직접 정하지 않는 한 자동 생성되며,
+    // 실사용은 관리자 로그인으로 처리(PIN 불필요)하는 걸 전제로 한다.
+    if (process.env.DEFAULT_APPROVER_NAME && process.env.DEFAULT_APPROVER_EMAIL) {
+      const id = 'default_approver';
+      const existing = state.approvers.find(a => a.id === id);
+      if (process.env.DEFAULT_APPROVER_PIN) writePin('approval_credentials', id, process.env.DEFAULT_APPROVER_PIN);
+      else if (!existing) writePin('approval_credentials', id, randomBytes(4).toString('hex'));
+      if (existing) { existing.name = process.env.DEFAULT_APPROVER_NAME; existing.email = process.env.DEFAULT_APPROVER_EMAIL; existing.pinConfigured = true; }
+      else state.approvers.push({ id, name: process.env.DEFAULT_APPROVER_NAME, email: process.env.DEFAULT_APPROVER_EMAIL, pinConfigured: true });
+    }
     if (!equal(row.state, state)) persist(state, row);
   });
   function isAdmin(req) {
@@ -242,6 +254,7 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
       for (const e of list(row?.state || {}, 'employees')) if (!next.employees.some(n => n.id === e.id)) db.prepare('DELETE FROM employee_credentials WHERE id=?').run(e.id);
 
       persist(next, row);
+      activityLog.logNewSubmissions(row?.state, next);
       const saved = getState();
       return { ok: true, updatedAt: saved.updatedAt, ...(saved.revision !== undefined ? { revision: saved.revision } : {}) };
     });
@@ -249,15 +262,22 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
   function decide(req) {
     const { id, approverId, pin, approved, reason = '' } = req.body || {};
     if (typeof approved !== 'boolean' || typeof reason !== 'string' || reason.length > 2000 || (!approved && !reason.trim())) fail(400, '승인 여부와 반려 사유를 확인해주세요.');
+    const admin = isAdmin(req);
     return transaction(() => {
       const row = getState(), state = row?.state;
       const actor = state?.approvers?.find(a => a.id === approverId);
-      const credentials = actor && db.prepare('SELECT salt, hash FROM approval_credentials WHERE id=?').get(actor.id);
-      if (!credentials) fail(403, '담당자 PIN이 없습니다. 관리자에게 PIN 설정을 요청해주세요.');
-      verify('approver:' + actor.id, pin, credentials.salt, credentials.hash);
+      if (admin) {
+        // 관리자는 PIN 없이도 처리할 수 있다 — 다만 기록(decidedBy)에 남길 담당자는 골라야 한다.
+        if (!actor) fail(400, '기록에 남길 담당자를 선택해주세요.');
+      } else {
+        const credentials = actor && db.prepare('SELECT salt, hash FROM approval_credentials WHERE id=?').get(actor.id);
+        if (!credentials) fail(403, '담당자 PIN이 없습니다. 관리자에게 PIN 설정을 요청해주세요.');
+        verify('approver:' + actor.id, pin, credentials.salt, credentials.hash);
+      }
       const approval = state.approvals.find(a => a.id === id);
       if (!approval || approval.status !== 'pending') fail(409, '이미 처리되었거나 없는 승인 요청입니다.');
-      if (!approval.approverIds?.includes(actor.id) || !targets(state).includes(actor.id)) fail(403, '이 신청을 담당하는 승인권자가 아닙니다.');
+      // 관리자는 이 건에 지정된 담당 범위가 아니어도 대신 처리할 수 있다.
+      if (!admin && (!approval.approverIds?.includes(actor.id) || !targets(state).includes(actor.id))) fail(403, '이 신청을 담당하는 승인권자가 아닙니다.');
       const at = new Date().toISOString();
       if (approval.type === 'monthly') {
         // 재확정 요청을 반려해도 이전 확정본과 승인 도장은 그대로 둔다.
@@ -286,6 +306,7 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
       state.auditLogs ||= [];
       state.auditLogs.unshift({ id: 'decision_' + randomBytes(12).toString('hex'), action: approved ? '승인' : '반려', details: { approvalId: id, approverId: actor.id }, at });
       persist(state, row);
+      activityLog.logDecision(state, approval, approved, actor.name, approval.decisionReason);
       return { ok: true };
     });
   }
@@ -317,9 +338,58 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
         details: { id, empId: employeeId }, at
       });
       persist(state, row);
+      activityLog.logSelfCancel(state, kind, item);
       return { ok: true };
     });
   }
-  return { login, save, decide, isAdmin, employeeLogin, cancelOwn };
+  // 편집 잠금: 관리자 또는 직원 중 한 쪽이 로그인해 편집을 시작하면, 다른 쪽은 그 동안
+  // 로그인(=편집 시작)할 수 없다. 세션처럼 서버 메모리에만 두고 하트비트로 유지하며,
+  // 하트비트가 LOCK_TIMEOUT_MS 이상 끊기면(탭을 닫았거나 네트워크가 끊긴 경우) 자동 해제된다.
+  let lock = null; // { holderKey, holderName, acquiredAt, heartbeatAt }
+  const LOCK_TIMEOUT_MS = Number(process.env.LOCK_TIMEOUT_MS) || 3 * 60 * 1000;
+  function activeLock() {
+    if (lock && Date.now() - lock.heartbeatAt > LOCK_TIMEOUT_MS) lock = null;
+    return lock;
+  }
+  function callerKey(req) {
+    if (isAdmin(req)) return { key: 'admin', name: '관리자' };
+    const empId = isEmployee(req);
+    if (empId) {
+      const name = getState()?.state?.employees?.find(e => e.id === empId)?.name || '직원';
+      return { key: 'employee:' + empId, name };
+    }
+    return null;
+  }
+  function lockStatus() {
+    const l = activeLock();
+    return l ? { locked: true, holderName: l.holderName } : { locked: false };
+  }
+  function acquireLock(req) {
+    const who = callerKey(req);
+    if (!who) fail(401, '로그인이 필요합니다.');
+    const l = activeLock();
+    if (l && l.holderKey !== who.key) fail(409, `${l.holderName}님이 편집 중입니다. 편집이 끝난 뒤 다시 시도해주세요.`);
+    lock = { holderKey: who.key, holderName: who.name, acquiredAt: l?.acquiredAt || Date.now(), heartbeatAt: Date.now() };
+    return { ok: true, holderName: who.name };
+  }
+  function heartbeatLock(req) {
+    const who = callerKey(req);
+    const l = activeLock();
+    if (!who || !l || l.holderKey !== who.key) fail(409, '편집 잠금이 끊어졌습니다. 새로고침 후 다시 시작해주세요.');
+    l.heartbeatAt = Date.now();
+    return { ok: true };
+  }
+  function releaseLock(req) {
+    // 탭을 닫을 때 sendBeacon으로도 호출되는데, 그 경우 커스텀 헤더를 못 실어 보내므로
+    // 본문(body)에 담아 보낸 토큰도 같은 방식으로 인식해준다.
+    const withBodyFallback = {
+      get: header => req.get(header) || (header === 'X-Admin-Token' ? req.body?.adminToken : req.body?.employeeToken)
+    };
+    const who = callerKey(withBodyFallback);
+    const l = activeLock();
+    if (l && (!who || l.holderKey === who.key)) lock = null;
+    return { ok: true };
+  }
+  return { login, save, decide, isAdmin, employeeLogin, cancelOwn, lockStatus, acquireLock, heartbeatLock, releaseLock };
 }
 module.exports = { createSecurity, publicState, validateSave, targets };

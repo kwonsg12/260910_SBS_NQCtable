@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { mkdtempSync, copyFileSync, rmSync, readFileSync } = require('node:fs');
+const { mkdtempSync, copyFileSync, rmSync, readFileSync, readdirSync } = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const net = require('node:net');
@@ -27,9 +27,9 @@ function seed() {
     versions: [{ settings: { adminPin: 'nested-secret' }, approvers: [{ pin: 'nested-pin' }] }]
   };
 }
-async function fixture(t, initial = seed(), adminPassword = password) {
+async function fixture(t, initial = seed(), adminPassword = password, extraEnv = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'nqc-security-'));
-  for (const file of ['server.js', 'db.js', 'security.js', 'notifier.js', 'digest.js', 'index.html', 'sbs-logo.png']) copyFileSync(path.join(root, file), path.join(dir, file));
+  for (const file of ['server.js', 'db.js', 'security.js', 'activityLog.js', 'notifier.js', 'digest.js', 'index.html', 'sbs-logo.png']) copyFileSync(path.join(root, file), path.join(dir, file));
   if (initial) {
     const db = new DatabaseSync(path.join(dir, 'geunmupyo.db'));
     db.exec('CREATE TABLE kv_store (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)');
@@ -42,7 +42,7 @@ async function fixture(t, initial = seed(), adminPassword = password) {
   await new Promise(resolve => socket.close(resolve));
   const child = spawn(process.execPath, ['server.js'], {
     cwd: dir, windowsHide: true,
-    env: { ...process.env, PORT: String(port), ADMIN_PASSWORD: adminPassword, SMTP_HOST: '', SMTP_USER: '', SMTP_PASS: '', NODE_PATH: path.join(root, 'node_modules') },
+    env: { ...process.env, PORT: String(port), ADMIN_PASSWORD: adminPassword, SMTP_HOST: '', SMTP_USER: '', SMTP_PASS: '', NODE_PATH: path.join(root, 'node_modules'), ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let output = '';
@@ -299,4 +299,97 @@ test('validation rejects duplicate IDs, prototype keys and deeply nested payload
   assert.throws(() => validateSave(old, JSON.parse('{"__proto__":{"polluted":true}}'), true), /입력 키/);
   let deep = {}; for (let i = 0; i < 30; i++) deep = { deep };
   assert.throws(() => validateSave(old, deep, true), /깊/);
+});
+
+test('editing lock keeps admin and employee from editing at the same time', async t => {
+  const f = await fixture(t);
+  await f.login();
+  const acquired = await f.api('/api/lock/acquire', {}, true);
+  assert.equal(acquired.status, 200);
+  assert.equal(acquired.data.holderName, '관리자');
+  assert.equal((await f.api('/api/lock')).data.locked, true);
+
+  // 관리자 인증으로 직원 PIN을 등록해야 직원 로그인을 테스트할 수 있다.
+  await f.save(await f.state(), true, {}, { e1: '123456' });
+  await f.loginEmployee('e1', '123456');
+
+  const blocked = await f.api('/api/lock/acquire', {});
+  assert.equal(blocked.status, 409);
+  assert.match(blocked.data.error, /관리자/);
+
+  // 같은 관리자가 다시 요청하는 건 충돌이 아니다(재접속/하트비트 대용).
+  assert.equal((await f.api('/api/lock/acquire', {}, true)).status, 200);
+  assert.equal((await f.api('/api/lock/heartbeat', {}, true)).status, 200);
+
+  const released = await f.api('/api/lock/release', {}, true);
+  assert.equal(released.status, 200);
+  assert.equal((await f.api('/api/lock')).data.locked, false);
+
+  const employeeAcquired = await f.api('/api/lock/acquire', {});
+  assert.equal(employeeAcquired.status, 200);
+  assert.equal(employeeAcquired.data.holderName, '직원');
+  assert.equal((await f.api('/api/lock/acquire', {}, true)).status, 409, '이번엔 직원이 잡고 있으니 관리자가 막혀야 한다');
+});
+
+test('DEFAULT_APPROVER_* env vars seed a fallback approver so approvals never drop to zero', async t => {
+  const f = await fixture(t, { ...seed(), approvers: [] }, password, {
+    DEFAULT_APPROVER_NAME: '자동담당', DEFAULT_APPROVER_EMAIL: 'auto@example.invalid', DEFAULT_APPROVER_PIN: 'auto-pin-123456'
+  });
+  const state = await f.state();
+  assert.equal(state.approvers.length, 1);
+  assert.equal(state.approvers[0].id, 'default_approver');
+  assert.equal(state.approvers[0].name, '자동담당');
+  assert.equal(state.approvers[0].email, 'auto@example.invalid');
+  assert.equal(state.approvers[0].pinConfigured, true);
+  // 관리자 인증이면 이 자동 담당자의 PIN 없이도 승인 처리가 된다.
+  await f.login();
+  const request = { id: 'ra', empId: 'e1', startDate: '2026-10-06', type: 'day', chain: [], status: 'pending' };
+  const approval = { id: 'pa', refId: 'ra', type: 'leave', requestedBy: 'e1', approverIds: ['default_approver'], status: 'pending' };
+  const next = await f.state();
+  next.requests.push(request); next.approvals.push(approval);
+  assert.equal((await f.save(next, true)).status, 200);
+  const decided = await f.api('/api/approvals/decision', { id: 'pa', approverId: 'default_approver', pin: '', approved: true, reason: '' }, true);
+  assert.equal(decided.status, 200, JSON.stringify(decided.data));
+});
+
+test('activity log writes human-readable txt lines for submissions, decisions and self-cancels', async t => {
+  const f = await fixture(t);
+  await f.login();
+  await f.save(await f.state(), true, {}, { e1: 'employee-test-pin-1' });
+  await f.loginEmployee('e1', 'employee-test-pin-1');
+
+  const state = await f.state();
+  state.requests.push({ id: 'r9', empId: 'e1', startDate: '2026-10-03', type: 'day', chain: [], status: 'pending' });
+  state.approvals.push({ id: 'p9', refId: 'r9', type: 'leave', requestedBy: 'e1', approverIds: ['a1', 'a2'], status: 'pending' });
+  state.excuses = [{ id: 'x9', empId: 'e1', date: '2026-10-03', reason: '몸이 안 좋습니다' }];
+  assert.equal((await f.save(state)).status, 200);
+
+  const decision = await f.api('/api/approvals/decision', { id: 'p9', approverId: 'a1', pin: '123456', approved: false, reason: '인원 부족' });
+  assert.equal(decision.status, 200);
+
+  // r1은 seed()에 있는 e1 소유의 대기 중 신청이라 본인 취소가 가능하다.
+  assert.equal((await f.api('/api/requests/cancel', { kind: 'request', id: 'r1' })).status, 200);
+
+  const logDir = path.join(f.dir, 'logs');
+  const files = readdirSync(logDir);
+  assert.equal(files.length, 1, '오늘 날짜 파일 하나에 전부 기록되어야 한다');
+  const content = readFileSync(path.join(logDir, files[0]), 'utf8');
+  assert.match(content, /휴가 신청 — 직원 \/ 2026-10-03 \(일근\) \/ 승인 대기/);
+  assert.match(content, /대근 불가 사유 — 직원 \/ 2026-10-03: 몸이 안 좋습니다/);
+  assert.match(content, /휴가 신청 반려 — 대상: 직원 \/ 처리자: 담당 \/ 사유: 인원 부족/);
+  assert.match(content, /휴가 신청 본인 취소 — 직원 \/ 2026-10-01/);
+});
+
+test('editing lock auto-releases after the heartbeat times out', async t => {
+  // scrypt 기반 로그인 자체가 수백 ms 걸리므로, 준비 단계(직원 PIN 등록+로그인)가 끝나기 전에
+  // 타임아웃이 지나버리지 않도록 넉넉한 값을 쓴다.
+  const f = await fixture(t, seed(), password, { LOCK_TIMEOUT_MS: '3000' });
+  await f.login();
+  assert.equal((await f.api('/api/lock/acquire', {}, true)).status, 200);
+  await f.save(await f.state(), true, {}, { e1: '123456' });
+  await f.loginEmployee('e1', '123456');
+  assert.equal((await f.api('/api/lock/acquire', {})).status, 409, '아직 하트비트 타임아웃 전이라 직원은 막혀야 한다');
+  await new Promise(resolve => setTimeout(resolve, 3500));
+  assert.equal((await f.api('/api/lock')).data.locked, false, '하트비트가 끊긴 지 오래됐으면 자동 해제되어야 한다');
+  assert.equal((await f.api('/api/lock/acquire', {})).status, 200, '해제된 뒤에는 직원도 새로 잠글 수 있어야 한다');
 });

@@ -58,6 +58,13 @@ app.post('/api/auth/employee', (req, res) => res.json(security.employeeLogin(req
 app.post('/api/approvals/decision', (req, res) => res.json(security.decide(req)));
 app.post('/api/requests/cancel', (req, res) => res.json(security.cancelOwn(req)));
 
+// 편집 잠금: 관리자/직원 중 한 명만 동시에 편집하게 막는다. 상태 조회는 로그인 없이도
+// 볼 수 있어야 로그인 전에 "OOO님이 편집 중"임을 미리 안내할 수 있다.
+app.get('/api/lock', (req, res) => res.json(security.lockStatus()));
+app.post('/api/lock/acquire', (req, res) => res.json(security.acquireLock(req)));
+app.post('/api/lock/heartbeat', (req, res) => res.json(security.heartbeatLock(req)));
+app.post('/api/lock/release', (req, res) => res.json(security.releaseLock(req)));
+
 // 현재 저장된 근무표 상태 전체를 반환. 서버에 아직 아무것도 없으면 state:null
 // (이 경우 index.html은 기본값으로 초기화한다).
 app.get('/api/state', (req, res) => {
