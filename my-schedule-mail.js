@@ -9,16 +9,16 @@
 
 const { sendMail, isMailConfigured } = require('./notifier');
 
-const WEEKDAYS = '일월화수목금토';
 // 같은 사람이 버튼을 연달아 눌러 메일이 쌓이지 않게 한다.
 const RESEND_MS = 60 * 1000;
 
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
 
-// 화면의 근무값 → 파일의 근무값. 사용자가 고른 표기: 일·야·조·휴, 비번은 비.
+// 화면의 근무값 → 파일의 근무값. 비번만 비 로 바꾸고 나머지(일·야·조·휴가·대일…)는 그대로.
+// 휴가를 '휴' 로 줄이지 않는다: 이 CSV 를 불러오는 교대 앱(NQCshift)은 '휴' 를 비번(휴무)으로
+// 읽어서 휴가가 그냥 쉬는 날로 보였다 (2026-11-13 사용자 확인).
 function shiftLabel(value) {
   if (value === 'O') return '비';
-  if (value === '휴가') return '휴';
   return value;
 }
 
@@ -33,14 +33,13 @@ function daysInMonth(year, month) {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
-// 1일부터 말일까지 한 줄씩: 날짜, 요일, 근무. 엑셀이 한글을 깨뜨리지 않게 BOM 을 붙인다.
+// 1일부터 말일까지 한 줄씩: 날짜, 근무 (사용자가 두 칸만 원했다). 엑셀이 한글을 깨뜨리지 않게 BOM 을 붙인다.
 function buildScheduleCsv({ year, month, shifts }) {
-  const lines = ['날짜,요일,근무'];
+  const lines = ['날짜,근무'];
   shifts.forEach((shift, index) => {
     const day = index + 1;
-    const weekday = WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
     const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    lines.push([date, weekday, shiftLabel(shift)].map(csvCell).join(','));
+    lines.push([date, shiftLabel(shift)].map(csvCell).join(','));
   });
   return '﻿' + lines.join('\r\n') + '\r\n';
 }
