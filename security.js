@@ -42,7 +42,7 @@ function validateSave(previous, incoming, admin, employeeId = null) {
   if (!Number.isInteger(next.settings.quotaMax) || next.settings.quotaMax < 1 || next.settings.quotaMax > 31) fail(400, '보장 횟수는 1~31 정수여야 합니다.');
   if (!previous && !admin) fail(403, '최초 공유 저장소 설정은 관리자 인증이 필요합니다.');
   if (!admin) {
-    for (const key of ['settings', 'employees', 'approvers', 'scheduleOverrides', 'scheduleSnapshots', 'scheduleRanges', 'rotationAnchors', 'deletedEmployeesTrash']) {
+    for (const key of ['settings', 'employees', 'approvers', 'scheduleOverrides', 'scheduleSnapshots', 'scheduleRanges', 'rotationAnchors', 'deletedEmployeesTrash', 'formerEmployees']) {
       if (!equal(old[key], next[key])) fail(403, '설정·직원·수동 근무 변경은 관리자 인증이 필요합니다.');
     }
   }

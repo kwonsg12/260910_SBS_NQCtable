@@ -1475,7 +1475,21 @@
     return `${y}-${m}-${d}`;
   }
   function addDays(date, n){ const d = new Date(date); d.setDate(d.getDate() + n); return d; }
-  function empName(id){ return EMPLOYEES.find(e => e.id === id)?.name || id; }
+  // 완전 삭제된 직원은 EMPLOYEES 에서 빠지므로, 지난 기록에 id 대신 이름이 보이도록 남겨 둔 이름표를 찾는다.
+  // 찾는 순서는 서버의 employeeNames.js 와 같다: 영구 이름표 → 최근 삭제 휴지통 → '직원 완전 삭제' 관리자 기록.
+  function formerEmployeeName(id){
+    if (!id || typeof STATE === 'undefined' || !STATE) return '';
+    const inList = key => (Array.isArray(STATE[key]) ? STATE[key] : []).find(e => e && e.id === id)?.name;
+    const audit = (Array.isArray(STATE.auditLogs) ? STATE.auditLogs : [])
+      .find(log => log?.action === '직원 완전 삭제' && log.details?.employee?.id === id);
+    return inList('formerEmployees') || inList('deletedEmployeesTrash') || audit?.details.employee.name || '';
+  }
+  function empName(id){
+    const current = EMPLOYEES.find(e => e.id === id);
+    if (current) return current.name;
+    const former = formerEmployeeName(id);
+    return former ? `${former}(삭제됨)` : id;
+  }
 
   // BEGIN STATE SYNC: UI에 의존하지 않는 단일 탭 저장 대기열.
   function createStateSync({ read, write, apply, changed, drafts, debounceMs = 300 }) {
@@ -1738,6 +1752,9 @@
         versions: Array.isArray(raw.versions) ? raw.versions : [],
         auditLogs: raw.auditLogs || [],
         deletedEmployeesTrash: Array.isArray(raw.deletedEmployeesTrash) ? raw.deletedEmployeesTrash : [],
+        // 완전 삭제된 직원의 영구 이름표 [{id, name, deletedAt}]. 지난 기록의 이름 표시에만 쓴다.
+        // 서버에 아직 없는 키를 빈 배열로 만들어 두면 근무자 저장이 '직원 변경'으로 보여 거절되므로, 있을 때만 싣는다.
+        ...(Array.isArray(raw.formerEmployees) ? { formerEmployees: raw.formerEmployees } : {}),
         // 직원 표시 순서 변경 이력. { month:'YYYY-MM', order:[empId,...] } 를 월 오름차순으로 담아두고,
         // 근무표를 그릴 때는 그 달 이하의 가장 최근 항목을 찾아 순서를 적용한다(그 달부터 계속 유지).
         employeeOrderHistory: Array.isArray(raw.employeeOrderHistory) ? raw.employeeOrderHistory : [],
@@ -3740,6 +3757,11 @@
     // 되돌리기(복구)를 위해 삭제 전 전체 정보를 휴지통에 스냅샷으로 보관한다 (최근 10건).
     STATE.deletedEmployeesTrash.unshift({ ...removedEmployee, rotationAnchors: removedAnchors, deletedAt: new Date().toISOString() });
     STATE.deletedEmployeesTrash = STATE.deletedEmployeesTrash.slice(0, 10);
+    // 휴지통은 10건만 남지만 이름표는 계속 남겨, 지난 신청·대근 기록에 이름이 그대로 보이게 한다.
+    STATE.formerEmployees = [
+      ...(STATE.formerEmployees || []).filter(entry => entry.id !== empId),
+      { id: removedEmployee.id, name: removedEmployee.name, deletedAt: new Date().toISOString() }
+    ];
     STATE.employees = EMPLOYEES;
     addAuditLog('직원 완전 삭제', { employee: removedEmployee });
     saveState();
@@ -3780,6 +3802,7 @@
       STATE.rotationAnchors = [...(STATE.rotationAnchors || []), ...rotationAnchors];
     }
     STATE.deletedEmployeesTrash = trash.filter((_, i) => i !== index);
+    if (Array.isArray(STATE.formerEmployees)) STATE.formerEmployees = STATE.formerEmployees.filter(entry => entry.id !== employee.id);
     addAuditLog('직원 복구', { employee });
     saveState();
     populateEmpSelects();

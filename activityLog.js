@@ -5,6 +5,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { employeeName } = require('./employeeNames');
 
 const LOG_DIR = path.join(__dirname, 'logs');
 
@@ -21,7 +22,7 @@ function appendLines(lines) {
 }
 
 function empName(state, id) {
-  return state?.employees?.find(e => e.id === id)?.name || id || '알 수 없음';
+  return employeeName(state, id, id || '알 수 없음');
 }
 function leaveStatusLabel(r) {
   if (r.status === 'pending') return '승인 대기';

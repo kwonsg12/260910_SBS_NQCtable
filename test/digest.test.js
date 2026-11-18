@@ -8,7 +8,7 @@ const root = path.join(__dirname, '..');
 
 function loadDigest() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'digest-'));
-  for (const file of ['db.js', 'security.js', 'notifier.js', 'digest.js']) fs.copyFileSync(path.join(root, file), path.join(dir, file));
+  for (const file of ['db.js', 'security.js', 'notifier.js', 'digest.js', 'employeeNames.js']) fs.copyFileSync(path.join(root, file), path.join(dir, file));
   const { db } = require(path.join(dir, 'db.js'));
   const digest = require(path.join(dir, 'digest.js'));
   return { digest, cleanup: () => { db.close(); fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } };
@@ -89,6 +89,19 @@ test('일일 요약은 근무자·담당자별로 바뀐 내용만 골라 만든
     assert.match(lead, /양명국 — 9월 24일\(목\) 대근 불가 사유 접수/);
     assert.match(lead, /현재 승인 대기 1건/);
     assert.match(lead, /http:\/\/10\.0\.0\.1:8000/);
+  } finally { cleanup(); }
+});
+
+test('완전 삭제된 직원의 휴가로 잡힌 대근도 id 가 아니라 이름으로 알린다', () => {
+  const { digest, cleanup } = loadDigest();
+  try {
+    const state = fixtureState();
+    // 양명국을 완전 삭제한 상황: employees 에서 빠지고 관리자 기록만 남는다.
+    state.employees = state.employees.filter(e => e.id !== 'yang');
+    state.auditLogs = [{ id: 'del', action: '직원 완전 삭제', details: { employee: { id: 'yang', name: '양명국' } }, at: before }];
+    const choi = digest.buildDigests(state, opts).find(d => d.email === 'choi@sbs.test').text;
+    assert.match(choi, /양명국\(삭제됨\)님 휴가 대근/);
+    assert.doesNotMatch(choi, /알 수 없음/);
   } finally { cleanup(); }
 });
 

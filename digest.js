@@ -12,6 +12,7 @@
 
 const { db, getState } = require('./db');
 const { sendMail, isMailConfigured, verifyMail, getBaseUrl } = require('./notifier');
+const { employeeName } = require('./employeeNames');
 
 const TZ = 'Asia/Seoul';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -72,7 +73,7 @@ function buildDigests(state, { sinceFor, until, today, baseUrl }) {
   const station = state.settings?.stationName || '통합관제실';
   const lockDay = state.settings?.lockDay || 25;
 
-  const empName = id => employees.find(e => e.id === id)?.name || '알 수 없음';
+  const empName = id => employeeName(state, id);
   const decisionOf = (type, refId) => approvals.find(a => a.type === type && a.refId === refId);
 
   const leaveStatus = r => {
