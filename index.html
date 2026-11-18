@@ -124,7 +124,11 @@
   .sheet-card{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid rgba(226,213,199,.6);overflow:hidden;}
   .sheet-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:20px 24px 16px;}
   .sheet-head h2{margin:0;font-size:17px;font-weight:700;}
-  .sheet-hint{font-size:13px;color:var(--faint);}
+  .sheet-hint{font-size:13px;color:var(--faint);display:inline-flex;align-items:center;gap:6px;}
+  /* 로그인한 근무자에게만: 내 칸을 누를 수 있다는 안내. 닫으면 이 브라우저에서는 다시 안 뜬다. */
+  .sheet-hint.is-tip{height:30px;padding:0 6px 0 12px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-weight:600;}
+  .sheet-hint .hint-close{border:0;background:transparent;color:inherit;font:inherit;font-size:15px;line-height:1;width:24px;height:24px;border-radius:50%;cursor:pointer;}
+  .sheet-hint .hint-close:hover{background:rgba(165,96,61,.14);}
   .shift-filters{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto;}
   .person-chip{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px 0 5px;border-radius:999px;border:1px solid var(--line2);background:#fff;color:var(--muted);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;}
   .person-chip:hover{border-color:var(--faint);color:var(--text);}
@@ -598,7 +602,7 @@
       <div class="sheet-card">
         <div class="sheet-head">
           <h2>전체 근무</h2>
-          <span class="sheet-hint" data-html2canvas-ignore="true">내 근무 칸을 누르면 휴가·비번 보장을 신청할 수 있어요</span>
+          <span class="sheet-hint" id="sheetHint" data-html2canvas-ignore="true"><span id="sheetHintText">로그인하면 내 근무 칸을 눌러 휴가·비번 보장을 신청할 수 있어요</span><button type="button" class="hint-close" id="sheetHintClose" aria-label="안내 닫기" hidden>×</button></span>
           <div class="shift-filters" id="personFilters" role="group" aria-label="사람별로 보기" data-html2canvas-ignore="true"></div>
         </div>
         <div id="lockBanner"></div>
@@ -2175,8 +2179,8 @@
     thead += '</tr><tr class="row-week">';
     for(let d = 1; d <= daysInMonth; d++){
       const { date, info, colClass } = dayInfo[d];
-      const label = info ? info.name : WEEKDAY_KO[date.getDay()];
-      thead += `<th class="${colClass}" title="${escapeAttribute(label)}">${escapeAttribute(label)}</th>`;
+      const label = info ? shortHolidayName(info.name) : WEEKDAY_KO[date.getDay()];
+      thead += `<th class="${colClass}" title="${escapeAttribute(info ? info.name : label)}">${escapeAttribute(label)}</th>`;
     }
     thead += '</tr>';
 
@@ -2186,6 +2190,7 @@
     const groups = scheduleGroups(staffOfMonth, y, m);
     const colgroup = '<colgroup><col class="col-grp"><col class="col-name">' + '<col>'.repeat(daysInMonth) + '</colgroup>';
     let rows = '';
+    let requestableCount = 0;
     groups.forEach(group => group.staff.forEach((emp, index) => {
       const rowClass = [!focus ? '' : emp.id === focus ? 'is-focus' : 'is-dim', index === group.staff.length - 1 ? 'grp-end' : ''].filter(Boolean).join(' ');
       // 파견사원 줄은 PDF 에서 빠진다. 묶음 칸도 그 줄 안에 있어서 다른 묶음의 rowspan 이 깨지지 않는다.
@@ -2214,8 +2219,9 @@
         const canRequest = span === 1 && employeeToken && Date.now() < employeeUntil && emp.id === employeeId
           && ['일', '야', '조', 'O'].includes(sh) && fmt(date) >= todayKey;
         const chipClass = escapeAttribute(chipClasses.join(' '));
+        if (canRequest) requestableCount++;
         const chip = canRequest
-          ? `<button type="button" class="${chipClass}" data-request-date="${fmt(date)}" aria-label="${fmt(date)} ${escapeAttribute(sh)} 신청">${escapeAttribute(sh)}</button>`
+          ? `<button type="button" class="${chipClass}" data-request-date="${fmt(date)}" title="휴가·비번 보장 신청" aria-label="${fmt(date)} ${escapeAttribute(sh)} 신청">${escapeAttribute(sh)}</button>`
           : `<span class="${chipClass}">${escapeAttribute(sh)}</span>`;
         r += `<td class="${escapeAttribute(dateColClass)}"${span > 1 ? ` colspan="${span}"` : ''}>${chip}</td>`;
       }
@@ -2224,7 +2230,38 @@
     }));
 
     $('#scheduleTable').innerHTML = `${colgroup}<thead>${thead}</thead><tbody>${rows}</tbody>`;
+    renderSheetHint(requestableCount);
     renderScheduleRail();
+  }
+
+  // 요일 줄 칸이 좁아서 긴 휴일 이름은 줄여 쓴다(마우스를 올리면 원래 이름이 보인다).
+  // 이름은 기본 목록과 휴일 API(localName) 두 곳에서 오므로 띄어쓰기를 빼고 맞춘다.
+  const HOLIDAY_SHORT_NAMES = { '기독탄신일': '성탄절', '크리스마스': '성탄절', '부처님오신날': '석탄일', '석가탄신일': '석탄일', '임시공휴일': '임시휴일' };
+  function shortHolidayName(name){
+    const key = String(name || '').replace(/\s+/g, '');
+    if (HOLIDAY_SHORT_NAMES[key]) return HOLIDAY_SHORT_NAMES[key];
+    if (key.includes('대체')) return '대체휴일';
+    if (key.includes('선거')) return '선거일';
+    return key;
+  }
+
+  // 표 위 안내: 로그인 안 했으면 회색 글자, 근무자로 로그인해서 누를 칸이 있으면 강조 안내(닫기 가능).
+  const SHEET_HINT_KEY = 'ncq_hint_request_closed';
+  function sheetHintClosed(){
+    try { return localStorage.getItem(SHEET_HINT_KEY) === '1'; } catch { return false; }
+  }
+  function renderSheetHint(requestableCount){
+    const hint = $('#sheetHint'), text = $('#sheetHintText'), close = $('#sheetHintClose');
+    if (!hint || !text) return;
+    const loggedIn = employeeToken && Date.now() < employeeUntil;
+    const tip = loggedIn && requestableCount > 0;
+    hint.classList.toggle('is-tip', tip);
+    hint.hidden = tip && sheetHintClosed();
+    if (close) close.hidden = !tip;
+    text.textContent = !loggedIn
+      ? '로그인하면 내 근무 칸을 눌러 휴가·비번 보장을 신청할 수 있어요'
+      : tip ? '내 줄에서 오늘 이후 칸을 누르면 휴가·비번 보장을 신청할 수 있어요'
+        : '이 달에는 새로 신청할 수 있는 내 근무 칸이 없어요';
   }
 
   // 근무표 왼쪽 묶음. 엑셀 내보내기(exportExcel)와 같은 기준:
@@ -4261,6 +4298,10 @@
     $('#applyNotesBtn').addEventListener('click', saveNotesSection);
     $('#approvalApplyBtn').addEventListener('click', applyApprovalLines);
     $('#exportPdfBtn').addEventListener('click', exportPdf);
+    $('#sheetHintClose')?.addEventListener('click', () => {
+      try { localStorage.setItem(SHEET_HINT_KEY, '1'); } catch {}
+      $('#sheetHint').hidden = true;
+    });
     $('#exportExcelBtn').addEventListener('click', exportExcel);
     $('#mailMyScheduleBtn').addEventListener('click', mailMySchedule);
     $('#requestMonthlyBtn').addEventListener('click', requestMonthlyApproval);

@@ -108,7 +108,7 @@ test('엑셀 양식 근무표: 머리줄 두 줄, 오늘 강조 없음, 비고�
   const fn = script.slice(start, script.indexOf('\n  }\n', start));
   assert.match(fn, /<tr class="row-date"><th class="corner xl-sticky" colspan="2" rowspan="2">구분<\/th>/);
   assert.match(fn, /<tr class="row-week">/);
-  assert.match(fn, /info \? info\.name : WEEKDAY_KO/, '요일 줄에 휴일이면 휴일 이름');
+  assert.match(fn, /info \? shortHolidayName\(info\.name\) : WEEKDAY_KO/, '요일 줄에 휴일이면 (줄인) 휴일 이름');
   assert.ok(!/is-today|'오늘'/.test(fn), '오늘 강조는 넣지 않는다');
   assert.match(fn, /data-request-date=/, '내 칸 눌러 신청하기는 그대로');
   assert.match(fn, /getScheduleRange/);
@@ -139,4 +139,38 @@ test('결재란은 엑셀처럼 두 칸: 예전 데이터에 3칸이 있어도 �
   assert.match(block.innerHTML, /재확정 필요/);
   assert.equal(lines.length, 3, '저장된 3칸 데이터는 지우지 않는다');
   assert.ok(!/\{ title: '결재', name: '' \}/.test(script), '새 기본값은 담당 · 팀장 두 칸');
+});
+
+test('요일 줄의 긴 휴일 이름은 줄여 쓴다 (기본 목록·휴일 API 이름 모두)', () => {
+  const start = script.indexOf('  const HOLIDAY_SHORT_NAMES');
+  const fn = script.slice(start, script.indexOf('\n  }\n', start) + 4);
+  const context = vm.createContext({});
+  vm.runInContext(fn + '\nthis.short = shortHolidayName;', context);
+  assert.equal(context.short('기독탄신일'), '성탄절');
+  assert.equal(context.short('부처님 오신 날'), '석탄일');
+  assert.equal(context.short('어린이날 대체공휴일'), '대체휴일');
+  assert.equal(context.short('제22대 국회의원 선거일'), '선거일');
+  assert.equal(context.short('설날'), '설날');
+  assert.match(script, /title="\$\{escapeAttribute\(info \? info\.name : label\)\}"/, '원래 이름은 마우스를 올리면 보인다');
+});
+
+test('표 위 안내: 근무자로 로그인해 누를 칸이 있을 때만 강조 안내, 닫으면 다시 안 뜬다', () => {
+  const start = script.indexOf('  const SHEET_HINT_KEY');
+  const fn = script.slice(start, script.indexOf('\n  }\n', script.indexOf('function renderSheetHint')) + 4);
+  const classes = new Set();
+  const nodes = { '#sheetHint': { hidden: false, classList: { toggle: (c, on) => on ? classes.add(c) : classes.delete(c) } }, '#sheetHintText': {}, '#sheetHintClose': { hidden: true } };
+  const store = {};
+  const context = vm.createContext({ $: s => nodes[s], employeeToken: '', employeeUntil: 0, localStorage: { getItem: k => store[k] ?? null } });
+  vm.runInContext(fn + '\nthis.render = renderSheetHint;', context);
+  context.render(0);
+  assert.match(nodes['#sheetHintText'].textContent, /로그인하면/);
+  assert.equal(classes.has('is-tip'), false);
+  vm.runInContext('employeeToken = "t"; employeeUntil = Date.now() + 60000;', context);
+  context.render(5);
+  assert.equal(classes.has('is-tip'), true);
+  assert.equal(nodes['#sheetHintClose'].hidden, false);
+  store.ncq_hint_request_closed = '1';
+  context.render(5);
+  assert.equal(nodes['#sheetHint'].hidden, true);
+  assert.match(script, /\$\('#sheetHintClose'\)\?\.addEventListener\('click'/);
 });
