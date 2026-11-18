@@ -56,7 +56,7 @@ const publicFiles = new Map([
   ['/index.html', 'index.html'],
   ['/sbs-logo.png', 'sbs-logo.png'],
   // 교대 앱(NQCshift "교대온 간단"): 메일로 받은 내 근무표 CSV 를 휴대폰에서 오늘·내일·달력으로 본다.
-  // 사내망 휴대폰이 http://<서버>/shift/ 로 연다. 원본은 github.com/Jaeseung1/NQCshift.
+  // 사내망 예비 주소 http://<서버>/shift/. 메일 링크는 팀 GitHub Pages(SHIFT_APP_URL). 원본은 github.com/sbsnqc4821/NQCshift.
   ['/shift/', 'shift/index.html'],
   ['/shift/index.html', 'shift/index.html'],
   ['/shift/manifest.webmanifest', 'shift/manifest.webmanifest'],

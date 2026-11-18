@@ -7,7 +7,7 @@
 // 근무값은 화면이 계산해서 보낸다(엑셀 내보내기와 같다). 근무 계산(로테이션·휴가·대근·
 // 수동 편집)은 index.html 에만 있어서다. 본인 메일로만 가므로 값이 틀려도 본인만 받는다.
 
-const { sendMail, isMailConfigured, getBaseUrl } = require('./notifier');
+const { sendMail, isMailConfigured } = require('./notifier');
 
 // 같은 사람이 버튼을 연달아 눌러 메일이 쌓이지 않게 한다.
 const RESEND_MS = 60 * 1000;
@@ -55,8 +55,11 @@ function validate(body) {
   return { year, month, shifts };
 }
 
-// 받은 CSV 를 불러올 교대 앱 주소. 이 서버가 /shift/ 에서 띄운다(server.js).
-function defaultAppUrl() { return getBaseUrl() + '/shift/'; }
+// 받은 CSV 를 불러올 교대 앱 주소. 회사 밖(LTE)에서도 열리게 팀 계정의 GitHub Pages 를 쓴다
+// (2026-11-18 사용자: 사내망 /shift/ 는 회사 밖에서 안 열리고, 개인 계정 주소는 공유하기 싫다).
+// .env 의 SHIFT_APP_URL 로 바꿀 수 있다. 서버의 /shift/ 는 사내망 예비용으로 남아 있다.
+const SHIFT_APP_URL = 'https://sbsnqc4821.github.io/NQCshift/';
+function defaultAppUrl() { return (process.env.SHIFT_APP_URL || '').trim() || SHIFT_APP_URL; }
 
 function createMyScheduleMailer({ getState, security, send = sendMail, mailReady = isMailConfigured, now = () => Date.now(), appUrl = defaultAppUrl }) {
   const lastSent = new Map();
@@ -86,7 +89,7 @@ function createMyScheduleMailer({ getState, security, send = sendMail, mailReady
       `[근무표] ${year}년 ${month}월 ${name}님 근무`,
       `${name}님의 ${year}년 ${month}월 근무표입니다. 첨부한 CSV 파일을 엑셀이나 교대 앱에서 열 수 있습니다.\n\n`
         + `교대 앱(휴대폰에서 오늘·내일 근무 보기): ${appUrl()}\n`
-        + `  사내 Wi-Fi 에서 열고 → 설정 → CSV 파일 고르기 로 이 첨부를 불러오세요. 홈 화면에 추가하면 앱처럼 쓸 수 있습니다.\n\n`
+        + `  링크를 열고 → 설정 → CSV 파일 고르기 로 이 첨부를 불러오세요. 홈 화면에 추가하면 앱처럼 쓸 수 있습니다.\n\n`
         + `${summary}\n\n(근무표에서 [내 근무표 메일로] 를 눌러 보낸 메일입니다.)\n`,
       undefined,
       [{ filename: `근무표_${year}-${String(month).padStart(2, '0')}_${name}.csv`, content: csv, contentType: 'text/csv; charset=utf-8' }]
@@ -101,4 +104,4 @@ function createMyScheduleMailer({ getState, security, send = sendMail, mailReady
   };
 }
 
-module.exports = { createMyScheduleMailer, buildScheduleCsv, shiftLabel };
+module.exports = { createMyScheduleMailer, buildScheduleCsv, shiftLabel, defaultAppUrl };

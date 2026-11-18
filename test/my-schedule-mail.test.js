@@ -105,3 +105,19 @@ test('화면: 버튼은 처음에 숨어 있고, 근무자 로그인일 때만 �
   assert.match(html, /\$\('#mailMyScheduleBtn'\)\.addEventListener\('click', mailMySchedule\)/);
   assert.ok(!html.includes('onclick='));
 });
+
+test('교대 앱 주소: 기본은 팀 계정 GitHub Pages(회사 밖에서도 열림), .env 의 SHIFT_APP_URL 로 바꿀 수 있다', () => {
+  const { defaultAppUrl } = require('../my-schedule-mail');
+  const saved = process.env.SHIFT_APP_URL;
+  try {
+    delete process.env.SHIFT_APP_URL;
+    assert.equal(defaultAppUrl(), 'https://sbsnqc4821.github.io/NQCshift/');
+    assert.ok(!/jaeseung1/i.test(defaultAppUrl()), '개인 계정 주소가 들어가면 안 된다');
+    process.env.SHIFT_APP_URL = '  http://192.168.0.10:8000/shift/ ';
+    assert.equal(defaultAppUrl(), 'http://192.168.0.10:8000/shift/');
+    process.env.SHIFT_APP_URL = '';
+    assert.equal(defaultAppUrl(), 'https://sbsnqc4821.github.io/NQCshift/');
+  } finally {
+    if (saved === undefined) delete process.env.SHIFT_APP_URL; else process.env.SHIFT_APP_URL = saved;
+  }
+});
