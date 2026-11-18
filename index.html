@@ -20,6 +20,9 @@
     --amber:#866400; --amber-bg:#fcf1c7; --red:#be4358; --red-bg:#fde4e9;
     --shift-일:#fcf0d3; --shift-야:#e5e6f8; --shift-조:#f2e5f3; --shift-O:transparent; --shift-휴가:#fde4e9; --shift-대일:#dcf2e6;
     --today:#fbeee4;
+    /* 엑셀 양식(templates/schedule.xlsx) 격자 색: 얇은 안쪽 선 · 굵은 바깥 테두리 · 주말 파랑 · 휴가 노랑 · 대근 초록 */
+    --xl-rule:#d9cbbd; --xl-frame:#5e4e44; --xl-weekend:#e3ebf8;
+    --xl-leave:#fbe98a; --xl-leave-t:#6b5300; --xl-sub:#bfe6a5; --xl-sub-t:#2c5e14;
     --shadow:0 1px 2px rgba(60,35,15,.04),0 8px 28px rgba(60,35,15,.06);
     --radius:20px;
     --sbs-red:#d81b26; --sbs-blue:#1a3d91;
@@ -132,8 +135,8 @@
   .person-chip.on .me{color:#f6d3bf;}
   table.grid tr.is-dim .shift{opacity:.22;}
   table.grid tr.is-dim td.name{color:var(--faint);font-weight:500;}
-  table.grid tr.is-focus td{background:#fdf6f0;}
-  table.grid tr.is-focus td.name{color:var(--accent-text);font-weight:700;box-shadow:inset 3px 0 0 var(--accent);}
+  table.grid tr.is-focus td:not(.grp){background-image:linear-gradient(rgba(165,96,61,.09),rgba(165,96,61,.09));}
+  table.grid tr.is-focus td.name{color:var(--accent-text);font-weight:800;box-shadow:inset 3px 0 0 var(--accent);}
   .week-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line);}
   .week-row:first-of-type{border-top:0;}
   .week-row .when{width:88px;flex:none;font-size:13px;color:var(--muted);white-space:nowrap;}
@@ -147,10 +150,14 @@
   .shift-filter.on{background:var(--text);border-color:var(--text);color:#fff;}
   .shift-filter i{width:10px;height:10px;border-radius:3px;display:inline-block;}
   .schedule-sheet-header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:0 24px 12px;}
-  .approval-block{margin-left:auto;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
-  .approval-cell{min-width:92px;border:1px solid var(--line2);border-radius:12px;background:#fff;padding:6px 10px 8px;text-align:center;}
-  .approval-title{font-size:11.5px;color:var(--faint);margin-bottom:2px;}
-  .approval-name{min-height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;}
+  /* 결재란: 엑셀처럼 담당 · 팀장 두 칸. 위는 직책 줄, 아래는 도장 칸. */
+  .approval-block{margin-left:auto;display:flex;justify-content:flex-end;border:1.5px solid var(--xl-frame);background:#fff;}
+  .approval-cell{width:96px;display:grid;grid-template-rows:30px 62px;text-align:center;}
+  .approval-cell + .approval-cell{border-left:1px solid var(--xl-frame);}
+  .approval-title{display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;color:var(--text);letter-spacing:.6em;padding-left:.6em;border-bottom:1px solid var(--xl-frame);background:var(--sunk);}
+  .approval-stamp{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px;}
+  .approval-name{font-weight:700;font-size:13px;line-height:1.2;}
+  .approval-name.is-warn{color:var(--red);font-size:12px;}
   .approval-date{font-size:10.5px;color:var(--faint);}
   #lockBanner{padding:0 24px;}
   .banner{border-radius:12px;padding:10px 14px;font-size:13px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;line-height:1.5;}
@@ -159,23 +166,51 @@
   .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:700;margin-right:6px;}
   .pill.locked{background:var(--amber);color:#fff;}
   .pill.open{background:var(--green);color:#fff;}
-  .gridwrap{overflow-x:auto;}
-  table.grid{border-collapse:separate;border-spacing:0;width:100%;font-size:14px;table-layout:fixed;min-width:920px;}
-  table.grid th,table.grid td{text-align:center;padding:0;vertical-align:middle;overflow:hidden;border:0;}
-  table.grid th{height:58px;font-weight:500;line-height:1.2;color:var(--faint);font-size:11.5px;background:#fff;}
-  table.grid td{height:54px;padding:4px 2px;border-top:1px solid var(--line);}
-  table.grid th:first-child{width:112px;}
-  table.grid td.name{width:112px;text-align:left;padding-left:20px;padding-right:8px;font-weight:600;white-space:nowrap;font-size:14px;background:#fff;position:sticky;left:0;z-index:1;}
-  table.grid th:first-child{text-align:left;padding-left:20px;position:sticky;left:0;z-index:1;}
-  table.grid tbody tr:hover td{background:#fdfaf7;}
-  .date-num{display:block;font-size:14px;font-weight:600;color:var(--text);line-height:1.1;margin:0 auto 3px;}
-  .date-week{display:block;font-size:11.5px;letter-spacing:-0.02em;line-height:1.2;}
-  .weekend .date-num,.weekend .date-week{color:var(--blue);}
-  .holiday .date-num,.holiday .date-week{color:var(--red);}
-  table.grid th.is-today .date-num{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;}
-  table.grid .is-today{background:var(--today)!important;}
+  /* ── 근무표 격자: 엑셀 양식처럼 글자만, 얇은 격자선 + 굵은 바깥 테두리 (2026-11 시안 확정) ──
+     왼쪽 두 칸(묶음 NC/TC · 이름)은 가로로 밀어도 붙어 있다. */
+  .xl-sheet{margin:0 24px;}
+  .gridwrap{overflow-x:auto;border:1.5px solid var(--xl-frame);background:#fff;}
+  table.grid{border-collapse:separate;border-spacing:0;width:100%;font-size:14px;table-layout:fixed;min-width:1160px;}
+  table.grid col.col-grp{width:44px;}
+  table.grid col.col-name{width:84px;}
+  table.grid th,table.grid td{text-align:center;padding:0;vertical-align:middle;overflow:hidden;border:0;border-right:1px solid var(--xl-rule);border-bottom:1px solid var(--xl-rule);background:#fff;}
+  table.grid tr > :last-child{border-right:0;}
+  table.grid tbody tr:last-child > *{border-bottom:0;}
+  table.grid thead th{font-weight:700;color:var(--text);}
+  table.grid thead tr.row-date th{height:30px;font-size:14px;}
+  table.grid thead tr.row-week th{height:26px;font-size:11.5px;font-weight:600;color:var(--faint);border-bottom:1.5px solid var(--xl-frame);white-space:nowrap;text-overflow:ellipsis;letter-spacing:-0.04em;}
+  table.grid th.corner{font-size:12px;font-weight:600;color:var(--faint);border-bottom:1.5px solid var(--xl-frame);border-right:1.5px solid var(--xl-frame);}
+  table.grid td{height:38px;}
+  table.grid td.grp{font-weight:800;font-size:13px;color:var(--text);background:var(--sunk);}
+  table.grid td.name{font-weight:700;white-space:nowrap;font-size:14px;color:var(--text);border-right:1.5px solid var(--xl-frame);text-overflow:ellipsis;padding:0 4px;}
+  table.grid tr.grp-end > *{border-bottom:1.5px solid var(--xl-frame);}
+  table.grid tbody tr:last-child.grp-end > *{border-bottom:0;}
+  table.grid .xl-sticky{position:sticky;z-index:1;}
+  table.grid .xl-sticky.grp,table.grid th.corner{left:0;}
+  table.grid td.name.xl-sticky{left:44px;}
+  table.grid .day-holiday,table.grid .day-saturday{background:var(--xl-weekend);}
+  table.grid th.day-saturday{color:var(--blue);}
+  table.grid th.day-holiday{color:var(--red);}
+  table.grid tbody tr:hover td:not(.grp){background-image:linear-gradient(rgba(94,78,68,.05),rgba(94,78,68,.05));}
+  /* 칸 안 글자: 칩 없이 칸 전체를 채운다(내 칸 누르기 영역이 넓어지고, 휴가·대근 색이 칸을 칠한다). */
+  table.grid .shift{display:flex;align-items:center;justify-content:center;width:100%;height:100%;min-height:38px;max-width:none;border:0;border-radius:0;padding:0;background:transparent;font:inherit;font-weight:700;font-size:14px;color:var(--text);cursor:default;transition:opacity .15s;}
+  table.grid button.shift{cursor:pointer;}
+  table.grid button.shift:hover{background-image:linear-gradient(rgba(165,96,61,.14),rgba(165,96,61,.14));}
+  table.grid button.shift:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+  table.grid .shift.cell-O{color:var(--faint);font-weight:500;}
+  table.grid .shift.cell-휴가{background:var(--xl-leave)!important;color:var(--xl-leave-t)!important;font-size:12.5px;}
+  table.grid .shift.cell-대일,table.grid .shift.cell-대근{background:var(--xl-sub)!important;color:var(--xl-sub-t)!important;}
+  table.grid .shift.cell-대일{font-size:12.5px;}
+  table.grid .shift.cell-custom{background:transparent!important;color:var(--text)!important;font-size:12px;letter-spacing:-0.04em;}
+  table.grid .shift.cell-protected{background:transparent!important;color:var(--accent-text)!important;box-shadow:inset 0 0 0 2px var(--accent);font-weight:700;}
+  /* 비고: 표 바로 아래 붙은 칸 + 근무 시간 줄 */
+  .xl-remarks{border:1.5px solid var(--xl-frame);border-top:0;background:#fff;padding:10px 16px 10px;}
+  .xl-remarks .notes-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;}
+  .xl-remarks label{font-size:13px;color:var(--text);margin:0;font-weight:700;}
+  .xl-remarks textarea{min-height:64px;resize:vertical;border:0;border-radius:0;padding:4px 0;background:transparent;font-size:13.5px;line-height:1.7;}
+  .xl-remarks textarea:not([readonly]){background:var(--bg);padding:4px 8px;outline:1px solid var(--line2);}
+  .xl-hours{margin:6px 0 0;padding-top:8px;border-top:1px solid var(--xl-rule);font-size:13px;font-weight:700;color:var(--muted);}
   .shift{display:inline-flex;align-items:center;justify-content:center;width:100%;max-width:36px;height:32px;border-radius:10px;font-weight:700;font-size:14px;line-height:1;white-space:nowrap;overflow:hidden;transition:opacity .15s;}
-  td[colspan] .shift{max-width:none;}
   .cell-일{background:var(--shift-일);color:#7a5300;}
   .cell-야{background:var(--shift-야);color:#3b3e8f;}
   .cell-조{background:var(--shift-조);color:#7a3f80;}
@@ -189,11 +224,12 @@
   .weekend{color:var(--blue);}
   .status-cell.ok{background:var(--green-bg);color:var(--green);}
   .status-cell.bad{background:var(--red-bg);color:var(--red);}
-  .legend{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:14px 24px 18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--faint);line-height:1.6;}
-  .legend .shift{width:24px;height:18px;font-size:10.5px;border-radius:5px;vertical-align:middle;margin-right:4px;}
-  .notes-panel{padding:0 24px 22px;}
-  .notes-panel label{font-size:13px;color:var(--muted);margin-bottom:8px;display:block;font-weight:600;}
-  .notes-panel textarea{min-height:88px;resize:vertical;background:var(--bg);border-color:var(--line);}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;padding:12px 24px 20px;font-size:12.5px;color:var(--faint);line-height:1.6;}
+  .legend .sw{display:inline-block;width:22px;height:14px;vertical-align:-2px;margin-right:5px;border:1px solid var(--xl-rule);}
+  .legend .sw.weekend{background:var(--xl-weekend);}
+  .legend .sw.leave{background:var(--xl-leave);}
+  .legend .sw.sub{background:var(--xl-sub);}
+  .legend .sw.protected{background:#fff;border:2px solid var(--accent);}
 
   /* ── 오른쪽 패널 ── */
   .rail-card{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid rgba(226,213,199,.6);padding:22px 24px;}
@@ -345,14 +381,17 @@
 
   @media print {
     body{background:#fff;}
-    .app-header, .security-note, #storageStatus, main > section:not(#tab-schedule), .schedule-rail, .schedule-nav, .schedule-actions-row, .clock-wrap, .shift-filters, .sheet-hint, #lockBanner, #monthlyApprovalStatus, .notes-panel, #monthlyVersionPanel{display:none !important;}
+    .app-header, .security-note, #storageStatus, main > section:not(#tab-schedule), .schedule-rail, .schedule-nav, .schedule-actions-row, .clock-wrap, .shift-filters, .sheet-hint, #lockBanner, #monthlyApprovalStatus, .notes-actions, #monthlyVersionPanel{display:none !important;}
     main{max-width:none;padding:0;}
     .sheet-card,.panel{border:none;box-shadow:none;padding:0;margin:0 0 10px;}
     .schedule-title{font-size:26px;}
-    .approval-cell{break-inside:avoid;page-break-inside:avoid;}
+    .approval-block{break-inside:avoid;page-break-inside:avoid;}
+    .xl-sheet{margin:0;}
     .gridwrap{overflow:visible;}
-    table.grid{min-width:0;font-size:16px;}
-    table.grid td.name,table.grid th:first-child{position:static;}
+    table.grid{min-width:0;font-size:13px;}
+    table.grid .xl-sticky{position:static;}
+    table.grid td,table.grid .shift{min-height:30px;height:30px;}
+    .xl-remarks textarea{resize:none;}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     @page{size:A4 landscape;margin:8mm;}
   }
@@ -377,7 +416,7 @@
     .schedule-controls{justify-content:space-between;}
     .clock-wrap{display:none;}
     .sheet-card{display:flex;flex-direction:column;}
-    .schedule-sheet-header,.sheet-card .legend,.sheet-card .notes-panel{order:1;}
+    .schedule-sheet-header,.sheet-card .legend{order:1;}
     .schedule-sheet-header{padding-top:12px;}
     .schedule-controls,.export-actions{justify-content:flex-start;}
     .schedule-controls{width:100%;}
@@ -393,18 +432,23 @@
     .sheet-head{padding:14px;}
     #lockBanner,.schedule-sheet-header{padding-inline:12px;}
     .schedule-sheet-header{flex-direction:column;align-items:stretch;}
-    .approval-block{margin-left:0;justify-content:flex-start;}
-    .approval-cell{min-width:0;flex:1 1 86px;}
+    .approval-block{margin-left:0;align-self:flex-start;}
+    .approval-cell{width:88px;grid-template-rows:28px 54px;}
+    .xl-sheet{margin:0 12px;}
+    .xl-remarks{padding:8px 12px;}
+    .xl-hours{font-size:12px;}
+    .legend{padding:12px 12px 16px;}
     .shift-filters{flex-wrap:nowrap;overflow-x:auto;width:100%;padding:2px;}
     .person-chip{flex:none;min-height:44px;}
     .mobile-grid-tip{display:block;margin:0;padding:0 12px 8px;color:var(--muted);font-size:12px;}
     .gridwrap{overscroll-behavior-x:contain;}
-    table.grid{min-width:1522px;}
-    table.grid th:first-child,table.grid td.name{width:96px;padding-left:10px;padding-right:4px;}
-    table.grid th:first-child,table.grid td.name{box-shadow:2px 0 0 var(--line);}
-    table.grid tr.is-focus td.name{box-shadow:inset 3px 0 0 var(--accent),2px 0 0 var(--line);}
-    table.grid td{padding-inline:1px;}
-    table.grid button.shift[data-request-date]{height:44px;max-width:none;}
+    table.grid{min-width:1420px;}
+    table.grid col.col-grp{width:34px;}
+    table.grid col.col-name{width:68px;}
+    table.grid td.name.xl-sticky{left:34px;}
+    table.grid td.grp{font-size:12px;}
+    table.grid td.name{font-size:13px;}
+    table.grid td,table.grid .shift{min-height:44px;height:44px;}
     .modal{width:calc(100% - 24px);max-width:460px;max-height:calc(100dvh - 24px);padding:16px;}
     .modal .actions > button{flex:1;}
     .activity-nav{gap:6px;margin-bottom:16px;}
@@ -430,7 +474,7 @@
     .side-item{width:auto;}
     .page-head h1{font-size:28px;}
     .schedule-sheet-header{flex-direction:column;align-items:stretch;}
-    .approval-block{justify-content:flex-start;}
+    .approval-block{margin-left:0;align-self:flex-start;}
   }
   .login-page{max-width:420px;margin:48px auto;padding:0 16px;}
   #loginForm{display:grid;gap:10px;}
@@ -554,18 +598,22 @@
           <div class="approval-block" id="approvalBlock" aria-live="polite"></div>
         </div>
         <p class="mobile-grid-tip" data-html2canvas-ignore="true">날짜를 더 보려면 표를 좌우로 밀어주세요.</p>
-        <div class="gridwrap"><table class="grid" id="scheduleTable"></table></div>
-        <div class="legend"><span>일 09:00~18:30</span><span>야·조 18:00~09:00</span><span>O 비번</span><span><span class="shift cell-휴가">휴가</span>휴가</span><span><span class="shift cell-대일">대일</span>대일·대근</span><span><span class="shift cell-protected">O</span>비번 보장</span><span style="color:var(--blue);font-weight:600;">토요일</span><span style="color:var(--red);font-weight:600;">일요일·휴일</span></div>
-        <div class="notes-panel">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <label for="scheduleNotesInput" style="margin:0;">비고</label>
-            <div style="display:flex;gap:6px;">
-              <button class="btn secondary" id="editNotesBtn" style="min-height:32px;padding:4px 12px;font-size:12.5px;">수정</button>
-              <button class="btn" id="applyNotesBtn" style="min-height:32px;padding:4px 12px;font-size:12.5px;display:none;">적용</button>
+        <!-- 엑셀 양식(templates/schedule.xlsx)처럼: 표 → 바로 붙은 비고 칸 → 근무 시간 줄 -->
+        <div class="xl-sheet">
+          <div class="gridwrap"><table class="grid" id="scheduleTable"></table></div>
+          <div class="notes-panel xl-remarks">
+            <div class="notes-head">
+              <label for="scheduleNotesInput">비고</label>
+              <div class="notes-actions" style="display:flex;gap:6px;" data-html2canvas-ignore="true">
+                <button class="btn secondary" id="editNotesBtn" style="min-height:32px;padding:4px 12px;font-size:12.5px;">수정</button>
+                <button class="btn" id="applyNotesBtn" style="min-height:32px;padding:4px 12px;font-size:12.5px;display:none;">적용</button>
+              </div>
             </div>
+            <textarea id="scheduleNotesInput" placeholder="근무 관련 특이사항을 입력하세요." readonly></textarea>
+            <p class="xl-hours">[일: 09:00 ~ 18:30 , 야: 18:00 ~ 00:00 , 조: 00:00 ~ 09:00 , O: 비번]</p>
           </div>
-          <textarea id="scheduleNotesInput" placeholder="근무 관련 특이사항을 입력하세요." readonly></textarea>
         </div>
+        <div class="legend"><span><span class="sw weekend"></span>주말·휴일</span><span><span class="sw leave"></span>휴가</span><span><span class="sw sub"></span>대일·대근</span><span><span class="sw protected"></span>비번 보장</span><span style="color:var(--blue);font-weight:600;">토요일</span><span style="color:var(--red);font-weight:600;">일요일·휴일</span></div>
       </div>
       <details id="monthlyVersionPanel" data-html2canvas-ignore="true" style="margin:14px 0 0;"><summary>확정본·변경 이력 보기</summary><div id="monthlyVersionContent"></div></details>
       </div>
@@ -1696,8 +1744,7 @@
           notes: raw.settings?.notes || '',
           approvalLines: Array.isArray(raw.settings?.approvalLines) && raw.settings.approvalLines.length ? raw.settings.approvalLines : [
             { title: '담당', name: '' },
-            { title: '팀장', name: '' },
-            { title: '결재', name: '' }
+            { title: '팀장', name: '' }
           ]
         },
       };
@@ -2099,38 +2146,46 @@
       ${y}년 ${m + 1}월 근무표는 ${locked ? `${lockMoment.getFullYear()}.${lockMoment.getMonth()+1}.${lockMoment.getDate()} 00:00에 신청 기준일이 지났습니다. 담당자 확정 여부는 위 승인 상태를 확인하세요.` : `${lockMoment.getFullYear()}.${lockMoment.getMonth()+1}.${lockMoment.getDate()} 00:00이 신청 기준일입니다. 그 전까지 휴가 신청 시 대근이 즉시 확정 반영됩니다.`}</span>
     </div>`;
 
+    // 엑셀 양식처럼: 왼쪽 묶음(NC/TC) · 이름, 머리줄 두 줄(날짜 · 요일/휴일 이름), 토·일·휴일 열은 연한 파랑.
+    // 오늘 날짜 강조는 하지 않는다(2026-11 시안 확정).
     const daysInMonth = new Date(y, m + 1, 0).getDate();
     const todayKey = fmt(now);
-    let thead = '<tr><th>근무자</th>';
+    const dayInfo = [];
     for(let d = 1; d <= daysInMonth; d++){
       const date = new Date(y, m, d);
       const info = getHolidayInfo(date);
       const isHoliday = !!info || date.getDay() === 0;
       const isSaturday = date.getDay() === 6 && !isHoliday;
-      const dayClass = [];
-      if (isHoliday) dayClass.push('holiday');
-      if (isSaturday) dayClass.push('weekend');
-      const dateColClass = isHoliday ? 'day-holiday' : (isSaturday ? 'day-saturday' : 'day-weekday');
-      const isToday = fmt(date) === todayKey;
-      if (isToday) dayClass.push('is-today');
-      thead += `<th class="${dayClass.join(' ')} ${dateColClass}" title="${escapeAttribute(info ? info.name : '')}"><span class="date-num">${d}</span><span class="date-week">${isToday ? '오늘' : WEEKDAY_KO[date.getDay()]}</span></th>`;
+      dayInfo[d] = { date, info, colClass: isHoliday ? 'day-holiday' : (isSaturday ? 'day-saturday' : 'day-weekday') };
+    }
+    let thead = '<tr class="row-date"><th class="corner xl-sticky" colspan="2" rowspan="2">구분</th>';
+    for(let d = 1; d <= daysInMonth; d++){
+      const { info, colClass } = dayInfo[d];
+      thead += `<th class="${colClass}" title="${escapeAttribute(info ? info.name : '')}">${d}</th>`;
+    }
+    thead += '</tr><tr class="row-week">';
+    for(let d = 1; d <= daysInMonth; d++){
+      const { date, info, colClass } = dayInfo[d];
+      const label = info ? info.name : WEEKDAY_KO[date.getDay()];
+      thead += `<th class="${colClass}" title="${escapeAttribute(label)}">${escapeAttribute(label)}</th>`;
     }
     thead += '</tr>';
 
-    let rows = '';
     const staffOfMonth = getActiveStaff(y, m);
     const focus = focusedEmployeeId();
     renderPersonFilters(staffOfMonth, focus);
-    staffOfMonth.forEach(emp => {
-      const rowClass = !focus ? '' : emp.id === focus ? 'is-focus' : 'is-dim';
-      const pdfIgnore = isDispatchedDayWorker(emp) ? ' data-html2canvas-ignore="true"' : '';
-      let r = `<tr class="${rowClass}"${pdfIgnore}><td class="name">${escapeAttribute(emp.name)}</td>`;
+    const groups = scheduleGroups(staffOfMonth, y, m);
+    const colgroup = '<colgroup><col class="col-grp"><col class="col-name">' + '<col>'.repeat(daysInMonth) + '</colgroup>';
+    let rows = '';
+    groups.forEach(group => group.staff.forEach((emp, index) => {
+      const rowClass = [!focus ? '' : emp.id === focus ? 'is-focus' : 'is-dim', index === group.staff.length - 1 ? 'grp-end' : ''].filter(Boolean).join(' ');
+      // 파견사원 줄은 PDF 에서 빠진다. 묶음 칸도 그 줄 안에 있어서 다른 묶음의 rowspan 이 깨지지 않는다.
+      const pdfIgnore = group.pdfIgnore ? ' data-html2canvas-ignore="true"' : '';
+      const groupCell = index === 0 ? `<td class="grp xl-sticky" rowspan="${group.staff.length}">${escapeAttribute(group.label)}</td>` : '';
+      let r = `<tr class="${rowClass}"${pdfIgnore}>${groupCell}<td class="name xl-sticky" title="${escapeAttribute(emp.name)}">${escapeAttribute(emp.name)}</td>`;
       for(let d = 1; d <= daysInMonth; d++){
-        const date = new Date(y, m, d);
-        const info = getHolidayInfo(date);
-        const isHoliday = !!info || date.getDay() === 0;
-        const isSaturday = date.getDay() === 6 && !isHoliday;
-        const dateColClass = (isHoliday ? 'day-holiday' : (isSaturday ? 'day-saturday' : 'day-weekday')) + (fmt(date) === todayKey ? ' is-today' : '');
+        const date = dayInfo[d].date;
+        const dateColClass = dayInfo[d].colClass;
         if (!isEmployeeActiveOnDate(emp, date)) {
           r += `<td class="${dateColClass}"></td>`;
           continue;
@@ -2144,7 +2199,7 @@
         const sh = effectiveShift(emp.id, date);
         const isSubstitute = isSubstituteShift(emp.id, date);
         const cellClass = sh === '휴가' ? 'cell-휴가' : sh === '대일' ? 'cell-대일' : isSubstitute && (sh === '야' || sh === '조') ? 'cell-대근' : isStandardShift(sh) ? 'cell-' + sh : 'cell-custom';
-        // 칸 안의 둥근 칩이 근무를 말한다.
+        // 칸 안은 글자만. 휴가(노랑)·대일/대근(초록)은 칸 전체를 칠한다.
         const chipClasses = ['shift', cellClass];
         if (isProtectedOn(emp.id, date)) chipClasses.push('cell-protected');
         const canRequest = span === 1 && employeeToken && Date.now() < employeeUntil && emp.id === employeeId
@@ -2157,10 +2212,23 @@
       }
       r += '</tr>';
       rows += r;
-    });
+    }));
 
-    $('#scheduleTable').innerHTML = `<thead>${thead}</thead><tbody>${rows}</tbody>`;
+    $('#scheduleTable').innerHTML = `${colgroup}<thead>${thead}</thead><tbody>${rows}</tbody>`;
     renderScheduleRail();
+  }
+
+  // 근무표 왼쪽 묶음. 엑셀 내보내기(exportExcel)와 같은 기준:
+  // NC = 그 달 교대 루틴 인원(isRoutineWorker), TC = 교대 루틴을 끈 추가 일근자·교육생. 파견사원은 둘 다 아니고 따로(PDF 제외).
+  // 빈 묶음은 그리지 않는다(TC 가 없으면 TC 묶음 생략). 묶음 안 순서는 화면 순서 그대로.
+  function scheduleGroups(staff, year, monthIndex){
+    const month = new Date(year, monthIndex, 1);
+    const exportable = staff.filter(emp => !isDispatchedDayWorker(emp));
+    return [
+      { label: 'NC', staff: exportable.filter(emp => isRoutineWorker(emp, month)), pdfIgnore: false },
+      { label: 'TC', staff: exportable.filter(emp => !isRoutineWorker(emp, month)), pdfIgnore: false },
+      { label: '파견', staff: staff.filter(emp => isDispatchedDayWorker(emp)), pdfIgnore: true }
+    ].filter(group => group.staff.length);
   }
 
   // 사람별로 보기 (2026-11 사용자 요청: 화면을 여는 사람은 대개 "나는 언제 근무지?" 를 본다).
@@ -3118,14 +3186,18 @@
     const key = monthKeyOf(year, monthIndex);
     const stamp = currentMonthlyStamp(key);
     const requiresApproval = !!STATE.monthlyApprovals[key] && !stamp;
-    block.innerHTML = approvalLines.map((line, index) => {
-      const name = index === 0 && requiresApproval ? '재확정 필요' : (index === 0 && stamp) ? stamp.approverName : line.name;
+    // 엑셀 양식처럼 두 칸(담당 · 팀장)만 그린다. 예전 저장 데이터에 3칸이 있어도 앞 2칸만 보인다(데이터는 그대로 둔다).
+    block.innerHTML = approvalLines.slice(0, 2).map((line, index) => {
+      const warn = index === 0 && requiresApproval;
+      const name = warn ? '재확정 필요' : (index === 0 && stamp) ? stamp.approverName : line.name;
       const stampedAt = (index === 0 && stamp) ? `<div class="approval-date">${new Date(stamp.at).toLocaleDateString('ko-KR')}</div>` : '';
       return `
       <div class="approval-cell">
         <div class="approval-title">${escapeAttribute(line.title)}</div>
-        <div class="approval-name">${escapeAttribute(name || '□')}</div>
-        ${stampedAt}
+        <div class="approval-stamp">
+          ${name ? `<div class="approval-name${warn ? ' is-warn' : ''}">${escapeAttribute(name)}</div>` : ''}
+          ${stampedAt}
+        </div>
       </div>
     `;
     }).join('');
