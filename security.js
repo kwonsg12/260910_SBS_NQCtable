@@ -124,7 +124,9 @@ function validateSave(previous, incoming, admin, employeeId = null) {
   return next;
 }
 
-function createSecurity({ db, getState, setState, adminPassword = process.env.ADMIN_PASSWORD || '' }) {
+// onMonthlyApproved(version): 월 근무표 확정이 승인되어 DB 에 저장된 뒤 호출된다(서버 PC 엑셀 백업용).
+// 실패해도 승인은 이미 끝난 것이므로 결과에 영향을 주지 않는다.
+function createSecurity({ db, getState, setState, adminPassword = process.env.ADMIN_PASSWORD || '', onMonthlyApproved = null }) {
   db.exec('CREATE TABLE IF NOT EXISTS approval_credentials (id TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL)');
   db.exec('CREATE TABLE IF NOT EXISTS employee_credentials (id TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL)');
   // 기본 PIN(0000) 상태인 직원. 이 목록에 있으면 첫 로그인 때 PIN을 바꾸기 전에는 다른 일을 할 수 없다.
@@ -325,7 +327,8 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
     const { id, approverId, pin, approved, reason = '' } = req.body || {};
     if (typeof approved !== 'boolean' || typeof reason !== 'string' || reason.length > 2000 || (!approved && !reason.trim())) fail(400, '승인 여부와 반려 사유를 확인해주세요.');
     const admin = isAdmin(req);
-    return transaction(() => {
+    let approvedVersion = null;
+    const result = transaction(() => {
       const row = getState(), state = row?.state;
       const actor = state?.approvers?.find(a => a.id === approverId);
       if (admin) {
@@ -355,6 +358,7 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
               approvalId: approval.id, approverId: actor.id, approverName: actor.name, at, snapshot: approval.scheduleSnapshot
             };
             state.versions.push(version);
+            approvedVersion = version;
             state.monthlyApprovals[approval.refId] = { versionId: version.id, number, approverId: actor.id, approverName: actor.name, at };
           } else {
             state.monthlyApprovals[approval.refId] = { approverId: actor.id, approverName: actor.name, at };
@@ -372,6 +376,12 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
       activityLog.logDecision(state, approval, approved, actor.name, approval.decisionReason);
       return { ok: true };
     });
+    // 커밋이 끝난 뒤에만 백업한다. 응답을 늦추지 않도록 기다리지 않는다.
+    if (approvedVersion && onMonthlyApproved) {
+      Promise.resolve().then(() => onMonthlyApproved(approvedVersion))
+        .catch(error => console.error('월 확정 백업 실패:', error));
+    }
+    return result;
   }
   // 신청자 본인이 자신의 대기·확정 건을 취소한다. decide()와 마찬가지로 validateSave의
   // "기존 신청 불변" 규칙을 우회해 state를 직접 수정한다 — 일반 저장 경로로는 취소를 반영할 수 없다.

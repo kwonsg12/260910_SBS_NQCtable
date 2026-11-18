@@ -3160,6 +3160,10 @@
       title: `${year}년 ${monthIndex + 1}월 근무표 확정 요청`,
       summary: `근무 인원 ${staff.length}명 (${staff.map(e => e.name).join(', ')})\n승인하면 결재란에 담당자 이름과 확정 일시가 표시됩니다.`
     });
+    // 승인되는 순간 서버가 서버 PC에 엑셀 백업을 남길 수 있도록, 화면 [엑셀]과 같은 값을 함께 싣는다.
+    // (비교는 monthlySnapshotDiff 가 하므로 이 칸은 확정본 비교에 영향을 주지 않는다.)
+    try { snapshot.excel = buildExcelPayload(year, monthIndex).payload; }
+    catch (error) { console.warn('확정 엑셀 백업 데이터를 만들지 못했습니다:', error.message); }
     approval.scheduleSnapshot = snapshot;
     approval.baseVersionId = STATE.monthlyApprovals[key]?.versionId || null;
     saveState();
@@ -3322,26 +3326,35 @@
     return dispatchedNameKey(employee.name) === dispatchedNameKey(STATE.settings.dayWorkerName || '서예찬');
   }
 
+  // 엑셀 양식에 넣을 한 달 근무. [엑셀] 버튼과 월 확정 요청 스냅샷이 함께 쓴다.
+  // 확정이 승인되면 서버가 이 값으로 엑셀을 만들어 서버 PC의 backups/monthly 에 보관한다(backup.js).
+  function buildExcelPayload(year, monthIndex){
+    const activeStaff = getActiveStaff(year, monthIndex);
+    const exportableStaff = activeStaff.filter(emp => !isDispatchedDayWorker(emp));
+    const month = new Date(year, monthIndex, 1);
+    const staff = exportableStaff.filter(emp => isRoutineWorker(emp, month));
+    const tcStaff = exportableStaff.filter(emp => !isRoutineWorker(emp, month));
+    if (staff.length > 4) throw new Error('샘플 양식에는 NC 교대근무자를 4명까지 넣을 수 있습니다. 등록 인원을 확인해 주세요.');
+    const dates = Array.from({length:new Date(year, monthIndex + 1, 0).getDate()}, (_, i) => new Date(year, monthIndex, i + 1));
+    const row = emp => ({name:emp.name, shifts:dates.map(date =>
+      isEmployeeActiveOnDate(emp, date) ? effectiveShift(emp.id, date) : '')});
+    return {
+      payload: {year, month:monthIndex + 1, holidays:dates.map(date => !!getHolidayInfo(date)),
+        tcStaff:tcStaff.map(row), staff:staff.map(row)},
+      excluded: activeStaff.length - exportableStaff.length
+    };
+  }
+
   async function exportExcel(){
     const btn = $('#exportExcelBtn');
     btn.disabled = true;
     try {
       const {year, monthIndex} = getCurrentMonthView();
-      const activeStaff = getActiveStaff(year, monthIndex);
-      const exportableStaff = activeStaff.filter(emp => !isDispatchedDayWorker(emp));
-      const month = new Date(year, monthIndex, 1);
-      const staff = exportableStaff.filter(emp => isRoutineWorker(emp, month));
-      const tcStaff = exportableStaff.filter(emp => !isRoutineWorker(emp, month));
-      if (staff.length > 4) throw new Error('샘플 양식에는 NC 교대근무자를 4명까지 넣을 수 있습니다. 등록 인원을 확인해 주세요.');
-      const dates = Array.from({length:new Date(year, monthIndex + 1, 0).getDate()}, (_, i) => new Date(year, monthIndex, i + 1));
+      const {payload, excluded} = buildExcelPayload(year, monthIndex);
+      const staff = payload.staff, tcStaff = payload.tcStaff;
       const response = await fetch('/api/export/excel', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({year, month:monthIndex + 1,
-          holidays:dates.map(date => !!getHolidayInfo(date)),
-          tcStaff:tcStaff.map(emp => ({name:emp.name, shifts:dates.map(date =>
-            isEmployeeActiveOnDate(emp, date) ? effectiveShift(emp.id, date) : '')})),
-          staff:staff.map(emp => ({name:emp.name, shifts:dates.map(date =>
-            isEmployeeActiveOnDate(emp, date) ? effectiveShift(emp.id, date) : '')}))})
+        body:JSON.stringify(payload)
       });
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));
@@ -3353,7 +3366,6 @@
       link.download = `${year}년 ${monthIndex + 1}월 통합관제실 근무표.xlsx`;
       document.body.appendChild(link); link.click(); link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
-      const excluded = activeStaff.length - exportableStaff.length;
       const dispatchedName = dispatchedNameKey(STATE.settings.dayWorkerName || '서예찬');
       // 이름으로 고르기 때문에, 설정한 이름이 직원 구성과 안 맞거나 같은 이름이 여럿이면 바로 알린다.
       showToast(`엑셀을 내려받았습니다. NC ${staff.length}명 · TC ${tcStaff.length}명`

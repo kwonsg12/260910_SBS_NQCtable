@@ -10,7 +10,7 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
-const { db, getState, setState } = require('./db');
+const { db, getState, setState, backupTo } = require('./db');
 const { createSecurity, publicState, targets } = require('./security');
 const { readFileSync, existsSync } = require('node:fs');
 const { createHash } = require('node:crypto');
@@ -18,12 +18,14 @@ const { notifyApprovers, getBaseUrl } = require('./notifier');
 const { startDigestScheduler } = require('./digest');
 const { createWorkbook } = require('./excel-export');
 const { createMyScheduleMailer } = require('./my-schedule-mail');
+const { saveMonthlyBackup, startBackupScheduler } = require('./backup');
 
 const app = express();
 // A local HTTPS reverse proxy may forward the original protocol.
 app.set('trust proxy', 'loopback');
 const PORT = Number(process.env.PORT) || 8000;
-const security = createSecurity({ db, getState, setState });
+// 월 근무표 확정이 승인되면 서버 PC 에 엑셀·JSON 확정본을 남긴다(backup.js).
+const security = createSecurity({ db, getState, setState, onMonthlyApproved: version => saveMonthlyBackup(version) });
 const mailMySchedule = createMyScheduleMailer({ getState, security });
 // 화면 안의 <script> 만 실행을 허락한다(CSP 해시). 근무표와 교대 앱(shift/) 두 화면이다.
 // shift/ 가 없는 복사본(테스트 등)에서도 서버는 떠야 하므로 없으면 건너뛴다.
@@ -157,4 +159,5 @@ app.listen(PORT, '0.0.0.0', () => {
     ? `메일 발송: ${process.env.SMTP_HOST}:${process.env.SMTP_PORT || 25}`
     : '메일 발송: 미설정 (.env에 SMTP_HOST를 넣으면 활성화됩니다)');
   startDigestScheduler();
+  startBackupScheduler({ backupTo });
 });
