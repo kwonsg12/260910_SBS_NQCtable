@@ -32,7 +32,7 @@ function setup(){
   const c = vm.createContext({
     STATE: { monthlyApprovals: {}, versions: [], approvals: [], settings: { stationName: '관제실', notes: '비고', adminPin: 'NEVER_COPY' } },
     staff: [{ id: 'a', name: '직원', startDate: '2099-01-01' }], shift: '일',
-    DEFAULT_STATION_NAME: '관제실', STORE_KEY: 'test', LOCAL_MODE: true, localSaveFailed: false,
+    DEFAULT_STATION_NAME: '관제실', STORE_KEY: 'test', LOCAL_MODE: true, localSaveFailed: false, editSessionDirty: () => false,
     alerts: [], securityMessages: [], actor: { id: 'boss', name: '담당' },
     adminToken: '', adminUntil: 0, approverToken: '', approverUntil: 0, approverLoginId: '',
     getCurrentMonthView: () => ({ year: 2099, monthIndex: 0 }),

@@ -47,7 +47,7 @@ test('완전 삭제가 이름표를 남기고, 복구하면 이름표에서 뺀�
   const context = vm.createContext({
     EMPLOYEES: [{ id: 'e1', name: '최도인' }, { id: 'e2', name: '권승기', endDate: '2026-10-30' }],
     STATE: { rotationAnchors: [], deletedEmployeesTrash: [], auditLogs: [] },
-    requireAdmin: () => true, saveState() {}, populateEmpSelects() {}, renderManualEmployeeOptions() {},
+    requireAdmin: () => true, saveState() {}, saveEditorChange() {}, monthKeysBetween: () => [], populateEmpSelects() {}, renderManualEmployeeOptions() {},
     settingsEmployeeEditor: { open() {} }, renderEndedStaffList() {}, renderDeletedStaffTrash() {}, renderAll() {},
     uid: () => 'u' + Math.random().toString(36).slice(2)
   });
