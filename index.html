@@ -202,7 +202,8 @@
   table.grid button.shift{cursor:pointer;}
   table.grid button.shift:hover{background-image:linear-gradient(rgba(165,96,61,.14),rgba(165,96,61,.14));}
   table.grid button.shift:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
-  table.grid .shift.cell-일{color:#7a5300;}
+  /* 일은 검정(가장 흔해서 차분하게), 야·조만 예전 칩 글자색으로 눈에 띄게. */
+  table.grid .shift.cell-일{color:var(--text);}
   table.grid .shift.cell-야{color:#3b3e8f;}
   table.grid .shift.cell-조{color:#7a3f80;}
   table.grid .shift.cell-O{color:#a8998c;font-weight:500;}
