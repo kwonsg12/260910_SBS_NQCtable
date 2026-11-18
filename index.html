@@ -81,12 +81,14 @@
   button.btn:disabled{opacity:.45;cursor:not-allowed;}
 
   /* ── 근무표: 제목 영역 ── */
-  .schedule-layout{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start;}
-  .schedule-main{flex:999 1 760px;min-width:0;}
-  .schedule-rail{flex:1 1 300px;max-width:360px;display:flex;flex-direction:column;gap:20px;}
-  .schedule-toolbar{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px 20px;margin-bottom:22px;}
-  .schedule-heading{display:flex;flex-direction:column;gap:10px;min-width:0;}
-  .schedule-title{margin:0;font-size:44px;line-height:1.05;font-weight:800;letter-spacing:-0.04em;color:var(--text);white-space:nowrap;}
+  /* 표가 가로를 다 쓰고, 요약 카드는 표 아래에 한 줄로 (2026-11-18). */
+  .schedule-layout{display:flex;flex-direction:column;gap:20px;}
+  .schedule-main{min-width:0;}
+  .schedule-rail{display:flex;flex-wrap:wrap;gap:16px;}
+  .schedule-rail .rail-card{flex:1 1 280px;min-width:0;}
+  .schedule-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;margin-bottom:12px;}
+  .schedule-heading{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;min-width:0;}
+  .schedule-title{margin:0;font-size:30px;line-height:1.1;font-weight:800;letter-spacing:-0.035em;color:var(--text);white-space:nowrap;}
   .schedule-status{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
   .schedule-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:flex-end;}
   .schedule-nav{display:inline-flex;align-items:center;gap:2px;padding:4px;border-radius:14px;background:#fff;border:1px solid var(--line2);}
@@ -98,6 +100,15 @@
   .schedule-actions-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .export-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
   .btn.export{background:#fff;}
+  /* [⋯ 더보기]: 신청 내역·PDF·엑셀·내 근무표 메일·확정 요청을 한 메뉴에 */
+  #moreMenu{position:relative;}
+  #moreMenu .more-btn{min-height:40px;padding:0 14px;border-radius:999px;font-weight:600;}
+  #moreActionsPanel{position:absolute;right:0;top:calc(100% + 6px);z-index:40;min-width:230px;flex-direction:column;align-items:stretch;gap:2px;padding:6px;background:#fff;border:1px solid var(--line2);border-radius:14px;box-shadow:0 12px 32px rgba(60,35,15,.16);}
+  #moreActionsPanel:not([hidden]){display:flex;}
+  #moreActionsPanel button.btn,#moreActionsPanel button.btn.secondary{justify-content:flex-start;width:100%;min-height:42px;padding:0 12px;border:0;border-radius:10px;background:transparent;color:var(--text);font-weight:500;}
+  #moreActionsPanel button.btn:hover:not(:disabled){background:var(--sunk);}
+  #moreActionsPanel button.btn[hidden]{display:none;}
+  #moreActionsPanel #requestMonthlyBtn{margin-top:4px;border-top:1px solid var(--line);border-radius:0 0 10px 10px;color:var(--accent-text);font-weight:600;}
   .clock-wrap{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--faint);white-space:nowrap;}
   .clock-source{font-size:12.5px;color:var(--faint);}
   .live-clock{font-size:12.5px;font-weight:600;color:var(--muted);}
@@ -360,7 +371,14 @@
     main{padding:16px 12px 36px;}
     .storage-status{margin-inline:12px;}
     .schedule-toolbar,.page-head{gap:12px;margin-bottom:16px;}
-    .schedule-title,.page-head h1{font-size:26px;white-space:normal;}
+    .schedule-title,.page-head h1{font-size:24px;white-space:normal;}
+    #moreActionsPanel{right:auto;left:0;}
+    /* 휴대폰: 표를 위로. 시계 줄은 숨기고, 결재란은 표 아래로 (PDF·데스크톱 배치는 그대로). */
+    .schedule-controls{justify-content:space-between;}
+    .clock-wrap{display:none;}
+    .sheet-card{display:flex;flex-direction:column;}
+    .schedule-sheet-header,.sheet-card .legend,.sheet-card .notes-panel{order:1;}
+    .schedule-sheet-header{padding-top:12px;}
     .schedule-controls,.export-actions{justify-content:flex-start;}
     .schedule-controls{width:100%;}
     .schedule-nav{width:100%;justify-content:space-between;}
@@ -405,7 +423,7 @@
     .app-header-inner,main,.security-note{padding-left:16px;padding-right:16px;}
     nav#tabbar{justify-content:flex-start;overflow-x:auto;flex-wrap:nowrap;}
     .grid2,.grid3{grid-template-columns:1fr;}
-    .schedule-title{font-size:34px;}
+    .schedule-title{font-size:26px;}
     .schedule-rail,.page-rail{max-width:none;}
     .settings-nav{max-width:none;position:static;flex-direction:row;flex-wrap:wrap;gap:4px;}
     .settings-nav .side-group{display:none;}
@@ -489,16 +507,11 @@
 <main hidden inert>
   <section id="tab-schedule">
     <div id="schedulePageRoot">
+      <!-- 표가 주인공이다 (2026-11-18 사용자). 제목·달 바꾸기·상태를 한 줄에 두고,
+           표 위의 버튼은 [⋯ 더보기] 하나로 모았다. 요약 카드는 표 아래로 내렸다. -->
       <div class="schedule-toolbar">
         <div class="schedule-heading">
-          <span class="kicker">NC 교대 근무표</span>
           <h1 class="schedule-title" id="scheduleMonthTitle">2026년 8월</h1>
-          <div class="schedule-status">
-            <div id="monthlyApprovalStatus"></div>
-            <span class="clock-wrap"><span class="clock-source" id="clockSourceLabel">기준: 로컬 서버 시각</span> · <span class="live-clock" id="liveDateTime">현재 시각</span></span>
-          </div>
-        </div>
-        <div class="schedule-controls">
           <div class="schedule-nav" role="group" aria-label="달 바꾸기">
             <button class="year-nav" id="prevYearBtn" type="button" aria-label="이전 년" title="이전 년">«</button>
             <button class="month-nav" id="prevMonthBtn" type="button" aria-label="이전 달" title="이전 달">‹</button>
@@ -509,8 +522,15 @@
             <button class="month-nav" id="nextMonthBtn" type="button" aria-label="다음 달" title="다음 달">›</button>
             <button class="year-nav" id="nextYearBtn" type="button" aria-label="다음 년" title="다음 년">»</button>
           </div>
-          <div class="schedule-actions-row">
-            <div class="export-actions">
+        </div>
+        <div class="schedule-controls">
+          <div class="schedule-status">
+            <div id="monthlyApprovalStatus"></div>
+            <span class="clock-wrap"><span class="clock-source" id="clockSourceLabel">기준: 로컬 서버 시각</span> · <span class="live-clock" id="liveDateTime">현재 시각</span></span>
+          </div>
+          <div class="schedule-actions-row" id="moreMenu">
+            <button class="btn secondary more-btn" id="moreActionsBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="moreActionsPanel">⋯ 더보기</button>
+            <div class="export-actions more-panel" id="moreActionsPanel" hidden>
               <button class="btn secondary" id="requestHistoryBtn" type="button">신청 내역</button>
               <button class="btn secondary export" id="exportPdfBtn" type="button">PDF</button>
               <button class="btn secondary export" id="exportExcelBtn" type="button" title="샘플 양식 · NC 교대근무자 최대 4명 · TC 추가 인원">엑셀</button>
@@ -520,7 +540,6 @@
           </div>
         </div>
       </div>
-      <details id="monthlyVersionPanel" data-html2canvas-ignore="true" style="margin:0 0 14px;"><summary>확정본·변경 이력 보기</summary><div id="monthlyVersionContent"></div></details>
       <div class="schedule-layout">
       <div class="schedule-main">
       <div class="sheet-card">
@@ -548,6 +567,7 @@
           <textarea id="scheduleNotesInput" placeholder="근무 관련 특이사항을 입력하세요." readonly></textarea>
         </div>
       </div>
+      <details id="monthlyVersionPanel" data-html2canvas-ignore="true" style="margin:14px 0 0;"><summary>확정본·변경 이력 보기</summary><div id="monthlyVersionContent"></div></details>
       </div>
     <aside class="schedule-rail" aria-label="요약" data-html2canvas-ignore="true">
       <div class="rail-card" aria-labelledby="railTodayTitle">
@@ -4163,6 +4183,15 @@
     $('#exportExcelBtn').addEventListener('click', exportExcel);
     $('#mailMyScheduleBtn').addEventListener('click', mailMySchedule);
     $('#requestMonthlyBtn').addEventListener('click', requestMonthlyApproval);
+    // [⋯ 더보기]: 누르면 열고, 안의 버튼을 누르거나 바깥을 누르거나 Esc 면 닫는다.
+    const setMoreMenu = open => {
+      $('#moreActionsPanel').hidden = !open;
+      $('#moreActionsBtn').setAttribute('aria-expanded', String(open));
+    };
+    $('#moreActionsBtn').addEventListener('click', () => setMoreMenu($('#moreActionsPanel').hidden));
+    $('#moreActionsPanel').addEventListener('click', event => { if (event.target.closest('button')) setMoreMenu(false); });
+    document.addEventListener('click', event => { if (!event.target.closest('#moreMenu')) setMoreMenu(false); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') setMoreMenu(false); });
     $('#approverAddBtn').addEventListener('click', addApprover);
     if (LOCAL_MODE) openApprovalFromLink();
     $('#settingsSaveBtn').addEventListener('click', saveSettings);

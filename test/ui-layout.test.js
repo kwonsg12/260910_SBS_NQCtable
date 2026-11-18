@@ -21,6 +21,21 @@ test('오른쪽 요약 패널은 PDF 에서 빠진다', () => {
   assert.match(script, /rail\?\.classList\.remove\('export-hidden'\)/);
 });
 
+test('표가 주인공: 버튼 다섯 개는 [⋯ 더보기] 안에, 메뉴는 처음엔 닫혀 있고, 요약은 표 아래', () => {
+  const menu = scheduleTab.match(/<div class="export-actions more-panel" id="moreActionsPanel" hidden>([\s\S]*?)<\/div>/);
+  assert.ok(menu, '더보기 메뉴가 없다');
+  for (const id of ['requestHistoryBtn', 'exportPdfBtn', 'exportExcelBtn', 'mailMyScheduleBtn', 'requestMonthlyBtn']) {
+    assert.match(menu[1], new RegExp(`id="${id}"`), id + ' 가 더보기 안에 없다');
+  }
+  assert.match(scheduleTab, /id="moreActionsBtn"[^>]*aria-expanded="false"/);
+  assert.match(script, /setMoreMenu\(false\)/);
+  // 요약 카드(aside)는 표 카드 뒤에 온다.
+  assert.ok(scheduleTab.indexOf('id="scheduleTable"') < scheduleTab.indexOf('<aside class="schedule-rail"'));
+  // 제목은 PDF 에서 숨기는 달 바꾸기(schedule-nav) 밖에 있어야 PDF 에 남는다.
+  const nav = scheduleTab.match(/<div class="schedule-nav"[\s\S]*?<\/div>\s*<\/div>/)[0];
+  assert.ok(!nav.includes('scheduleMonthTitle'));
+});
+
 test('PDF 내보내기가 숨기는 요소가 화면에 그대로 있다', () => {
   for (const selector of ['schedule-actions-row', 'schedule-nav']) assert.match(scheduleTab, new RegExp(`class="${selector}"`));
   assert.match(scheduleTab, /id="schedulePageRoot"/);
