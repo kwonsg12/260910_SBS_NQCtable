@@ -29,7 +29,7 @@ function seed() {
 }
 async function fixture(t, initial = seed(), adminPassword = password, extraEnv = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'nqc-security-'));
-  for (const file of ['server.js', 'excel-export.js', 'my-schedule-mail.js', 'db.js', 'security.js', 'activityLog.js', 'notifier.js', 'digest.js', 'index.html', 'sbs-logo.png']) copyFileSync(path.join(root, file), path.join(dir, file));
+  for (const file of ['server.js', 'excel-export.js', 'my-schedule-mail.js', 'db.js', 'security.js', 'activityLog.js', 'employeeNames.js', 'backup.js', 'notifier.js', 'digest.js', 'index.html', 'sbs-logo.png']) copyFileSync(path.join(root, file), path.join(dir, file));
   if (initial) {
     const db = new DatabaseSync(path.join(dir, 'geunmupyo.db'));
     db.exec('CREATE TABLE kv_store (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)');
@@ -246,6 +246,27 @@ test('approving a monthly request with a schedule snapshot stores a versioned co
   assert.equal(versions[1].number, 2);
   assert.equal(afterSecondApproval.monthlyApprovals['2026-10'].number, 2);
   assert.equal(versions[0].snapshot.notes, '');
+});
+
+test('서버는 켤 때 오늘 DB 사본을 만들고, 월 확정이 승인되면 확정본을 backups/monthly 에 남긴다', async t => {
+  const state = seed();
+  const snapshot = { monthKey: '2026-10', stationName: '관제실', notes: '', approvalLines: [], employees: [] };
+  state.approvals.push({ id: 'month1', type: 'monthly', refId: '2026-10', requestedBy: null, approverIds: ['a1'], status: 'pending', scheduleSnapshot: snapshot, baseVersionId: null });
+  const f = await fixture(t, state);
+  const daily = readdirSync(path.join(f.dir, 'backups', 'daily'));
+  assert.equal(daily.length, 1);
+  assert.match(daily[0], /^geunmupyo-\d{4}-\d{2}-\d{2}\.db$/);
+  assert.equal((await f.api('/api/approvals/decision', { id: 'month1', approverId: 'a1', pin: '123456', approved: true })).status, 200);
+  const monthlyDir = path.join(f.dir, 'backups', 'monthly');
+  let files = [];
+  for (let i = 0; i < 100 && !files.length; i++) {
+    try { files = readdirSync(monthlyDir); } catch {}
+    if (!files.length) await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  // 이 스냅샷에는 엑셀 데이터가 없으므로 JSON 만 남는다(엑셀 생성은 backup.test.js 에서 확인).
+  assert.equal(files.length, 1);
+  assert.match(files[0], /^2026-10_확정1차_\d{8}-\d{4}\.json$/);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(monthlyDir, files[0]), 'utf8')).snapshot, snapshot);
 });
 
 test('existing version history cannot be edited or removed through the generic save endpoint', async t => {

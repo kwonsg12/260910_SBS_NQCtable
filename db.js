@@ -60,4 +60,10 @@ function setState(stateObj, baseRevision) {
   return { updatedAt, revision: baseRevision + 1 };
 }
 
-module.exports = { db, getState, setState };
+// 서버가 켜진 채로 DB 전체(근무표 상태·PIN 해시·메일 발송 기록)를 파일 하나로 복사한다.
+// VACUUM INTO 는 일관된 시점의 사본을 만든다. 같은 이름의 파일이 있으면 SQLite 가 거절한다.
+function backupTo(file) {
+  db.prepare('VACUUM INTO ?').run(file);
+}
+
+module.exports = { db, getState, setState, backupTo };

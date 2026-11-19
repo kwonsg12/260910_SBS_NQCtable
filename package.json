@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "digest": "node digest.js",
+    "backup": "node backup.js",
     "test": "node --test"
   },
   "engines": {

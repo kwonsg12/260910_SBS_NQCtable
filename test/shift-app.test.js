@@ -47,7 +47,7 @@ test('교대 앱을 /shift/ 에서 띄운다', { timeout: 30000 }, async t => {
     assert.equal(path.dirname(resolved), path.resolve(os.tmpdir()));
     fs.rmSync(resolved, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   });
-  for (const file of ['server.js', 'excel-export.js', 'my-schedule-mail.js', 'db.js', 'security.js', 'activityLog.js', 'notifier.js', 'digest.js', 'index.html', 'sbs-logo.png']) {
+  for (const file of ['server.js', 'excel-export.js', 'my-schedule-mail.js', 'db.js', 'security.js', 'activityLog.js', 'employeeNames.js', 'backup.js', 'notifier.js', 'digest.js', 'index.html', 'sbs-logo.png']) {
     fs.copyFileSync(path.join(projectRoot, file), path.join(fixture, file));
   }
   fs.cpSync(path.join(projectRoot, 'shift'), path.join(fixture, 'shift'), { recursive: true });
