@@ -174,3 +174,14 @@ test('표 위 안내: 근무자로 로그인해 누를 칸이 있을 때만 강�
   assert.equal(nodes['#sheetHint'].hidden, true);
   assert.match(script, /\$\('#sheetHintClose'\)\?\.addEventListener\('click'/);
 });
+
+test('요약 패널 근무 표시도 표와 같은 색 규칙 (일 검정 · 야/조 색 글자 · 휴가/대근 색 면)', () => {
+  const css = html.match(/<style>([\s\S]*?)<\/style>/)[1];
+  assert.match(css, /\.rail-card \.shift\.cell-일\{background:transparent;color:var\(--text\);\}/);
+  assert.match(css, /table\.grid \.shift\.cell-일\{color:var\(--text\);\}/);
+  for (const [shift, color] of [['야', '#3b3e8f'], ['조', '#7a3f80']]) {
+    assert.match(css, new RegExp(`\\.rail-card \\.shift\\.cell-${shift}\\{background:transparent;color:${color};\\}`));
+    assert.match(css, new RegExp(`table\\.grid \\.shift\\.cell-${shift}\\{color:${color};\\}`));
+  }
+  assert.match(css, /\.rail-card \.shift\.cell-휴가\{background:var\(--xl-leave\)/);
+});
