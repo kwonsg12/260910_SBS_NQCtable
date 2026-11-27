@@ -20,7 +20,7 @@ const functions = ['fmt', 'stripTime', 'addDays', 'dateInRange', 'dayIndex', 'wo
   'getScheduleRange', 'findChainAssignment', 'calculatedShift', 'getShiftForDate', 'effectiveShift', 'snapshotHistoricalSchedule', 'bulkFillValueFor',
   'wtOrderFor', 'wtRoutineIds', 'wtRoutineNames', 'wtHandoverCandidates', 'staffEventIds', 'staffEventList', 'staffEventsFor', 'laterStaffEvent', 'staffChangeLinked', 'staffEventUndoError', 'legacyAnchorMatches',
   'legacyRepairOptions', 'prepareLegacyRepair', 'removeStaffEventData',
-  'withStaffEventRemoved', 'staffAdaptationPeriods', 'staffNeedsOnboarding', 'staffImpact', 'staffAffectedMonths', 'wtPlan', 'wtApply', 'cancelStaffEvent',
+  'withStaffEventRemoved', 'staffAdaptationPeriods', 'staffAdaptationHistory', 'staffNeedsOnboarding', 'staffImpact', 'staffAffectedMonths', 'wtPlan', 'wtApply', 'cancelStaffEvent',
   'isRotationAnchorLinked', 'regularOverridesForRotationCorrection', 'rotationAppliedPreview', 'setStandaloneRotationAnchor', 'removeRotationAnchor', 'wtLabel',
   'applyRotationCorrection', 'applyManualRotationAnchor'];
 const json = value => JSON.parse(JSON.stringify(value));
@@ -270,6 +270,42 @@ test('반대 진입 경로에서도 미래 추가 교대 직원이 나중의 기
   assert.equal(c.rotationRoleAt(emp('tc'),'2026-12-10'),'extra');
   assert.equal(shift('tc','2026-12-10'),'야');
   assert.deepEqual(routine('2027-01-01'),['tc','b','c','d']);
+});
+
+test('이전 일괄 채우기 감사 기록은 추가 교대 및 후속 자리 인계를 막지 않고 실제 수동 기록은 보존한다', () => {
+  const {c,state,emp,plan,routine,shift,date}=fixture();
+  const first='2099-01-10', second='2099-02-10';
+  for(const id of ['a','tc']) {
+    state.auditLogs.push({id:`legacy_fill_${id}`,action:'적응기간 일괄 채우기',at:'2026-11-25T00:00:00Z',
+      details:{id:`fill_${id}`,empId:id,startDate:'2099-01-01',endDate:'2099-02-28',pattern:['일'],holidayOff:true}});
+  }
+  state.scheduleOverrides['2099-02-11::a']={shift:'교육',at:'2026-11-25T00:00:00Z'};
+  state.scheduleOverrides['2099-02-12::tc']={shift:'출장',at:'2026-11-25T00:00:00Z'};
+  const baseline=json(state);
+  assert.equal(c.staffAdaptationPeriods(emp('a')).length,0);
+  assert.equal(c.staffAdaptationHistory(emp('a'))[0].legacy,true);
+  const extra=plan('tc','NC',first,'__extra__'); assert.equal(extra.error,'');c.wtApply(extra);
+  const initial=json(state);assert.doesNotThrow(()=>validateSave(baseline,initial,true));
+  const expected=c.rotationShift(emp('a'),date(second));
+  const takeover=plan('a','TC',second,'tc');assert.equal(takeover.error,'');assert.equal(takeover.manual,2);c.wtApply(takeover);
+  assert.deepEqual(routine(second),['tc','b','c','d']);assert.equal(shift('tc',second),expected);
+  assert.equal(shift('a','2099-02-11'),'교육');assert.equal(shift('tc','2099-02-12'),'출장');
+  assert.deepEqual(json(state.scheduleOverrides),baseline.scheduleOverrides);
+  assert.doesNotThrow(()=>validateSave(initial,json(state),true));
+  assert.ok(c.cancelStaffEvent(c.staffEventsFor('tc')[1]));
+  assert.deepEqual(json(state.scheduleOverrides),baseline.scheduleOverrides);
+  assert.deepEqual(routine(second),['a','b','c','d']);
+});
+
+test('실제 적응기간과 대기 중인 입력은 양쪽 직원의 변경일 충돌을 계속 막고 지난 기간은 허용한다', () => {
+  const {c,emp,plan}=fixture();
+  const period={id:'managed',empId:'new',startDate:'2026-12-01',endDate:'2026-12-15',pattern:['일'],holidayOff:true};
+  emp('new').adaptationPeriods=[period];
+  assert.match(plan('a','TC','2026-12-15','new').error,/신규.*2026-12-01~2026-12-15/);
+  assert.equal(plan('a','TC','2026-12-16','new').error,'');
+  c.pendingBulkFills.push({...period,empId:'a'});
+  assert.match(plan('a','TC','2026-12-10','tc').error,/a.*대기 중인 적응기간/);
+  assert.equal(plan('a','TC','2026-12-16','tc').error,'');
 });
 
 test('기존 NC 전환은 대체자 선택을 요구하며 추가 교대 직원을 우선 표시하고 루틴을 그대로 인계한다', () => {
