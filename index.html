@@ -4374,9 +4374,14 @@
     }
   }
   function staffAdaptationPeriods(emp){
+    // 관리되는 적응기간만 실제 일정이다. 예전 일괄 채우기는 모든 직원에게 가능했고
+    // 이미 개별 수동 근무칸으로 저장되었으므로 감사 이력을 다시 일정으로 해석하지 않는다.
+    return Array.isArray(emp?.adaptationPeriods) ? emp.adaptationPeriods : [];
+  }
+  function staffAdaptationHistory(emp){
     const legacy = (STATE.auditLogs || []).filter(log => log.action === '적응기간 일괄 채우기' && log.details?.empId === emp.id
       && log.details.startDate && log.details.endDate && !log.details.managed).map(log => ({ ...log.details, legacy: true }));
-    return [...(emp.adaptationPeriods || []), ...legacy];
+    return [...staffAdaptationPeriods(emp), ...legacy];
   }
   function staffNeedsOnboarding(emp, dateKey){
     if (!emp || workTypeAt(emp, dateKey) !== 'NC' || isDispatchedDayWorker(emp)) return false;
@@ -4422,6 +4427,9 @@
     const events = staffEventList();
     const conflictingEvent = events.find(event => event.from >= from && staffEventIds(event).some(id => involvedIds.includes(id)));
     const incomingNeedsOnboarding = incoming && (fresh || staffNeedsOnboarding(incoming, from));
+    const adaptationConflict = [outgoing, incoming].filter(Boolean).flatMap(e => staffAdaptationPeriods(e).map(period => ({ employee: e, period })))
+      .find(({ period }) => period.endDate >= from);
+    const pendingAdaptation = (pendingBulkFills || []).find(p => involvedIds.includes(p.empId) && p.endDate >= from);
     const at = new Date().toISOString();
     const error = !from || from < today ? '오늘 이후의 날짜를 선택해 주세요.'
       : !emp || !isEmployeeActiveOnDate(emp, fromDate) ? '선택한 직원의 재직 기간 안의 날짜를 선택해 주세요.'
@@ -4442,8 +4450,8 @@
       : fresh && fresh.email && !/^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(fresh.email) ? '사내메일 주소를 확인해 주세요.'
       : [outgoing, incoming].filter(Boolean).some(e => workTypeChangesOf(e).some(c => c.from >= today && !staffChangeLinked(e.id, c, events))) ? '해당 직원에게 연결되지 않은 예정 근무 형태 변경이 있습니다.'
       : incoming && (STATE.rotationAnchors || []).some(a => a.empId === incoming.id && a.startDate >= from) ? '단독 투입일 이후에 이미 로테이션 시작점이 지정되어 있습니다.'
-      : [outgoing, incoming].filter(Boolean).some(e => staffAdaptationPeriods(e).some(p => p.endDate >= from)) ? '적응기간이 단독 투입일/전환일과 겹칩니다. 먼저 적응기간을 조정해 주세요.'
-      : incoming && (pendingBulkFills || []).some(p => p.empId === incoming.id && p.endDate >= from) ? '대기 중인 적응기간과 단독 투입일이 겹칩니다.'
+      : adaptationConflict ? `${adaptationConflict.employee.name}의 적응기간(${adaptationConflict.period.startDate}~${adaptationConflict.period.endDate})과 변경일이 겹칩니다. 종료일 다음 날 이후로 선택하거나 예정 적응기간을 조정해 주세요.`
+      : pendingAdaptation ? `${empName(pendingAdaptation.empId)}의 대기 중인 적응기간(${pendingAdaptation.startDate}~${pendingAdaptation.endDate})과 변경일이 겹칩니다.`
       : '';
     const action = target === 'transfer' ? 'transfer' : outgoingAction;
     const changes = [], anchors = [];
@@ -5481,10 +5489,10 @@
     const list = $('#pendingBulkFillsList');
     if (!list) return;
     const emp = EMPLOYEES.find(e => e.id === $('#bulkFillEmp').value);
-    const periods = emp ? staffAdaptationPeriods(emp) : [];
+    const periods = emp ? staffAdaptationHistory(emp) : [];
     const today = fmt(stripTime(new Date()));
     list.innerHTML = periods.length ? periods.map(fill => `<div class="staff-event-row">${escapeAttribute(fill.startDate)}~${escapeAttribute(fill.endDate)} [${(fill.pattern || []).map(escapeAttribute).join(', ')}]${fill.holidayOff ? ' (휴일 O)' : ''}
-      ${!fill.legacy && fill.startDate > today ? `<button type="button" class="btn ghost remove-bulk-fill" data-fill-id="${escapeAttribute(fill.id)}">취소</button>` : '<span>기존 기록</span>'}</div>`).join('') : '등록된 적응기간이 없습니다.';
+      ${!fill.legacy && fill.startDate > today ? `<button type="button" class="btn ghost remove-bulk-fill" data-fill-id="${escapeAttribute(fill.id)}">취소</button>` : fill.legacy ? '<span>이전 일괄 입력 기록</span>' : '<span>기존 기록</span>'}</div>`).join('') : '등록된 적응기간이 없습니다.';
     list.querySelectorAll('.remove-bulk-fill').forEach(button => button.addEventListener('click', () => removeBulkFill(button.dataset.fillId)));
   }
   function removeBulkFill(fillId){
