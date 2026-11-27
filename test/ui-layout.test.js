@@ -15,10 +15,12 @@ test('근무표 탭 안에는 section 이 하나뿐이다 (탭 전환이 main �
   assert.match(script, /\$\$\('main section'\)\.forEach\(s => s\.style\.display = 'none'\)/);
 });
 
-test('오른쪽 요약 패널은 PDF 에서 빠진다', () => {
+test('PDF 는 화면을 찍지 않고 엑셀 양식과 같은 데이터로 그리며, 파견사원(일근) 줄은 뺀다', () => {
   assert.match(scheduleTab, /<aside class="schedule-rail"[^>]*data-html2canvas-ignore="true"/);
-  assert.match(script, /rail\?\.classList\.add\('export-hidden'\)/);
-  assert.match(script, /rail\?\.classList\.remove\('export-hidden'\)/);
+  const start = script.indexOf('  async function exportPdf(){');
+  const fn = script.slice(start, script.indexOf('\n  }\n', start));
+  assert.match(fn, /buildExcelPayload\(year, monthIndex, \{ includeDayWorkers: false \}\)/);
+  assert.match(fn, /buildSheetHtml\(payload\)/);
 });
 
 test('표가 주인공: 버튼 다섯 개는 [⋯ 더보기] 안에, 메뉴는 처음엔 닫혀 있고, 요약은 표 아래', () => {
@@ -93,15 +95,16 @@ test('엑셀 양식 근무표: 묶음은 엑셀 내보내기와 같은 NC/TC 기
   const staff = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }, { id: 'edu' }, { id: 'seo' }];
   const context = vm.createContext({
     isDispatchedDayWorker: emp => emp.id === 'seo',
-    isRoutineWorker: emp => ['a', 'b', 'c', 'd'].includes(emp.id)
+    isRoutineWorker: emp => ['a', 'b', 'c', 'd'].includes(emp.id),
+    workTypeOf: emp => emp.id === 'seo' ? 'dispatch' : ['a', 'b', 'c', 'd'].includes(emp.id) ? 'NC' : 'TC'
   });
   vm.runInContext(fn + '\nthis.groups = scheduleGroups;', context);
   const groups = context.groups(staff, 2026, 11);
   assert.deepEqual(JSON.parse(JSON.stringify(groups.map(g => [g.label, g.staff.map(e => e.id).join(','), g.pdfIgnore]))),
     [['NC', 'a,b,c,d', false], ['TC', 'edu', false], ['일근', 'seo', true]]);
   assert.equal(context.groups(staff.slice(0, 4), 2026, 11).map(g => g.label).join(','), 'NC', 'TC 가 없으면 TC 묶음은 없다');
-  // 엑셀 내보내기도 같은 함수(isRoutineWorker·isDispatchedDayWorker)로 나눈다.
-  assert.match(script, /const tcStaff = exportableStaff\.filter\(emp => !isRoutineWorker\(emp, month\)\)/);
+  // 엑셀 내보내기도 같은 기준(근무 형태 workTypeOf)으로 나눈다.
+  assert.match(script, /getActiveStaff\(year, monthIndex\)\.forEach\(emp => groups\[workTypeOf\(emp, month\)\]\?\.push\(emp\)\)/);
 });
 
 test('엑셀 양식 근무표: 머리줄 두 줄, 오늘 강조 없음, 비고는 표에 붙은 칸 + 근무 시간 줄', () => {
@@ -180,7 +183,7 @@ test('일근(파견사원) 기본 근무: 평일 일, 토·일·공휴일 O, NC 
   const pick = name => { const s = script.indexOf('  function ' + name + '('); return script.slice(s, script.indexOf('\n  function ', s + 1)); };
   const emps = [{ id: 'lee', name: '이주형' }, { id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'c', name: 'c' }, { id: 'd', name: 'd' }];
   const context = vm.createContext({
-    EMPLOYEES: emps, STATE: { settings: { dayWorkerName: '이주형' }, rotationAnchors: [] }, DEFAULT_DAY_WORKER_NAME: '이주형',
+    EMPLOYEES: emps, STATE: { settings: { dayWorkerName: '이주형' }, rotationAnchors: [] }, DEFAULT_DAY_WORKER_NAME: '이주형', WORK_TYPES: ['NC', 'TC', 'dispatch'],
     ROUTINE_HEADCOUNT: 4, CYCLE: ['일', '야', '조', 'O'], dayIndex: () => 0,
     getHolidayInfo: d => d.getDate() === 25 && d.getMonth() === 11 ? { name: '성탄절' } : null,
     getActiveStaff: () => emps, getToday: () => new Date(2026, 11, 1)
@@ -195,4 +198,26 @@ test('일근(파견사원) 기본 근무: 평일 일, 토·일·공휴일 O, NC 
   // 순서상 맨 위에 있어도 NC 는 나머지 4명이다.
   assert.equal(context.isRoutineWorker(emps[0]), false);
   assert.equal(emps.slice(1).every(e => context.isRoutineWorker(e)), true);
+});
+
+test('직원 편집의 [근무 형태]가 이름보다 우선하고, NC 교대근무 위 4명만 자동대근 대상이다', () => {
+  const pick = name => { const s = script.indexOf('  function ' + name + '('); return script.slice(s, script.indexOf('\n  function ', s + 1)); };
+  const staff = [
+    { id: 'a', name: 'a', workType: 'NC' }, { id: 'tc', name: '황', workType: 'TC' }, { id: 'b', name: 'b', workType: 'NC' },
+    { id: 'c', name: 'c', workType: 'NC' }, { id: 'd', name: 'd', workType: 'NC' }, { id: 'new', name: '적응', workType: 'NC' },
+    { id: 'lee', name: '이주형', workType: 'dispatch' }
+  ];
+  const context = vm.createContext({
+    STATE: { settings: {} }, DEFAULT_DAY_WORKER_NAME: '이주형', WORK_TYPES: ['NC', 'TC', 'dispatch'], ROUTINE_HEADCOUNT: 4,
+    getActiveStaff: () => staff, getToday: () => new Date(2026, 11, 1)
+  });
+  vm.runInContext(['dispatchedNameKey', 'dayWorkerName', 'isDispatchedDayWorker', 'workTypeOf', 'isRoutineWorker'].map(pick).join('\n'), context);
+  assert.equal(context.isDispatchedDayWorker({ name: '이주형' }), true);                       // 근무 형태 없는 예전 데이터: 이름으로
+  assert.equal(context.isDispatchedDayWorker({ name: '이주형', workType: 'TC' }), false);
+  assert.equal(context.isDispatchedDayWorker({ name: '새 사원', workType: 'dispatch' }), true);
+  // TC 가 중간에 끼어 있어도 NC 위 4명(a,b,c,d)이 자동대근, 5번째 NC(적응)는 아니다.
+  assert.deepEqual(staff.filter(e => context.isRoutineWorker(e)).map(e => e.id).join(','), 'a,b,c,d');
+  assert.equal(context.workTypeOf(staff[5]), 'NC');
+  assert.equal(context.workTypeOf(staff[1]), 'TC');
+  assert.equal(context.workTypeOf(staff[6]), 'dispatch');
 });
