@@ -5297,9 +5297,8 @@
     ['#rotationAnchorList', '#manualRotationAnchorList'].forEach(selector => {
       const list = $(selector); if (!list) return;
       const anchors = selector === '#rotationAnchorList' ? all.filter(a => a.empId === $('#anchorEmp').value) : all;
-      list.innerHTML = anchors.length ? `지정된 로테이션 시작점 ${anchors.length}건: ` + anchors.map(anchor =>
-        `<div class="staff-event-row">${escapeAttribute(empName(anchor.empId))} ${escapeAttribute(anchor.startDate)}부터 "${escapeAttribute(anchor.startShift)}" 시작 ${anchor.eventId || legacyIds.has(anchor.id) ? '<span class="quota">인계 기록에서 수정·취소</span>' : `<button type="button" class="btn ghost remove-rotation-anchor" data-anchor-id="${escapeAttribute(anchor.id)}">해제</button>`}</div>`).join('') : '아직 지정된 로테이션 시작점이 없습니다.';
-      list.querySelectorAll('.remove-rotation-anchor').forEach(button => button.addEventListener('click', () => removeRotationAnchor(button.dataset.anchorId)));
+      list.innerHTML = anchors.length ? anchors.map(anchor =>
+        `<div class="staff-event-row">${escapeAttribute(empName(anchor.empId))} ${escapeAttribute(anchor.startDate)}부터 "${escapeAttribute(anchor.startShift)}" 시작 ${anchor.eventId || legacyIds.has(anchor.id) ? '<span class="quota">인계 기록에서 수정·취소</span>' : ''}</div>`).join('') : '지정된 시작점이 없습니다.';
     });
   }
 
@@ -5326,7 +5325,7 @@
       + (clash ? ' · ⚠ 다른 교대 직원과 같은 시작 근무입니다.' : '');
   }
   function applyManualRotationAnchor(){
-    return setStandaloneRotationAnchor(manualAnchorValues());
+    return setStandaloneRotationAnchor(manualAnchorValues(), { replace: true });
   }
   function isRotationAnchorLinked(anchor){
     return !!anchor.eventId || staffEventList().some(e => (e.legacy?.anchors || []).some(a => a.id === anchor.id));
@@ -5374,10 +5373,8 @@
     if (staffNeedsOnboarding(emp, startDate)) { alert('신규·적응 직원의 단독 투입은 직원 구성의 인계에서 설정해 주세요.'); return false; }
     if (staffEventsFor(empId).some(e => e.from >= today)) { alert('예정된 교대 인계가 있습니다. 인계 기록에서 수정해 주세요.'); return false; }
     const existing = (STATE.rotationAnchors || []).filter(anchor => anchor.empId === empId && anchor.startDate === startDate);
-    if (existing.length && (!replace || existing.some(isRotationAnchorLinked))) {
-      alert('같은 직원의 같은 날짜에 이미 시작점이 있습니다. 먼저 해제한 뒤 다시 지정해주세요.');
-      return false;
-    }
+    if (existing.some(isRotationAnchorLinked)) { alert('연결된 인계 기록에서 수정해 주세요.'); return false; }
+    if (existing.length && !replace) { alert('같은 날짜의 기존 시작점을 수정해 주세요.'); return false; }
     if (!requireScheduleEditor('로테이션 시작점 지정')) return false;
     if (!staffOnly && existing.length && !confirm('같은 날짜의 기존 루틴 보정을 변경할까요?')) return false;
     const clash = isRoutineWorker(emp, date) && EMPLOYEES.some(e => e.id !== empId && isRoutineWorker(e, date) && rotationShift(e, date) === startShift);
