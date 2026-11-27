@@ -21,7 +21,7 @@ function setup({ session = { empId: 'e1', mustChange: false }, email = 'me@examp
     send: async (...args) => { sent.push(args); return { ok }; },
     mailReady: () => ready,
     now: () => clock,
-    appUrl: () => 'http://server.test:8000/shift/'
+    appUrl: () => 'http://server.test:8000/down/'
   });
   return { mail, sent, tick: ms => { clock += ms; } };
 }
@@ -59,7 +59,7 @@ test('로그인한 본인의 등록된 메일로만 보낸다 — 본문의 주�
   assert.equal(to, 'me@example.invalid');
   assert.match(subject, /2026년 11월 최도인님 근무/);
   assert.match(text, /1일 일 · 2일 야/);
-  assert.match(text, /교대 앱.*http:\/\/server\.test:8000\/shift\//, '교대 앱 주소가 본문에 있어야 한다');
+  assert.match(text, /교대 앱.*http:\/\/server\.test:8000\/down\//, '교대 앱 주소가 본문에 있어야 한다');
   assert.equal(attachments[0].filename, '근무표_2026-11_최도인.csv');
   assert.match(attachments[0].content, /2026-11-12,휴가/);
 });
@@ -113,8 +113,8 @@ test('교대 앱 주소: 기본은 팀 계정 GitHub Pages(회사 밖에서도 �
     delete process.env.SHIFT_APP_URL;
     assert.equal(defaultAppUrl(), 'https://sbsnqc4821.github.io/NQCshift/');
     assert.ok(!/jaeseung1/i.test(defaultAppUrl()), '개인 계정 주소가 들어가면 안 된다');
-    process.env.SHIFT_APP_URL = '  http://192.168.0.10:8000/shift/ ';
-    assert.equal(defaultAppUrl(), 'http://192.168.0.10:8000/shift/');
+    process.env.SHIFT_APP_URL = '  http://192.168.0.10:8000/down/ ';
+    assert.equal(defaultAppUrl(), 'http://192.168.0.10:8000/down/');
     process.env.SHIFT_APP_URL = '';
     assert.equal(defaultAppUrl(), 'https://sbsnqc4821.github.io/NQCshift/');
   } finally {

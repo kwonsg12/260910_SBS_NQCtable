@@ -58,20 +58,26 @@ const publicFiles = new Map([
   ['/index.html', 'index.html'],
   ['/sbs-logo.png', 'sbs-logo.png'],
   // 교대 앱(NQCshift "교대온 간단"): 메일로 받은 내 근무표 CSV 를 휴대폰에서 오늘·내일·달력으로 본다.
-  // 사내망 예비 주소 http://<서버>/shift/. 메일 링크는 팀 GitHub Pages(SHIFT_APP_URL). 원본은 github.com/sbsnqc4821/NQCshift.
-  ['/shift/', 'shift/index.html'],
-  ['/shift/index.html', 'shift/index.html'],
-  ['/shift/manifest.webmanifest', 'shift/manifest.webmanifest'],
-  ['/shift/sw.js', 'shift/sw.js'],
-  ['/shift/icons/apple-touch-icon.png', 'shift/icons/apple-touch-icon.png'],
-  ['/shift/icons/icon-192.png', 'shift/icons/icon-192.png'],
-  ['/shift/icons/icon-512.png', 'shift/icons/icon-512.png'],
-  ['/shift/icons/icon-maskable-512.png', 'shift/icons/icon-maskable-512.png']
+  // 사내망 주소 http://<서버>/down/ (2026-11-27 사용자가 /shift/ 에서 바꿈, 예전 주소는 아래에서 넘겨 준다).
+  // 메일 링크는 팀 GitHub Pages(SHIFT_APP_URL). 원본은 github.com/sbsnqc4821/NQCshift. 파일은 shift/ 폴더 그대로.
+  ['/down/', 'shift/index.html'],
+  ['/down/index.html', 'shift/index.html'],
+  ['/down/manifest.webmanifest', 'shift/manifest.webmanifest'],
+  ['/down/sw.js', 'shift/sw.js'],
+  ['/down/icons/apple-touch-icon.png', 'shift/icons/apple-touch-icon.png'],
+  ['/down/icons/icon-192.png', 'shift/icons/icon-192.png'],
+  ['/down/icons/icon-512.png', 'shift/icons/icon-512.png'],
+  ['/down/icons/icon-maskable-512.png', 'shift/icons/icon-maskable-512.png']
 ]);
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
   // 앱 안의 상대 경로(manifest.webmanifest, icons/…)가 맞게 풀리도록 끝에 / 를 붙여 보낸다.
-  if (req.path === '/shift') return res.redirect(301, '/shift/');
+  if (req.path === '/down') return res.redirect(301, '/down/');
+  // 예전 주소(/shift/…)로 홈 화면에 추가했거나 메일 링크를 받은 사람도 새 주소로 간다.
+  if (req.path === '/shift' || req.path.startsWith('/shift/')) {
+    const rest = req.path === '/shift' ? '' : req.path.slice('/shift/'.length);
+    return res.redirect(301, '/down/' + (publicFiles.has('/down/' + rest) ? rest : ''));
+  }
   const file = publicFiles.get(req.path);
   if (!file) return next();
   res.sendFile(path.join(__dirname, file), file.endsWith('.webmanifest')

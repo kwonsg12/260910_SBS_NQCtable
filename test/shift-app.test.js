@@ -10,7 +10,7 @@ const path = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
 const { test } = require('node:test');
 
-// 교대 앱(shift/)을 근무표 서버가 /shift/ 에서 띄운다. 진짜 서버를 임시 폴더에서 돌려 확인한다.
+// 교대 앱(shift/ 폴더)을 근무표 서버가 /down/ 에서 띄운다(예전 /shift/ 는 넘겨 준다). 진짜 서버를 임시 폴더에서 돌려 확인한다.
 // 지키는 것: 앱과 앱이 부르는 파일이 다 열린다, 스크립트가 CSP 에 허락돼 있다, shift/ 아래 다른 파일은 안 열린다.
 const projectRoot = path.resolve(__dirname, '..');
 
@@ -37,7 +37,7 @@ async function unusedPort() {
   return port;
 }
 
-test('교대 앱을 /shift/ 에서 띄운다', { timeout: 30000 }, async t => {
+test('교대 앱을 /down/ 에서 띄운다', { timeout: 30000 }, async t => {
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'nqc-shift-test-'));
   let child, childExit;
   t.after(async () => {
@@ -71,11 +71,11 @@ test('교대 앱을 /shift/ 에서 띄운다', { timeout: 30000 }, async t => {
   }
   assert.ok(ready, 'Server did not start: ' + output);
 
-  await t.test('/shift 는 /shift/ 로 보내고, /shift/ 는 앱 화면', async () => {
-    const redirect = await request(port, '/shift');
+  await t.test('/down 는 /down/ 로 보내고, /down/ 는 앱 화면', async () => {
+    const redirect = await request(port, '/down');
     assert.equal(redirect.status, 301);
-    assert.equal(redirect.headers.location, '/shift/');
-    const page = await request(port, '/shift/');
+    assert.equal(redirect.headers.location, '/down/');
+    const page = await request(port, '/down/');
     assert.equal(page.status, 200);
     assert.match(page.headers['content-type'], /text\/html/);
     assert.deepEqual(page.body, fs.readFileSync(path.join(fixture, 'shift', 'index.html')));
@@ -85,7 +85,7 @@ test('교대 앱을 /shift/ 에서 띄운다', { timeout: 30000 }, async t => {
     const html = fs.readFileSync(path.join(fixture, 'shift', 'index.html'), 'utf8').replace(/\r\n?/g, '\n');
     const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
     assert.ok(scripts.length > 0);
-    const csp = (await request(port, '/shift/')).headers['content-security-policy'];
+    const csp = (await request(port, '/down/')).headers['content-security-policy'];
     for (const match of scripts) {
       assert.ok(csp.includes("'sha256-" + createHash('sha256').update(match[1]).digest('base64') + "'"), '교대 앱 스크립트가 막힌다');
     }
@@ -98,16 +98,25 @@ test('교대 앱을 /shift/ 에서 띄운다', { timeout: 30000 }, async t => {
     const local = [...html.matchAll(/(?:src|href)=["']([^"'#]+)["']/g)].map(m => m[1]).filter(u => !/^(?:https?:|data:)/.test(u));
     const urls = [...local, ...manifest.icons.map(i => i.src), 'sw.js', 'icons/icon-maskable-512.png'];
     for (const url of urls) {
-      const pathname = new URL(url, 'http://localhost/shift/').pathname;
+      const pathname = new URL(url, 'http://localhost/down/').pathname;
       const res = await request(port, pathname);
       assert.equal(res.status, 200, pathname);
-      assert.deepEqual(res.body, fs.readFileSync(path.join(fixture, pathname.slice(1))), pathname);
+      assert.deepEqual(res.body, fs.readFileSync(path.join(fixture, 'shift', pathname.slice('/down/'.length))), pathname);
     }
-    assert.match((await request(port, '/shift/manifest.webmanifest')).headers['content-type'], /application\/manifest\+json/);
+    assert.match((await request(port, '/down/manifest.webmanifest')).headers['content-type'], /application\/manifest\+json/);
+  });
+
+  await t.test('예전 주소 /shift/… 는 /down/… 으로 넘겨 준다', async () => {
+    for (const [from, to] of [['/shift', '/down/'], ['/shift/', '/down/'], ['/shift/manifest.webmanifest', '/down/manifest.webmanifest'],
+      ['/shift/icons/icon-192.png', '/down/icons/icon-192.png'], ['/shift/private.txt', '/down/'], ['/shift/../server.js', '/down/']]) {
+      const res = await request(port, from);
+      assert.equal(res.status, 301, from);
+      assert.equal(res.headers.location, to, from);
+    }
   });
 
   await t.test('shift/ 아래 목록에 없는 파일은 안 열린다', async () => {
-    for (const url of ['/shift/private.txt', '/shift/../.env', '/shift/icons/', '/shift/%2e%2e/server.js']) {
+    for (const url of ['/down/private.txt', '/down/../.env', '/down/icons/', '/down/%2e%2e/server.js', '/shift/private.txt']) {
       const res = await request(port, url);
       assert.notEqual(res.status, 200, url);
       assert.ok(!res.body.toString().includes('TEST_SENTINEL'), url);
