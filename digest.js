@@ -75,10 +75,18 @@ function buildDigests(state, { sinceFor, until, today, baseUrl }) {
 
   const empName = id => employeeName(state, id);
   const decisionOf = (type, refId) => approvals.find(a => a.type === type && a.refId === refId);
+  // 확정 휴가의 취소 신청은 여러 번 낼 수 있으므로(반려 후 재신청) 가장 최근 건을 본다. approvals 는 최신이 앞이다.
+  const cancelOf = refId => approvals.find(a => a.type === 'leave-cancel' && a.refId === refId);
 
   const leaveStatus = r => {
+    const cancel = cancelOf(r.id);
     if (r.status === 'pending') return '승인 대기';
-    if (r.status === 'confirmed') return '확정';
+    if (r.status === 'confirmed') {
+      if (cancel?.status === 'pending') return '확정 (취소 승인 대기)';
+      if (cancel?.status === 'rejected') return '확정 (취소 반려' + (cancel.decisionReason ? `: ${cancel.decisionReason}` : '') + ')';
+      return '확정';
+    }
+    if (r.cancelledAt && cancel?.status === 'approved') return '취소 승인';
     if (r.cancelledAt) return '본인 취소';
     const reason = decisionOf('leave', r.id)?.decisionReason;
     return '반려' + (reason ? ` (사유: ${reason})` : '');
@@ -111,7 +119,8 @@ function buildDigests(state, { sinceFor, until, today, baseUrl }) {
   for (const p of people.values()) {
     const since = sinceFor(p.email);
     const touched = (...times) => times.some(t => within(t, since, until));
-    const leaves = requests.filter(r => touched(r.submittedAt, r.cancelledAt, decisionOf('leave', r.id)?.decidedAt));
+    const leaves = requests.filter(r => touched(r.submittedAt, r.cancelledAt, decisionOf('leave', r.id)?.decidedAt,
+      cancelOf(r.id)?.requestedAt, cancelOf(r.id)?.decidedAt));
     const pros = protects.filter(x => touched(x.submittedAt, x.cancelledAt, decisionOf('protect', x.id)?.decidedAt));
     const sections = [];
     const add = (title, rows, note) => { if (rows.length) sections.push({ title, rows, note }); };

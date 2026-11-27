@@ -82,6 +82,8 @@ app.post('/api/auth/admin', (req, res) => res.json(security.login(req)));
 app.post('/api/auth/employee', (req, res) => res.json(security.employeeLogin(req)));
 app.post('/api/auth/employee/pin', (req, res) => res.json(security.changeEmployeePin(req)));
 app.post('/api/auth/approver', (req, res) => res.json(security.approverLogin(req)));
+// 화면에서 사용자 동작이 있으면 로그인 유지 시간을 다시 15분으로 늘린다.
+app.post('/api/auth/touch', (req, res) => res.json(security.touch(req)));
 app.post('/api/approvals/decision', (req, res) => res.json(security.decide(req)));
 app.post('/api/requests/cancel', (req, res) => res.json(security.cancelOwn(req)));
 

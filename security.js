@@ -1,7 +1,10 @@
 const { randomBytes, scryptSync, timingSafeEqual } = require('node:crypto');
 const { isDeepStrictEqual: equal } = require('node:util');
 const activityLog = require('./activityLog');
+const { employeeName } = require('./employeeNames');
 
+// 근무표 날짜는 한국 시간 기준이다(서버 PC 시간대와 무관하게).
+function kstToday() { return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10); }
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
 const secretKeys = new Set(['pin', 'adminPin', 'smtpPass', 'kakaoKey', 'pinHash', '__proto__', 'constructor', 'prototype']);
 function publicState(value) {
@@ -34,16 +37,26 @@ function list(state, key) {
 function targets(state) {
   return list(state, 'approvers').map(a => a.id);
 }
-function validateSave(previous, incoming, admin, employeeId = null) {
+// 근무표 수동 편집으로 바뀌는 값(달별 비고 포함). 시스템 관리자와 승인 담당자(scheduleEditor)가 바꿀 수 있다.
+const SCHEDULE_KEYS = ['scheduleOverrides', 'scheduleSnapshots', 'scheduleRanges', 'rotationAnchors', 'monthNotes'];
+// 시스템 설정(직원 구성·담당자·설정)은 시스템 관리자만 바꿀 수 있다.
+const SYSTEM_KEYS = ['settings', 'employees', 'approvers', 'deletedEmployeesTrash', 'formerEmployees'];
+function validateSave(previous, incoming, admin, employeeId = null, scheduleEditor = false) {
   validateTree(incoming);
   const next = publicState(incoming), old = publicState(previous || {});
   for (const key of ['employees', 'approvers', 'requests', 'protects', 'approvals', 'excuses']) list(next, key);
   if (!next.settings || typeof next.settings !== 'object' || Array.isArray(next.settings)) fail(400, '설정 형식이 잘못되었습니다.');
   if (!Number.isInteger(next.settings.quotaMax) || next.settings.quotaMax < 1 || next.settings.quotaMax > 31) fail(400, '보장 횟수는 1~31 정수여야 합니다.');
-  if (!previous && !admin) fail(403, '최초 공유 저장소 설정은 관리자 인증이 필요합니다.');
+  if (!previous && !admin) fail(403, '최초 공유 저장소 설정은 시스템 관리자 인증이 필요합니다.');
+  const canEditSchedule = admin || scheduleEditor;
   if (!admin) {
-    for (const key of ['settings', 'employees', 'approvers', 'scheduleOverrides', 'scheduleSnapshots', 'scheduleRanges', 'rotationAnchors', 'deletedEmployeesTrash', 'formerEmployees']) {
-      if (!equal(old[key], next[key])) fail(403, '설정·직원·수동 근무 변경은 관리자 인증이 필요합니다.');
+    for (const key of SYSTEM_KEYS) {
+      if (!equal(old[key], next[key])) fail(403, '직원 구성·담당자·시스템 설정 변경은 시스템 관리자 인증이 필요합니다.');
+    }
+  }
+  if (!canEditSchedule) {
+    for (const key of SCHEDULE_KEYS) {
+      if (!equal(old[key], next[key])) fail(403, '근무표 수동 편집은 시스템 관리자 또는 승인 담당자 로그인이 필요합니다.');
     }
   }
   // Even administrators must use the decision endpoint. Old approvals cannot be removed/replaced.
@@ -71,11 +84,15 @@ function validateSave(previous, incoming, admin, employeeId = null) {
   }
   for (const req of added('requests')) {
     if (!list(next, 'employees').some(e => e.id === req.empId)) fail(400, '신청 직원이 없습니다.');
-    if (!admin) {
+    // 관리자가 근무표에 직접 넣은 휴가(enteredBy: 'admin')는 직원에게 듣고 넣은 것이라 이미 확정된 신청으로 저장한다.
+    // 근무표를 편집할 수 있는 사람(시스템 관리자·승인 담당자)만 넣을 수 있다.
+    if (req.enteredBy !== undefined && (req.enteredBy !== 'admin' || !canEditSchedule)) fail(403, '관리자 입력 휴가는 근무표 편집 권한이 있어야 등록할 수 있습니다.');
+    if (!admin && req.enteredBy !== 'admin') {
       if (!employeeId) fail(401, '로그인 후 신청할 수 있습니다.');
       if (req.empId !== employeeId) fail(403, '본인 명의로만 신청할 수 있습니다.');
     }
-    if (req.status !== (list(next, 'approvers').length ? 'pending' : 'confirmed')) fail(403, '휴가 승인 결과를 직접 지정할 수 없습니다.');
+    const expected = req.enteredBy === 'admin' ? 'confirmed' : (list(next, 'approvers').length ? 'pending' : 'confirmed');
+    if (req.status !== expected) fail(403, '휴가 승인 결과를 직접 지정할 수 없습니다.');
     if (!Array.isArray(req.chain) || !/^\d{4}-\d{2}-\d{2}$/.test(req.startDate)) fail(400, '휴가 신청 형식을 확인해주세요.');
   }
   const counted = [...list(old, 'protects')];
@@ -188,6 +205,23 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
     }
     if (!equal(row.state, state)) persist(state, row);
   });
+  // 로그인은 마지막 동작 후 SESSION_IDLE_MS 동안 유지된다. 화면이 사용자 동작(클릭·키보드 등)을 감지하면
+  // /api/auth/touch 로 알려 오고, 저장·승인·취소 같은 요청도 동작으로 본다. 편집 잠금 하트비트는
+  // 동작이 아니므로 연장하지 않는다(창만 열어 두면 15분 뒤 로그아웃).
+  const SESSION_IDLE_MS = Number(process.env.SESSION_IDLE_MS) || 15 * 60 * 1000;
+  function touch(req) {
+    const now = Date.now(), until = now + SESSION_IDLE_MS;
+    const adminToken = req.get('X-Admin-Token');
+    const admin = (sessions.get(adminToken) || 0) > now;
+    if (admin) sessions.set(adminToken, until);
+    const employee = employeeSessions.get(req.get('X-Employee-Token'));
+    const employeeOk = !!employee && employee.expires > now;
+    if (employeeOk) employee.expires = until;
+    const approver = approverSessions.get(req.get('X-Approver-Token'));
+    const approverOk = !!approver && approver.expires > now;
+    if (approverOk) approver.expires = until;
+    return { ok: true, admin, employee: employeeOk, approver: approverOk };
+  }
   function isAdmin(req) {
     const token = req.get('X-Admin-Token');
     if ((sessions.get(token) || 0) > Date.now()) return true;
@@ -230,7 +264,7 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
     for (const [token, expires] of sessions) if (expires <= Date.now()) sessions.delete(token);
     if (sessions.size >= 100) sessions.delete(sessions.keys().next().value);
     const token = randomBytes(32).toString('hex');
-    sessions.set(token, Date.now() + 15 * 60 * 1000);
+    sessions.set(token, Date.now() + SESSION_IDLE_MS);
     return { token };
   }
   function employeeLogin(req) {
@@ -246,7 +280,7 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
     if (employeeSessions.size >= 100) employeeSessions.delete(employeeSessions.keys().next().value);
     const token = randomBytes(32).toString('hex');
     const mustChange = hasDefaultPin(empId);
-    employeeSessions.set(token, { empId, mustChange, expires: Date.now() + 15 * 60 * 1000 });
+    employeeSessions.set(token, { empId, mustChange, expires: Date.now() + SESSION_IDLE_MS });
     return { token, empId, name: employee.name, mustChangePin: mustChange };
   }
   // 직원 본인 PIN 변경. 로그인 토큰과 현재 PIN을 함께 확인한다. 기본 PIN 상태도 여기서 풀린다.
@@ -275,7 +309,7 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
     for (const [token, session] of approverSessions) if (session.expires <= Date.now()) approverSessions.delete(token);
     if (approverSessions.size >= 100) approverSessions.delete(approverSessions.keys().next().value);
     const token = randomBytes(32).toString('hex');
-    approverSessions.set(token, { approverId, expires: Date.now() + 15 * 60 * 1000 });
+    approverSessions.set(token, { approverId, expires: Date.now() + SESSION_IDLE_MS });
     return { token, approverId, name: approver.name };
   }
   function save(req) {
@@ -284,8 +318,10 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
       if (row?.revision !== undefined && req.body?.baseRevision !== row.revision) fail(409, '다른 PC에서 저장했습니다. 새로고침해주세요.');
       const incoming = req.body?.state;
       if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) fail(400, 'invalid state payload');
+      touch(req);
       const admin = isAdmin(req), employeeId = admin ? null : isEmployee(req);
-      const next = validateSave(row?.state, incoming, admin, employeeId);
+      const scheduleEditor = !admin && !!approverSession(req);
+      const next = validateSave(row?.state, incoming, admin, employeeId, scheduleEditor);
       const pins = req.body.approverPins || {};
       if (typeof pins !== 'object' || Array.isArray(pins)) fail(400, 'PIN 형식을 확인해주세요.');
       if (Object.keys(pins).length && !admin) fail(403, '담당자 PIN 변경은 관리자 인증이 필요합니다.');
@@ -326,6 +362,7 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
   function decide(req) {
     const { id, approverId, pin, approved, reason = '' } = req.body || {};
     if (typeof approved !== 'boolean' || typeof reason !== 'string' || reason.length > 2000 || (!approved && !reason.trim())) fail(400, '승인 여부와 반려 사유를 확인해주세요.');
+    touch(req);
     const admin = isAdmin(req);
     let approvedVersion = null;
     const result = transaction(() => {
@@ -364,6 +401,11 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
             state.monthlyApprovals[approval.refId] = { approverId: actor.id, approverName: actor.name, at };
           }
         }
+      } else if (approval.type === 'leave-cancel') {
+        // 확정 휴가의 취소 신청: 승인되면 휴가와 대근 배정이 함께 풀린다. 반려되면 휴가는 그대로 확정이다.
+        const request = state.requests?.find(r => r.id === approval.refId);
+        if (!request || request.status !== 'confirmed') fail(409, '신청 상태가 변경되었습니다.');
+        if (approved) Object.assign(request, { status: 'cancelled', cancelledAt: at });
       } else if (['leave', 'protect'].includes(approval.type)) {
         const request = state[approval.type === 'leave' ? 'requests' : 'protects']?.find(r => r.id === approval.refId);
         if (!request || request.status !== 'pending') fail(409, '신청 상태가 변경되었습니다.');
@@ -388,6 +430,7 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
   function cancelOwn(req) {
     const { kind, id } = req.body || {};
     if (!['request', 'protect'].includes(kind) || typeof id !== 'string' || !id) fail(400, '요청 형식을 확인해주세요.');
+    touch(req);
     const employeeId = isEmployee(req);
     if (!employeeId) fail(401, '로그인이 필요합니다.');
     return transaction(() => {
@@ -396,8 +439,31 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
       const item = items?.find(x => x.id === id);
       if (!item) fail(404, '신청을 찾을 수 없습니다.');
       if (item.empId !== employeeId) fail(403, '본인 신청만 취소할 수 있습니다.');
-      if (item.status !== 'pending') fail(409, '이미 처리되었거나 취소할 수 없는 상태입니다.');
       const at = new Date().toISOString();
+      // 확정된 휴가는 바로 지우지 않고 '취소 신청'을 담당자 승인함에 올린다. 승인되면 decide()가 취소한다.
+      // 담당자가 한 명도 없으면(신청도 승인 없이 확정되는 구성) 바로 취소한다.
+      const confirmedLeave = kind === 'request' && item.status === 'confirmed';
+      if (confirmedLeave) {
+        if (String(item.startDate) < kstToday()) fail(409, '이미 지난 휴가는 취소할 수 없습니다.');
+        if (state.approvals?.some(a => a.type === 'leave-cancel' && a.refId === id && a.status === 'pending')) fail(409, '이미 취소 승인을 기다리고 있습니다.');
+        const approverIds = targets(state);
+        if (approverIds.length) {
+          state.approvals ||= [];
+          const name = employeeName(state, item.empId, item.empId);
+          const approval = {
+            id: 'cancelreq_' + randomBytes(12).toString('hex'), type: 'leave-cancel', refId: id, requestedBy: employeeId,
+            title: `${name} — ${item.startDate} 휴가 취소 신청`,
+            summary: (Array.isArray(item.chain) ? item.chain : []).map(c => `${c.date} ${employeeName(state, c.empId, c.empId)}: ${c.label} → 원래 근무로`).join('\n'),
+            status: 'pending', requestedAt: at, approverIds, decidedBy: null, decidedAt: null, decisionReason: ''
+          };
+          state.approvals.unshift(approval);
+          state.auditLogs ||= [];
+          state.auditLogs.unshift({ id: 'cancel_' + randomBytes(12).toString('hex'), action: '휴가 취소 신청', details: { id, empId: employeeId }, at });
+          persist(state, row);
+          activityLog.logCancelRequest(state, item);
+          return { ok: true, pendingApproval: true, approvalId: approval.id };
+        }
+      } else if (item.status !== 'pending') fail(409, '이미 처리되었거나 취소할 수 없는 상태입니다.');
       item.status = 'cancelled';
       item.cancelledAt = at;
       const approvalType = kind === 'request' ? 'leave' : 'protect';
@@ -414,8 +480,8 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
       return { ok: true };
     });
   }
-  // 편집 잠금: 관리자 또는 직원 중 한 쪽이 로그인해 편집을 시작하면, 다른 쪽은 그 동안
-  // 로그인(=편집 시작)할 수 없다. 세션처럼 서버 메모리에만 두고 하트비트로 유지하며,
+  // 편집 잠금: 시스템 관리자·직원·근무표를 편집하는 승인 담당자 중 한 명만 동시에 편집한다.
+  // 관리자·직원은 로그인할 때, 승인 담당자는 근무표 편집 패널을 열 때 잠금을 잡는다. 세션처럼 서버 메모리에만 두고 하트비트로 유지하며,
   // 하트비트가 LOCK_TIMEOUT_MS 이상 끊기면(탭을 닫았거나 네트워크가 끊긴 경우) 자동 해제된다.
   let lock = null; // { holderKey, holderName, acquiredAt, heartbeatAt }
   const LOCK_TIMEOUT_MS = Number(process.env.LOCK_TIMEOUT_MS) || 3 * 60 * 1000;
@@ -424,11 +490,16 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
     return lock;
   }
   function callerKey(req) {
-    if (isAdmin(req)) return { key: 'admin', name: '관리자' };
+    if (isAdmin(req)) return { key: 'admin', name: '시스템 관리자' };
     const empId = isEmployee(req);
     if (empId) {
       const name = getState()?.state?.employees?.find(e => e.id === empId)?.name || '직원';
       return { key: 'employee:' + empId, name };
+    }
+    const approverId = approverSession(req);
+    if (approverId) {
+      const name = getState()?.state?.approvers?.find(a => a.id === approverId)?.name || '담당자';
+      return { key: 'approver:' + approverId, name: name + ' 담당자' };
     }
     return null;
   }
@@ -455,13 +526,13 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
     // 탭을 닫을 때 sendBeacon으로도 호출되는데, 그 경우 커스텀 헤더를 못 실어 보내므로
     // 본문(body)에 담아 보낸 토큰도 같은 방식으로 인식해준다.
     const withBodyFallback = {
-      get: header => req.get(header) || (header === 'X-Admin-Token' ? req.body?.adminToken : req.body?.employeeToken)
+      get: header => req.get(header) || { 'X-Admin-Token': req.body?.adminToken, 'X-Employee-Token': req.body?.employeeToken, 'X-Approver-Token': req.body?.approverToken }[header]
     };
     const who = callerKey(withBodyFallback);
     const l = activeLock();
     if (l && (!who || l.holderKey === who.key)) lock = null;
     return { ok: true };
   }
-  return { login, save, decide, isAdmin, employeeSession, employeeLogin, changeEmployeePin, approverLogin, cancelOwn, lockStatus, acquireLock, heartbeatLock, releaseLock };
+  return { login, touch, save, decide, isAdmin, employeeSession, employeeLogin, changeEmployeePin, approverLogin, cancelOwn, lockStatus, acquireLock, heartbeatLock, releaseLock };
 }
 module.exports = { createSecurity, publicState, validateSave, targets };

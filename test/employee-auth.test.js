@@ -86,7 +86,8 @@ async function fixture(t) {
   async function cancel(kind, id, empToken) {
     return api('/api/requests/cancel', { kind, id }, { 'X-Employee-Token': empToken });
   }
-  return { api, loginAdmin, state, setEmployeePin, loginEmployee, cancel };
+  const adminHeaders = () => ({ 'X-Admin-Token': adminToken });
+  return { api, loginAdmin, state, setEmployeePin, loginEmployee, cancel, adminHeaders };
 }
 
 test('PIN을 정하지 않은 직원은 기본 PIN 0000으로 들어와 PIN부터 바꿔야 한다', async t => {
@@ -179,6 +180,88 @@ test('타인 명의 취소, 비로그인 취소, 이미 처리된 건 취소는 
   assert.equal((await f.cancel('request', 'r1', asE1.data.token)).status, 200);
   // 이미 취소된 건을 다시 취소하려 하면 거부된다.
   assert.equal((await f.cancel('request', 'r1', asE1.data.token)).status, 409);
+});
+
+test('확정된 휴가는 취소 신청이 승인함에 올라가고, 승인되면 취소된다', async t => {
+  const f = await fixture(t);
+  await f.loginAdmin();
+  // 확정 휴가 하나를 미래 날짜로 추가한다(관리자 저장).
+  const current = (await f.api('/api/state')).data;
+  current.state.requests.push({ id: 'r3', empId: 'e1', type: 'day', startDate: '2099-01-05', submittedAt: '2026-11-01T00:00:00.000Z',
+    chain: [{ date: '2099-01-05', empId: 'e1', shift: '휴가', label: '휴가' }, { date: '2099-01-05', empId: 'e2', shift: '대일', label: '대일(일근 대근)' }],
+    status: 'pending' });
+  current.state.approvals.unshift({ id: 'ap3', type: 'leave', refId: 'r3', requestedBy: 'e1', approverIds: ['a1'], title: '휴가', summary: '', status: 'pending', requestedAt: '2026-11-01T00:00:00.000Z', decidedBy: null, decidedAt: null, decisionReason: '' });
+  assert.equal((await f.api('/api/state', { state: current.state, baseRevision: current.revision }, f.adminHeaders())).status, 200);
+  const adminDecide = (id, approved, reason = '') => f.api('/api/approvals/decision', { id, approverId: 'a1', approved, reason }, f.adminHeaders());
+  assert.equal((await adminDecide('ap3', true)).status, 200);
+  await f.setEmployeePin('e1', 'correct-pin-1');
+  const login = await f.loginEmployee('e1', 'correct-pin-1');
+
+  const first = await f.cancel('request', 'r3', login.data.token);
+  assert.equal(first.status, 200, JSON.stringify(first.data));
+  assert.equal(first.data.pendingApproval, true);
+  let state = await f.state();
+  assert.equal(state.requests.find(r => r.id === 'r3').status, 'confirmed');
+  const cancelApproval = state.approvals.find(a => a.id === first.data.approvalId);
+  assert.equal(cancelApproval.type, 'leave-cancel');
+  assert.equal(cancelApproval.status, 'pending');
+  assert.deepEqual(cancelApproval.approverIds, ['a1']);
+  // 같은 휴가에 취소 신청을 겹쳐 낼 수 없다.
+  assert.equal((await f.cancel('request', 'r3', login.data.token)).status, 409);
+
+  // 반려되면 휴가는 그대로 확정이고, 다시 취소 신청할 수 있다.
+  assert.equal((await adminDecide(cancelApproval.id, false, '대근자 확보 어려움')).status, 200);
+  assert.equal((await f.state()).requests.find(r => r.id === 'r3').status, 'confirmed');
+  const second = await f.cancel('request', 'r3', login.data.token);
+  assert.equal(second.status, 200);
+  assert.equal((await adminDecide(second.data.approvalId, true)).status, 200);
+  state = await f.state();
+  const request = state.requests.find(r => r.id === 'r3');
+  assert.equal(request.status, 'cancelled');
+  assert.ok(request.cancelledAt);
+});
+
+test('지난 날짜의 확정 휴가와 남의 확정 휴가는 취소 신청할 수 없다', async t => {
+  const f = await fixture(t);
+  await f.loginAdmin();
+  await f.setEmployeePin('e1', 'correct-pin-1');
+  await f.setEmployeePin('e2', 'correct-pin-2');
+  const asE1 = await f.loginEmployee('e1', 'correct-pin-1');
+  const asE2 = await f.loginEmployee('e2', 'correct-pin-2');
+  // r2 는 e2 의 확정 휴가(2026-11-02, 지난 날짜)
+  assert.equal((await f.cancel('request', 'r2', asE1.data.token)).status, 403);
+  const past = await f.cancel('request', 'r2', asE2.data.token);
+  assert.equal(past.status, 409);
+  assert.match(past.data.error, /지난 휴가/);
+  assert.equal((await f.state()).approvals.filter(a => a.type === 'leave-cancel').length, 0);
+});
+
+test('승인 담당자: 근무표는 저장하고 잠금을 잡지만, 직원 구성·설정은 못 바꾼다. touch 로 로그인이 연장된다', async t => {
+  const f = await fixture(t);
+  const login = await f.api('/api/auth/approver', { approverId: 'a1', pin: '123456' });
+  assert.equal(login.status, 200, JSON.stringify(login.data));
+  const headers = { 'X-Approver-Token': login.data.token };
+  // 편집 잠금: 담당자가 잡으면 근무자는 그동안 잡지 못한다.
+  const lock = await f.api('/api/lock/acquire', {}, headers);
+  assert.equal(lock.status, 200);
+  assert.equal(lock.data.holderName, '담당 담당자');
+  // 근무표 수동 편집 저장은 된다.
+  let current = (await f.api('/api/state')).data;
+  current.state.scheduleOverrides = { '2099-01-10::e1': { shift: '교육', at: 'x' } };
+  assert.equal((await f.api('/api/state', { state: current.state, baseRevision: current.revision }, headers)).status, 200);
+  // 시스템 설정은 거부된다.
+  current = (await f.api('/api/state')).data;
+  current.state.settings.quotaMax = 7;
+  const denied = await f.api('/api/state', { state: current.state, baseRevision: current.revision }, headers);
+  assert.equal(denied.status, 403);
+  assert.match(denied.data.error, /시스템 관리자/);
+  // 동작 알림(touch): 살아 있는 세션만 true
+  const touched = await f.api('/api/auth/touch', {}, headers);
+  assert.deepEqual(touched.data, { ok: true, admin: false, employee: false, approver: true });
+  assert.equal((await f.api('/api/auth/touch', {}, { 'X-Approver-Token': 'nope' })).data.approver, false);
+  // 잠금을 돌려주면 풀린다.
+  assert.equal((await f.api('/api/lock/release', {}, headers)).status, 200);
+  assert.equal((await f.api('/api/lock')).data.locked, false);
 });
 
 test('승인 대기 비번 보장만 본인이 취소할 수 있다', async t => {

@@ -158,19 +158,35 @@ test('day worker setting saves, reloads, renders and defaults for existing data'
     +extract('  function renderSettings(){','  function applyApprovalLines(){')
     +extract('  function saveSettings(){','  function saveQuota(){');
   const fields=new Map(); let saved;
-  const context={STATE:{settings:{},auditLogs:[]},EMPLOYEES:[],DEFAULT_STATION_NAME:'통합관제실',BASE_LOCK_DAY:25,STORE_KEY:'test',
+  const context={STATE:{settings:{},auditLogs:[]},EMPLOYEES:[],DEFAULT_STATION_NAME:'통합관제실',DEFAULT_DAY_WORKER_NAME:'이주형',
+    dayWorkerName:()=>{const n=String(context.STATE.settings.dayWorkerName||'').trim();return !n||n==='서예찬'?'이주형':n;},BASE_LOCK_DAY:25,STORE_KEY:'test',
     $:id=>{if(!fields.has(id))fields.set(id,{value:''});return fields.get(id);},
     requireAdmin:()=>true,loadState:()=>context.normalizeState(saved),
     saveState:()=>{saved=JSON.parse(JSON.stringify(context.STATE));},
     getApprovalLines:()=>[],renderAll(){},updateLiveClock(){},showToast(){}};
   vm.createContext(context);vm.runInContext(code,context);
   vm.runInContext('STATE=loadState();renderSettings()',context);
-  assert.equal(fields.get('#dayWorkerName').value,'서예찬');
+  assert.equal(fields.get('#dayWorkerName').value,'이주형');
   fields.get('#dayWorkerName').value='  변경 이름  ';
   vm.runInContext('saveSettings();STATE=loadState();renderSettings()',context);
   assert.equal(saved.settings.dayWorkerName,'변경 이름');
   assert.equal(fields.get('#dayWorkerName').value,'변경 이름');
   fields.get('#dayWorkerName').value='  ';
   vm.runInContext('saveSettings();STATE=loadState();renderSettings()',context);
-  assert.equal(fields.get('#dayWorkerName').value,'서예찬');
+  assert.equal(fields.get('#dayWorkerName').value,'이주형');
+});
+
+test('예전 기본값(서예찬)으로 저장된 일근 이름은 저장값은 그대로 두고 이주형으로 읽는다', async()=>{
+  const html=await fs.readFile(path.join(__dirname,'../index.html'),'utf8');
+  const pick=name=>{const s=html.indexOf('  function '+name+'(');return html.slice(s,html.indexOf('\n  function ',s+1));};
+  const context={STATE:{settings:{dayWorkerName:'서예찬'}},DEFAULT_DAY_WORKER_NAME:'이주형'};
+  vm.createContext(context);vm.runInContext(pick('dispatchedNameKey')+'\n'+pick('dayWorkerName'),context);
+  assert.equal(context.dayWorkerName(),'이주형');
+  context.STATE.settings.dayWorkerName='  다른   사원 ';
+  assert.equal(context.dayWorkerName(),'다른 사원');
+  // 불러올 때 저장값을 바꾸지 않는다(바꾸면 근무자 저장이 '설정 변경'으로 거절된다).
+  const code=html.slice(html.indexOf('  function normalizeState(raw = {}){'),html.indexOf('  function getOrderedEmployeeIds('));
+  const n={EMPLOYEES:[],DEFAULT_STATION_NAME:'통합관제실',DEFAULT_DAY_WORKER_NAME:'이주형',BASE_LOCK_DAY:25};
+  vm.createContext(n);vm.runInContext(code,n);
+  assert.equal(n.normalizeState({settings:{dayWorkerName:'서예찬'}}).settings.dayWorkerName,'서예찬');
 });

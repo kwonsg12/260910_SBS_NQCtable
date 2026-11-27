@@ -558,7 +558,7 @@
     <span class="kicker">통합관제실 근무표</span>
     <h1>로그인</h1>
     <label for="loginRole">로그인 유형</label>
-    <select id="loginRole"><option value="employee">근무자</option><option value="admin">관리자</option><option value="approver">승인 담당자</option></select>
+    <select id="loginRole"><option value="employee">근무자</option><option value="approver">승인 담당자</option><option value="admin">시스템 관리자</option></select>
     <label id="loginNameLabel" for="employeeLoginSelect">근무자 이름</label>
     <select id="employeeLoginSelect"><option value="">이름 선택</option></select>
     <label id="loginApproverLabel" for="loginApproverSelect" hidden>담당자 이름</label>
@@ -566,7 +566,9 @@
     <label id="loginPinLabel" for="employeeLoginPin">PIN</label>
     <input id="employeeLoginPin" type="password" maxlength="128" autocomplete="current-password" required>
     <p id="loginPinHint" class="muted">처음 로그인할 때 PIN은 0000이에요. 로그인하면 새 PIN으로 바꿔요.</p>
-    <p id="loginApproverNote" class="muted" hidden>승인함만 열려요. 로그인한 15분 동안은 승인·반려할 때 PIN을 다시 묻지 않아요.</p>
+    <p id="loginApproverNote" class="muted" hidden>승인함과 근무표 수동 편집을 쓸 수 있어요. 로그인한 동안은 승인·반려할 때 PIN을 다시 묻지 않아요.</p>
+    <p id="loginAdminNote" class="muted" hidden>개발·운영용이에요. 직원 구성·담당자·메일·시스템 설정까지 바꿀 수 있어요.</p>
+    <p class="muted">15분 동안 아무 동작이 없으면 자동으로 로그아웃돼요.</p>
     <button id="employeeLoginBtn" type="submit" class="btn" disabled>로그인</button>
   </form>
 </div>
@@ -740,19 +742,19 @@
 
   <section id="tab-settings" hidden style="display:none;">
     <div class="page-head page-head-stack">
-      <span class="kicker">설정 · 관리자만</span>
+      <span class="kicker">설정</span>
       <h1 id="settingsTitle">근무표·직원 편집</h1>
-      <p id="settingsGateNote">보기만 할 수 있어요. 바꾸려면 오른쪽 위 로그인에서 “관리자”를 고르세요.</p>
+      <p id="settingsGateNote">보기만 할 수 있어요. 바꾸려면 로그인에서 “승인 담당자”나 “시스템 관리자”를 고르세요.</p>
     </div>
     <div class="settings-layout">
       <nav class="settings-nav" id="settingsNav" aria-label="설정 메뉴">
-        <span class="side-group">사람·근무표</span>
+        <span class="side-group" data-admin-only>사람·근무표</span>
         <button type="button" class="side-item active" data-settings-pane="editor">근무표·직원 편집</button>
-        <span class="side-group">승인</span>
+        <span class="side-group" data-admin-only>승인</span>
         <button type="button" class="side-item" data-settings-pane="approvers">담당자</button>
         <button type="button" class="side-item" data-settings-pane="approvalLine">결재라인</button>
         <button type="button" class="side-item" data-settings-pane="quota">비번 보장 한도</button>
-        <span class="side-group">시스템</span>
+        <span class="side-group" data-admin-only>시스템</span>
         <button type="button" class="side-item" data-settings-pane="system">시계·휴일·마감일</button>
         <button type="button" class="side-item" data-settings-pane="mail">메일</button>
       </nav>
@@ -819,9 +821,9 @@
         <div>
           <label>방송국명</label>
           <input type="text" id="stationName" placeholder="통합관제실">
-          <label for="dayWorkerName" style="margin-top:8px;">파견사원(일근직) 이름</label>
-          <input type="text" id="dayWorkerName" maxlength="50" placeholder="서예찬" aria-describedby="dayWorkerNameHelp">
-          <p id="dayWorkerNameHelp" class="muted">직원 구성에 등록된 이름과 같게 입력하세요. 해당 직원은 근무표 화면에 표시되며 PDF와 엑셀에서는 제외됩니다. 비워두면 서예찬을 제외합니다.</p>
+          <label for="dayWorkerName" style="margin-top:8px;">일근 묶음(파견사원) 이름</label>
+          <input type="text" id="dayWorkerName" maxlength="50" placeholder="이주형" aria-describedby="dayWorkerNameHelp">
+          <p id="dayWorkerNameHelp" class="muted">직원 구성에 등록된 이름과 같게 입력하세요. 해당 직원은 근무표의 TC 아래 "일근" 묶음에 표시되고, 평일은 일·토·일·공휴일은 O로 자동 배정됩니다. PDF와 엑셀에서는 제외됩니다. 비워두면 이주형입니다.</p>
         </div>
         <div>
           <label>휴일 자동 갱신 간격(시간)</label>
@@ -853,14 +855,14 @@
         </div>
       </div>
       <div class="row" style="margin-top:14px;">
-        <button class="btn" id="adminSettingsSaveBtn">관리자 설정 저장</button>
+        <button class="btn" id="adminSettingsSaveBtn">시스템 설정 저장</button>
       </div>
       <div class="row" style="margin-top:14px;">
         <div style="min-width:220px;">
-          <label>관리자 PIN</label>
+          <label>시스템 관리자 비밀번호</label>
           <input type="password" id="adminPin" placeholder="수정 기능 보호용 PIN" disabled title="서버 ADMIN_PASSWORD 사용">
         </div>
-          <p class="quota">상단 ‘관리자 인증’에서 서버 관리자 비밀번호로 인증하면 15분 동안 설정과 근무표를 수정할 수 있습니다. 비밀번호는 서버 .env의 ADMIN_PASSWORD에서 관리합니다.</p>
+          <p class="quota">로그인에서 ‘시스템 관리자’를 고르고 서버 비밀번호로 로그인하면 설정과 근무표를 수정할 수 있습니다(15분 동안 동작이 없으면 로그아웃). 비밀번호는 서버 .env의 ADMIN_PASSWORD에서 관리합니다.</p>
       </div>
     </div>
     <div class="panel" data-settings-pane="editor">
@@ -923,12 +925,13 @@
             <span class="quota">적응기간은 ①로 자유롭게 채우고, 단독근무 투입은 ②로 시작점만 지정하면 이후가 자동 반복됩니다.</span>
           </div>
 
-          <div class="onboarding-step">① 적응기간 일괄 채우기 — 하루 한 칸씩 채워지며, 채운 뒤 위 표에서 개별 수정도 가능합니다</div>
+          <div class="onboarding-step">① 적응기간 일괄 채우기 — 하루 한 칸씩 채워지며(토·일·공휴일 O 선택 가능), 채운 뒤 위 표에서 개별 수정도 가능합니다</div>
           <div class="row" style="margin:8px 0 6px;">
             <div><label>직원</label><select id="bulkFillEmp"></select></div>
             <div><label>시작일</label><input type="date" id="bulkFillStart"></div>
             <div><label>종료일</label><input type="date" id="bulkFillEnd"></div>
             <div><label>반복 값</label><input type="text" id="bulkFillPattern" maxlength="40" placeholder="일   또는   야,조"></div>
+            <label style="display:flex;align-items:center;gap:4px;align-self:flex-end;margin-bottom:8px;"><input type="checkbox" id="bulkFillHolidayOff" checked> 토·일·공휴일은 O</label>
             <button class="btn secondary" id="addBulkFillBtn" type="button">표에 채우기</button>
           </div>
           <div id="pendingBulkFillsList" class="quota"></div>
@@ -1000,6 +1003,7 @@
     $('#loginApproverSelect').hidden = role !== 'approver';
     $('#loginPinHint').hidden = role !== 'employee';
     $('#loginApproverNote').hidden = role !== 'approver';
+    $('#loginAdminNote').hidden = role !== 'admin';
   }
   document.getElementById('loginRole').addEventListener('change', () => {
     $('#employeeLoginPin').value = '';
@@ -1068,12 +1072,15 @@
     {id:'kimg', name:'김건호', phase:1, startDate:'2026-01-01', endDate:null},
   ];
   const ROUTINE_HEADCOUNT = 4;
+  // 일근 묶음(파견사원). 2년마다 바뀌므로 설정 탭에서 이름을 바꿀 수 있다.
+  const DEFAULT_DAY_WORKER_NAME = '이주형';
 
   // date 기준으로 그 달의 활성 직원 순서에서 위 ROUTINE_HEADCOUNT명 안에 드는지로 판단한다.
   function isRoutineWorker(emp, date){
     if (!emp) return false;
     const ref = (date instanceof Date && !Number.isNaN(date.getTime())) ? date : getToday();
-    const top = getActiveStaff(ref.getFullYear(), ref.getMonth()).slice(0, ROUTINE_HEADCOUNT);
+    // 일근(파견사원)은 교대 인원이 아니므로 순서상 위에 있어도 NC 4명 자리에 세지 않는다.
+    const top = getActiveStaff(ref.getFullYear(), ref.getMonth()).filter(e => !isDispatchedDayWorker(e)).slice(0, ROUTINE_HEADCOUNT);
     return top.some(e => e.id === emp.id);
   }
 
@@ -1108,6 +1115,10 @@
   let adminToken = '', adminUntil = 0;
   // 승인 담당자 화면: 담당자 이름+PIN으로 로그인하면 승인함만 보여준다. 15분 동안 승인·반려에 PIN을 다시 묻지 않는다.
   let approverViewing = false, approverToken = '', approverUntil = 0, approverLoginId = '';
+  // 승인 담당자는 근무표 편집 패널을 여는 동안만 편집 잠금을 잡는다(승인만 할 때 근무자 로그인을 막지 않도록).
+  let approverEditLock = false;
+  // 마지막 동작 뒤 이 시간 동안 아무 동작이 없으면 자동 로그아웃한다(서버 security.js 와 같은 값).
+  const SESSION_IDLE_MS = 15 * 60 * 1000;
   let employeeToken = '', employeeUntil = 0, employeeId = '', employeeDisplayName = '';
   const pendingApproverPins = Object.create(null);
   const pendingEmployeePins = Object.create(null);
@@ -1116,7 +1127,7 @@
     if (node) node.textContent = message;
   }
   async function securityRequest(url, body) {
-    if (LOCAL_MODE) throw new Error('승인·관리자 기능은 공유 서버에서 열어주세요.');
+    if (LOCAL_MODE) throw new Error('승인·시스템 관리자 기능은 공유 서버에서 열어주세요.');
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken, 'X-Approver-Token': approverToken },
@@ -1155,7 +1166,7 @@
   let lockHeartbeatTimer = null, lockPollTimer = null;
   async function requestLock(url) {
     const response = await fetch(url, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken, 'X-Employee-Token': employeeToken }, body: '{}'
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken, 'X-Employee-Token': employeeToken, 'X-Approver-Token': approverToken }, body: '{}'
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || '서버 요청에 실패했습니다.');
@@ -1168,16 +1179,16 @@
     stopLockHeartbeat();
     lockHeartbeatTimer = setInterval(() => { requestLock('/api/lock/heartbeat').catch(() => {}); }, 45000);
   }
-  async function releaseLockNow(admin, employee) {
+  async function releaseLockNow(admin, employee, approver = '') {
     stopLockHeartbeat();
     try {
       await fetch('/api/lock/release', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': admin || '', 'X-Employee-Token': employee || '' }, body: '{}'
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': admin || '', 'X-Employee-Token': employee || '', 'X-Approver-Token': approver || '' }, body: '{}'
       });
     } catch (e) {}
   }
   function releaseLockBeacon() {
-    try { navigator.sendBeacon('/api/lock/release', new Blob([JSON.stringify({ adminToken, employeeToken })], { type: 'application/json' })); }
+    try { navigator.sendBeacon('/api/lock/release', new Blob([JSON.stringify({ adminToken, employeeToken, approverToken: approverEditLock ? approverToken : '' })], { type: 'application/json' })); }
     catch (e) {}
   }
   function showLockBanner(holderName) {
@@ -1188,7 +1199,7 @@
   }
   async function pollLockStatus() {
     // 내가 이미 로그인해서 잠금을 들고 있으면 배너를 띄울 필요 없다.
-    if ((adminToken && Date.now() < adminUntil) || (employeeToken && Date.now() < employeeUntil)) { showLockBanner(null); return; }
+    if ((adminToken && Date.now() < adminUntil) || (employeeToken && Date.now() < employeeUntil) || approverEditLock) { showLockBanner(null); return; }
     try {
       const response = await fetch('/api/lock', { cache: 'no-store' });
       const result = await response.json().catch(() => ({}));
@@ -1202,14 +1213,14 @@
 
   async function loginAdmin(secret) {
     if (secret === undefined) {
-      const input = await askCredential('서버 관리자 인증');
+      const input = await askCredential('시스템 관리자 인증');
       if (!input) return;
       secret = input.secret;
     }
     try {
       const result = await securityRequest('/api/auth/admin', { password: secret });
       adminToken = result.token;
-      adminUntil = Date.now() + 15 * 60 * 1000;
+      adminUntil = Date.now() + SESSION_IDLE_MS;
       try {
         await requestLock('/api/lock/acquire');
       } catch (error) {
@@ -1222,7 +1233,7 @@
       $('#employeeLoginPin').value = '';
       startLockHeartbeat();
       showLockBanner(null);
-      securityMessage('관리자 인증 완료(15분). 하려던 작업을 다시 눌러주세요.');
+      securityMessage('시스템 관리자로 로그인했습니다. 15분 동안 동작이 없으면 로그아웃됩니다.');
       finishLogin();
       // 인증 전에는 저장이 막혀 있었을 수 있으니, 밀린 변경이 있으면 지금 바로 반영한다.
       if (stateSync && stateSync.info().dirty) await stateSync.retry();
@@ -1269,7 +1280,7 @@
     try {
       const result = await employeeRequest('/api/auth/employee', { empId, pin });
       employeeToken = result.token;
-      employeeUntil = Date.now() + 15 * 60 * 1000;
+      employeeUntil = Date.now() + SESSION_IDLE_MS;
       employeeId = result.empId;
       employeeDisplayName = result.name;
       // 기본 PIN(0000)으로 들어왔으면 새 PIN으로 바꾸기 전에는 진행하지 않는다(서버도 그전엔 권한을 주지 않는다).
@@ -1299,8 +1310,9 @@
   }
   // 관리자와 근무자 모두 같은 로그아웃 버튼을 사용한다.
   function logoutEmployee() {
-    releaseLockNow(adminToken, employeeToken);
-    if (adminToken) { adminToken = ''; adminUntil = 0; securityMessage('관리자 인증을 해제했습니다.'); }
+    releaseLockNow(adminToken, employeeToken, approverEditLock ? approverToken : '');
+    approverEditLock = false;
+    if (adminToken) { adminToken = ''; adminUntil = 0; securityMessage('시스템 관리자 로그인을 해제했습니다.'); }
     employeeToken = ''; employeeUntil = 0; employeeId = ''; employeeDisplayName = '';
     approverViewing = false; approverToken = ''; approverUntil = 0; approverLoginId = '';
     const actorSelect = $('#approvalActorSelect');
@@ -1321,7 +1333,7 @@
     if (!employeeLoggedIn && $('#modalBg').open) closeScheduleRequest();
     const adminLoggedIn = !!adminToken && Date.now() < adminUntil;
     const loggedIn = employeeLoggedIn || adminLoggedIn;
-    employeeMessage(employeeLoggedIn ? `${employeeDisplayName}님으로 로그인됨` : adminLoggedIn ? '관리자로 로그인됨' : approverViewing ? `${approverName(approverLoginId)} 담당자로 로그인됨` : '로그인이 필요합니다.');
+    employeeMessage(employeeLoggedIn ? `${employeeDisplayName}님으로 로그인됨` : adminLoggedIn ? '시스템 관리자로 로그인됨' : approverViewing ? `${approverName(approverLoginId)} 담당자로 로그인됨` : '로그인이 필요합니다.');
     const selectEl = $('#employeeLoginSelect'), pinEl = $('#employeeLoginPin'), loginBtn = $('#employeeLoginBtn'), logoutBtn = $('#employeeLogoutBtn');
     if (selectEl) selectEl.hidden = loggedIn;
     if (pinEl) pinEl.hidden = loggedIn || selectEl?.value === '__admin__';
@@ -1332,9 +1344,21 @@
     if (coverSel && employeeLoggedIn && gateAppliedEmp !== employeeId) coverSel.value = employeeId;
     gateAppliedEmp = employeeLoggedIn ? employeeId : '';
     const settingsButton = $('#tabbar button[data-tab="settings"]');
-    $('#tabbar').classList.toggle('admin-session', adminLoggedIn);
-    $('#tab-settings').hidden = !adminLoggedIn;
-    if (!adminLoggedIn && settingsButton.classList.contains('active')) {
+    // 설정 탭: 시스템 관리자는 전부, 승인 담당자는 '근무표 편집'만(직원 구성·담당자·메일·시스템 설정은 숨김).
+    const scheduleEditorOnly = !adminLoggedIn && approverSessionActive();
+    const settingsAllowed = adminLoggedIn || scheduleEditorOnly;
+    $('#tabbar').classList.toggle('admin-session', settingsAllowed);
+    $('#tab-settings').hidden = !settingsAllowed;
+    $$('#settingsNav [data-settings-pane]').forEach(item => { item.hidden = scheduleEditorOnly && item.dataset.settingsPane !== 'editor'; });
+    $$('#settingsNav [data-admin-only]').forEach(item => { item.hidden = scheduleEditorOnly; });
+    if (scheduleEditorOnly) {
+      $$('.settings-main > [data-settings-pane]').forEach(panel => { panel.hidden = panel.dataset.settingsPane !== 'editor'; });
+      $$('#settingsNav [data-settings-pane]').forEach(item => item.classList.toggle('active', item.dataset.settingsPane === 'editor'));
+      $('#settingsTitle').textContent = '근무표 편집';
+    }
+    const employeeView = $('#employeeEditorView');
+    if (employeeView) employeeView.hidden = !adminLoggedIn;
+    if (!settingsAllowed && settingsButton.classList.contains('active')) {
       settingsButton.classList.remove('active');
       $('#tabbar button[data-tab="schedule"]').classList.add('active');
       $('#tab-settings').style.display = 'none';
@@ -1342,8 +1366,10 @@
     }
     const gateNote = $('#settingsGateNote');
     if (gateNote) {
-      gateNote.textContent = adminLoggedIn ? '관리자로 로그인됨 · 15분 동안 바꿀 수 있어요.' : '보기만 할 수 있어요. 바꾸려면 오른쪽 위 로그인에서 “관리자”를 고르세요.';
-      gateNote.classList.toggle('is-admin', adminLoggedIn);
+      gateNote.textContent = adminLoggedIn ? '시스템 관리자로 로그인됨 · 15분 동안 동작이 없으면 로그아웃돼요.'
+        : scheduleEditorOnly ? `${approverName(approverLoginId)} 담당자로 로그인됨 · 근무표 수동 편집만 할 수 있어요. 직원 구성·시스템 설정은 시스템 관리자가 합니다.`
+        : '보기만 할 수 있어요. 바꾸려면 로그인에서 “승인 담당자”나 “시스템 관리자”를 고르세요.';
+      gateNote.classList.toggle('is-admin', settingsAllowed);
     }
     // 내 근무표 메일: 근무자로 로그인했을 때만. 받는 주소는 서버가 로그인한 본인 것으로 정한다.
     const mailBtn = $('#mailMyScheduleBtn');
@@ -1378,7 +1404,7 @@
     if (!response.ok) { employeeMessage(result.error || '로그인에 실패했습니다.'); return; }
     $('#employeeLoginPin').value = '';
     approverToken = result.token;
-    approverUntil = Date.now() + 15 * 60 * 1000;
+    approverUntil = Date.now() + SESSION_IDLE_MS;
     approverLoginId = result.approverId;
     // 승인함은 이 담당자의 건만 보여주고, '이 이름으로 처리'를 이 담당자로 고정한다.
     const actorSelect = $('#approvalActorSelect');
@@ -1473,6 +1499,8 @@
   function baseShift(empId, date){
     const emp = EMPLOYEES.find(e => e.id === empId);
     if (!emp) return '';
+    // 일근 묶음(파견사원)은 교대 없이 평일 일근, 토·일·공휴일은 O.
+    if (isDispatchedDayWorker(emp)) return isWeekendOrHoliday(stripTime(date)) ? 'O' : '일';
     const anchor = getRotationAnchorFor(empId, date);
     if (anchor) {
       const startIdx = CYCLE.indexOf(anchor.startShift);
@@ -1616,7 +1644,7 @@
     try {
       const response = await fetch('/api/state', {
         method, cache: 'no-store', signal: controller.signal,
-        headers: payload ? { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken, 'X-Employee-Token': employeeToken } : {},
+        headers: payload ? { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken, 'X-Employee-Token': employeeToken, 'X-Approver-Token': approverToken } : {},
         body: payload ? JSON.stringify(payload) : undefined
       });
       if (!response.ok) {
@@ -1772,12 +1800,16 @@
         // 완전 삭제된 직원의 영구 이름표 [{id, name, deletedAt}]. 지난 기록의 이름 표시에만 쓴다.
         // 서버에 아직 없는 키를 빈 배열로 만들어 두면 근무자 저장이 '직원 변경'으로 보여 거절되므로, 있을 때만 싣는다.
         ...(Array.isArray(raw.formerEmployees) ? { formerEmployees: raw.formerEmployees } : {}),
+        // 근무표 화면 비고 — 달마다 따로 { 'YYYY-MM': 내용 }. 같은 이유로 처음 비고를 저장할 때 생긴다.
+        ...(raw.monthNotes && typeof raw.monthNotes === 'object' && !Array.isArray(raw.monthNotes) ? { monthNotes: raw.monthNotes } : {}),
         // 직원 표시 순서 변경 이력. { month:'YYYY-MM', order:[empId,...] } 를 월 오름차순으로 담아두고,
         // 근무표를 그릴 때는 그 달 이하의 가장 최근 항목을 찾아 순서를 적용한다(그 달부터 계속 유지).
         employeeOrderHistory: Array.isArray(raw.employeeOrderHistory) ? raw.employeeOrderHistory : [],
         settings: {
           quotaMax: raw.settings?.quotaMax ?? 3,
           stationName: raw.settings?.stationName || DEFAULT_STATION_NAME,
+          // 저장값은 그대로 둔다(불러올 때 값을 바꾸면 근무자 저장이 '설정 변경'으로 보여 거절된다).
+          // 예전 기본값(서예찬)은 쓸 때 dayWorkerName()이 현재 사원(이주형)으로 읽는다.
           dayWorkerName: typeof raw.settings?.dayWorkerName === 'string' ? raw.settings.dayWorkerName.trim() || '서예찬' : '서예찬',
           holidaySyncHours: raw.settings?.holidaySyncHours ?? 24,
           holidayApiUrl: raw.settings?.holidayApiUrl || 'https://date.nager.at/api/v3/PublicHolidays',
@@ -1874,7 +1906,13 @@
     const dateValue = fmt(date);
     return pendingBulkFills.find(fill => fill.empId === empId && dateInRange(dateValue, fill.startDate, fill.endDate));
   }
+  // 적응기간(상일근) 동안은 토·일·공휴일을 쉬므로, holidayOff 가 켜진 채우기는 그 날을 O 로 넣는다.
+  function isWeekendOrHoliday(date){
+    const day = date.getDay();
+    return day === 0 || day === 6 || !!getHolidayInfo(date);
+  }
   function bulkFillValueFor(fill, date){
+    if (fill.holidayOff && isWeekendOrHoliday(date)) return 'O';
     const offset = Math.round((stripTime(date) - new Date(fill.startDate + 'T00:00:00')) / 86400000);
     const idx = ((offset % fill.pattern.length) + fill.pattern.length) % fill.pattern.length;
     return fill.pattern[idx];
@@ -1932,12 +1970,33 @@
   }
   function requireAdmin(action){
     if (!adminToken || Date.now() >= adminUntil) {
-      const message = action + ': 상단 로그인 목록에서 "관리자"를 선택해 로그인해주세요.';
+      const message = action + ': 로그인에서 "시스템 관리자"를 선택해 로그인해주세요.';
       securityMessage(message);
       showToast(message, 'info');
       return false;
     }
     addAuditLog('관리자 수정', { action });
+    return true;
+  }
+
+  function approverSessionActive(){
+    return approverViewing && !!approverToken && Date.now() < approverUntil;
+  }
+  // 근무표 수동 편집: 시스템 관리자, 또는 편집 패널을 열어 편집 잠금을 잡은 승인 담당자.
+  function canEditSchedule(){
+    return (!!adminToken && Date.now() < adminUntil) || (approverSessionActive() && approverEditLock);
+  }
+  function scheduleEditorName(){
+    return adminToken && Date.now() < adminUntil ? '시스템 관리자' : approverSessionActive() ? approverName(approverLoginId) + ' 담당자' : '';
+  }
+  function requireScheduleEditor(action){
+    if (!canEditSchedule()) {
+      const message = action + ': 시스템 관리자나 승인 담당자로 로그인한 뒤 [근무표 편집]을 열어주세요.';
+      securityMessage(message);
+      showToast(message, 'info');
+      return false;
+    }
+    addAuditLog('근무표 편집', { action, by: scheduleEditorName() });
     return true;
   }
 
@@ -2014,6 +2073,8 @@
     const d0 = startDate, d1 = addDays(startDate, 1);
     if (type === 'day'){
       if (effectiveShift(empId, d0) !== '일') return { error: '일근인 날짜에만 일근 휴가를 신청할 수 있습니다.' };
+      // 상일근(교대 4명이 아닌 TC·일근 인원 — 적응기간 교육생 등)은 빠져도 대근이 필요 없으므로 휴가만 넣는다.
+      if (!isRoutineWorker(employee, d0)) return { chain: [{ date: fmt(d0), empId, shift: '휴가', label: '휴가(상일근·대근 없음)' }], noSubstitute: true };
       const sub = findByBaseShift(d0, 'O', [empId]);
       if (!sub.id) return { error: '대근 가능한 루틴 근무자가 없습니다.' + substituteNote(sub) + ' 근무표 편집에서 수동으로 지정해주세요.' };
       return { chain: [
@@ -2186,9 +2247,10 @@
   function renderScheduleTab(){
     const { year: y, monthIndex: m } = getCurrentMonthView();
     setCurrentMonthView(y, m);
-    // 달을 바꾸면 그 달의 확정 상태와 결재란 도장도 같이 따라가야 한다.
+    // 달을 바꾸면 그 달의 확정 상태와 결재란 도장, 비고도 같이 따라가야 한다.
     renderMonthlyApprovalStatus();
     renderApprovalBlock();
+    renderNotesSection();
     const now = getToday();
     const locked = isLocked(y,m,now);
     const lockMoment = lockMomentFor(y,m);
@@ -2312,7 +2374,7 @@
     return [
       { label: 'NC', staff: exportable.filter(emp => isRoutineWorker(emp, month)), pdfIgnore: false },
       { label: 'TC', staff: exportable.filter(emp => !isRoutineWorker(emp, month)), pdfIgnore: false },
-      { label: '파견', staff: staff.filter(emp => isDispatchedDayWorker(emp)), pdfIgnore: true }
+      { label: '일근', staff: staff.filter(emp => isDispatchedDayWorker(emp)), pdfIgnore: true }
     ].filter(group => group.staff.length);
   }
 
@@ -2530,7 +2592,8 @@
       error = result.error || '';
       const substitutes = error ? [] : result.chain.filter(entry => entry.empId !== employeeId);
       const rows = substitutes.map(entry => `<li>${escapeAttribute(pickLabel(entry.date))} · ${escapeAttribute(empName(entry.empId))} (${escapeAttribute(entry.label)})</li>`);
-      summary.innerHTML = `<strong>${dates}</strong><br>신청자: ${name}${rows.length ? '<br>대근 배정 예정<ul>' + rows.join('') + '</ul>' : ''}`;
+      summary.innerHTML = `<strong>${dates}</strong><br>신청자: ${name}${rows.length ? '<br>대근 배정 예정<ul>' + rows.join('') + '</ul>' : ''}`
+        + (result.noSubstitute ? '<br>상일근이라 대근자 없이 휴가만 들어갑니다.' : '');
       if (!error) pendingChain = {empId: employeeId, type: kind, startDate: dateKey, chain: result.chain};
     }
     requestError(error);
@@ -2593,12 +2656,13 @@
       const tag = r.type === 'day' ? '<span class="tag day">일근</span>' : '<span class="tag set">야+조</span>';
       const statusTag = r.status === 'pending' ? '<span class="tag warn">승인 대기</span>'
         : r.status === 'cancelled' ? (r.cancelledAt ? '<span class="tag muted">취소됨</span>' : '<span class="tag leave">반려됨</span>')
+        : pendingLeaveCancel(r.id) ? '<span class="tag warn">취소 승인 대기</span>'
         : '<span class="tag ok">확정</span>';
       const chainTxt = r.chain.map(c => `${escapeAttribute(c.date)} ${escapeAttribute(empName(c.empId))}:${escapeAttribute(c.label)}`).join(' → ');
       return `<div class="list-item">${statusTag}${tag}<b>${escapeAttribute(empName(r.empId))}</b> · ${escapeAttribute(r.startDate)}
         <div class="meta">${escapeAttribute(chainTxt)}</div>
-        <div class="meta">${new Date(r.submittedAt).toLocaleString('ko-KR')} 신청</div>
-        ${r.status === 'pending' && employee === r.empId ? `<div class="row" style="margin-top:6px;"><button class="btn ghost" data-security-action="cancel-request" data-id="${escapeAttribute(r.id)}">신청 취소</button></div>` : ''}
+        <div class="meta">${new Date(r.submittedAt).toLocaleString('ko-KR')} ${r.enteredBy === 'admin' ? '관리자 입력' : '신청'}</div>
+        ${leaveCancellable(r) && employee === r.empId ? `<div class="row" style="margin-top:6px;"><button class="btn ghost" data-security-action="cancel-request" data-id="${escapeAttribute(r.id)}">${r.status === 'confirmed' ? '취소 신청' : '신청 취소'}</button></div>` : ''}
       </div>`;
     }).join('');
   }
@@ -2611,8 +2675,13 @@
   async function cancelPendingActivityRequest(kind, id){
     if (cancellingActivityRequest || !requireEmployeeLogin('신청 취소')) return;
     const item = (kind === 'request' ? STATE.requests : STATE.protects).find(entry => entry.id === id);
-    if (!item || item.empId !== employeeId || item.status !== 'pending') return;
-    if (!confirm('승인 대기 중인 신청을 취소할까요?')) return;
+    if (!item || item.empId !== employeeId) return;
+    const confirmedLeave = kind === 'request' && item.status === 'confirmed';
+    if (confirmedLeave ? !leaveCancellable(item) : item.status !== 'pending') return;
+    const question = !confirmedLeave ? '승인 대기 중인 신청을 취소할까요?'
+      : getApprovers().length ? '확정된 휴가입니다. 담당자에게 취소 신청을 올릴까요?\n(승인되면 휴가와 대근 배정이 함께 풀립니다)'
+      : '확정된 휴가를 취소할까요?\n(휴가와 대근 배정이 함께 풀립니다)';
+    if (!confirm(question)) return;
     cancellingActivityRequest = true;
     try {
       await flushPendingState();
@@ -2620,9 +2689,14 @@
         showToast('저장이 완료된 뒤 다시 시도해주세요.', 'warn');
         return;
       }
-      await employeeRequest('/api/requests/cancel', {kind, id});
+      const result = await employeeRequest('/api/requests/cancel', {kind, id});
       if (await stateSync.reload()) renderAll();
-      showToast('신청을 취소했습니다.');
+      if (result?.pendingApproval) {
+        // 취소 신청은 서버가 승인함에 올린다. 담당자 메일 알림만 따로 요청한다.
+        const approval = STATE.approvals.find(a => a.id === result.approvalId);
+        if (approval) sendServerNotification(approval, findApproversFor());
+        showToast('취소 신청을 올렸습니다. 담당자가 승인하면 휴가가 취소됩니다.');
+      } else showToast('신청을 취소했습니다.');
     } catch (error) {
       if (await stateSync?.reload()) renderAll();
       showToast(error.message, 'warn');
@@ -2782,7 +2856,18 @@
     return getApprovers();
   }
 
-  const APPROVAL_TYPE_LABEL = { leave: '휴가·대근 배정', protect: '비번 보장 초과', monthly: '월간 근무표 확정' };
+  const APPROVAL_TYPE_LABEL = { leave: '휴가·대근 배정', 'leave-cancel': '휴가 취소', protect: '비번 보장 초과', monthly: '월간 근무표 확정' };
+
+  // 확정된 휴가의 취소 신청(승인 대기) — 있으면 그 휴가는 다시 취소 신청할 수 없다.
+  function pendingLeaveCancel(requestId){
+    return STATE.approvals.find(a => a.type === 'leave-cancel' && a.refId === requestId && a.status === 'pending');
+  }
+  // 직원 본인이 지금 [취소]/[취소 신청]을 누를 수 있는 휴가인가. 대기 건은 바로 취소,
+  // 확정 건은 오늘 이후 날짜이고 취소 신청이 걸려 있지 않을 때만 취소 신청할 수 있다.
+  function leaveCancellable(r){
+    if (r.status === 'pending') return true;
+    return r.status === 'confirmed' && r.startDate >= fmt(getToday()) && !pendingLeaveCancel(r.id);
+  }
 
   function createApproval({type, refId, requestedBy, title, summary}){
     const targets = findApproversFor();
@@ -2901,12 +2986,16 @@
     $('#approveTitle').textContent = '내 신청';
     const card = item => {
       const type = item.kind === 'protect' ? '비번 보장' : item.type === 'set' ? '야+조근 휴가' : '일근 휴가';
+      const cancelWaiting = item.kind === 'request' && item.status === 'confirmed' && pendingLeaveCancel(item.id);
       const status = item.status === 'pending' ? '승인 대기'
+        : cancelWaiting ? '취소 승인 대기'
         : item.cancelledAt ? '취소됨' : ['cancelled', 'rejected'].includes(item.status) ? '반려' : '확정';
+      const canCancel = item.kind === 'request' ? leaveCancellable(item) : item.status === 'pending';
+      const buttonLabel = item.status === 'confirmed' ? '취소 신청' : '신청 취소';
       return `<article class="approval-card"><div class="approval-card-head">
-        <span class="tag ${item.status === 'pending' ? 'warn' : status === '확정' ? 'ok' : 'muted'}">${status}</span>
-        <b>${type} · ${escapeAttribute(item.date)}</b></div>
-        ${item.status === 'pending' ? `<div class="actions"><button type="button" class="btn secondary" data-security-action="cancel-${item.kind}" data-id="${escapeAttribute(item.id)}">신청 취소</button></div>` : ''}
+        <span class="tag ${item.status === 'pending' || cancelWaiting ? 'warn' : status === '확정' ? 'ok' : 'muted'}">${status}</span>
+        <b>${type} · ${escapeAttribute(item.date)}</b>${item.enteredBy === 'admin' ? '<small class="muted">관리자 입력</small>' : ''}</div>
+        ${canCancel ? `<div class="actions"><button type="button" class="btn secondary" data-security-action="cancel-${item.kind}" data-id="${escapeAttribute(item.id)}">${buttonLabel}</button></div>` : ''}
       </article>`;
     };
     const past = own.filter(item => item.status !== 'pending');
@@ -2982,7 +3071,7 @@
   }
 
   function approvalCard(a){
-    const typeClass = { leave: 'leave', protect: 'set', monthly: 'day' };
+    const typeClass = { leave: 'leave', 'leave-cancel': 'leave', protect: 'set', monthly: 'day' };
     return `<article class="approval-card">
       <div class="approval-card-head">
         <span class="tag ${typeClass[a.type] || 'warn'}">${escapeAttribute(APPROVAL_TYPE_LABEL[a.type] || a.type)}</span><b>${escapeAttribute(a.title)}</b>
@@ -3072,7 +3161,7 @@
     const days = new Date(year, month, 0).getDate();
     return {
       monthKey: key, stationName: STATE.settings.stationName || DEFAULT_STATION_NAME,
-      notes: STATE.settings.notes || '',
+      notes: notesFor(key),
       approvalLines: getApprovalLines().map(line => ({ title: line.title, name: line.name })),
       employees: getActiveStaff(year, month - 1).map(emp => ({
         id: emp.id, name: emp.name, startDate: emp.startDate || '', endDate: emp.endDate || '',
@@ -3292,10 +3381,26 @@
     }).join('');
   }
 
+  // 비고는 달마다 따로 적는다(STATE.monthNotes['YYYY-MM']).
+  // 예전에는 모든 달이 같은 비고(settings.notes) 하나를 썼다. 그 글은 달별 비고가 하나도 없는 동안
+  // '이번 달' 비고로 보이고, 처음 달별 비고를 저장할 때 이번 달 칸으로 옮겨 적는다(그 뒤로는 안 쓴다).
+  function legacyNotesMonth(){ const today = getToday(); return monthKeyOf(today.getFullYear(), today.getMonth()); }
+  function notesFor(key){
+    const notes = STATE.monthNotes;
+    if (notes) return typeof notes[key] === 'string' ? notes[key] : '';
+    return key === legacyNotesMonth() ? (STATE.settings.notes || '') : '';
+  }
+  function canEditNotes(){
+    return (!!adminToken && Date.now() < adminUntil) || approverSessionActive();
+  }
   function renderNotesSection(){
     const input = $('#scheduleNotesInput');
     if (!input) return;
-    input.value = STATE.settings.notes || '';
+    const { year, monthIndex } = getCurrentMonthView();
+    // 수정 중에 달을 바꾸면 수정을 접고 그 달 비고를 보여 준다.
+    input.dataset.monthKey = monthKeyOf(year, monthIndex);
+    input.value = notesFor(input.dataset.monthKey);
+    input.placeholder = `${year}년 ${monthIndex + 1}월 비고`;
     input.readOnly = true;
     const editBtn = $('#editNotesBtn');
     const applyBtn = $('#applyNotesBtn');
@@ -3315,10 +3420,23 @@
   }
 
   function saveNotesSection(){
-    if (!requireAdmin('설정 변경')) return;
+    if (!canEditNotes()) {
+      const message = '비고 수정: 시스템 관리자나 승인 담당자로 로그인해주세요.';
+      securityMessage(message); showToast(message, 'info');
+      return;
+    }
     const input = $('#scheduleNotesInput');
     if (!input) return;
-    STATE.settings.notes = input.value;
+    const key = input.dataset.monthKey;
+    if (!key) return;
+    const firstMonthNote = !STATE.monthNotes;
+    STATE.monthNotes = { ...(STATE.monthNotes || {}) };
+    // 예전 공통 비고는 처음 달별로 저장할 때 이번 달 비고로 옮겨 둔다(다른 달에 쓰는 경우).
+    if (firstMonthNote && STATE.settings.notes && key !== legacyNotesMonth()) STATE.monthNotes[legacyNotesMonth()] = STATE.settings.notes;
+    if (input.value.trim()) STATE.monthNotes[key] = input.value;
+    else delete STATE.monthNotes[key];
+    // 모두 지워도 빈 객체로 남겨 둔다(예전 공통 비고가 다시 보이지 않도록).
+    addAuditLog('비고 수정', { month: key, by: scheduleEditorName() });
     saveState();
     renderMonthlyApprovalStatus();
     renderApprovalBlock();
@@ -3343,8 +3461,14 @@
   function dispatchedNameKey(name){
     return String(name || '').trim().replace(/\s+/g, ' ');
   }
+  // 지금 일근 묶음(파견사원) 이름. 설정이 비었거나 예전 기본값(서예찬)이면 현재 사원(이주형)으로 본다.
+  function dayWorkerName(){
+    const name = dispatchedNameKey(STATE?.settings?.dayWorkerName);
+    return !name || name === '서예찬' ? DEFAULT_DAY_WORKER_NAME : name;
+  }
   function isDispatchedDayWorker(employee){
-    return dispatchedNameKey(employee.name) === dispatchedNameKey(STATE.settings.dayWorkerName || '서예찬');
+    if (!employee) return false;
+    return dispatchedNameKey(employee.name) === dayWorkerName();
   }
 
   // 엑셀 양식에 넣을 한 달 근무. [엑셀] 버튼과 월 확정 요청 스냅샷이 함께 쓴다.
@@ -3387,7 +3511,7 @@
       link.download = `${year}년 ${monthIndex + 1}월 통합관제실 근무표.xlsx`;
       document.body.appendChild(link); link.click(); link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
-      const dispatchedName = dispatchedNameKey(STATE.settings.dayWorkerName || '서예찬');
+      const dispatchedName = dayWorkerName();
       // 이름으로 고르기 때문에, 설정한 이름이 직원 구성과 안 맞거나 같은 이름이 여럿이면 바로 알린다.
       showToast(`엑셀을 내려받았습니다. NC ${staff.length}명 · TC ${tcStaff.length}명`
         + (excluded === 0 ? ` · 파견사원 '${dispatchedName}'을(를) 직원 구성에서 찾지 못해 제외하지 않았습니다.`
@@ -3505,7 +3629,7 @@
   function renderSettings(){
     const s = STATE.settings;
     if ($('#stationName')) $('#stationName').value = s.stationName || DEFAULT_STATION_NAME;
-    if ($('#dayWorkerName')) $('#dayWorkerName').value = s.dayWorkerName || '서예찬';
+    if ($('#dayWorkerName')) $('#dayWorkerName').value = dayWorkerName();
     if ($('#setSmtpHost')) $('#setSmtpHost').value = s.smtpHost || '';
     if ($('#setSmtpUser')) $('#setSmtpUser').value = s.smtpUser || '';
     if ($('#setSmtpPass')) $('#setSmtpPass').value = s.smtpPass || '';
@@ -3542,7 +3666,7 @@
     STATE.settings.smtpPass = $('#setSmtpPass').value;
     STATE.settings.quotaMax = Number($('#setQuotaMax').value) || 3;
     STATE.settings.stationName = $('#stationName').value.trim() || DEFAULT_STATION_NAME;
-    STATE.settings.dayWorkerName = $('#dayWorkerName').value.trim() || '서예찬';
+    STATE.settings.dayWorkerName = $('#dayWorkerName').value.trim() || DEFAULT_DAY_WORKER_NAME;
     STATE.settings.holidaySyncHours = Number($('#holidaySyncHours').value) || 24;
     STATE.settings.holidayApiUrl = $('#holidayApiUrl').value.trim() || 'https://date.nager.at/api/v3/PublicHolidays';
     STATE.settings.lockDay = Number($('#lockDayInput').value) || BASE_LOCK_DAY;
@@ -3965,7 +4089,7 @@
       alert('같은 직원의 같은 날짜에 이미 시작점이 있습니다. 먼저 해제한 뒤 다시 지정해주세요.');
       return;
     }
-    if (!requireAdmin('로테이션 시작점 지정')) return;
+    if (!requireScheduleEditor('로테이션 시작점 지정')) return;
     snapshotHistoricalSchedule(); // 이미 지난 날짜를 고정해 과거 근무표가 다시 계산되지 않게 한다
     const anchor = { id: uid(), empId, startDate, startShift, at: new Date().toISOString() };
     STATE.rotationAnchors.push(anchor);
@@ -3980,7 +4104,7 @@
   function removeRotationAnchor(anchorId){
     const index = (STATE.rotationAnchors || []).findIndex(anchor => anchor.id === anchorId);
     if (index < 0) return;
-    if (!requireAdmin('로테이션 시작점 해제')) return;
+    if (!requireScheduleEditor('로테이션 시작점 해제')) return;
     snapshotHistoricalSchedule();
     const [removed] = STATE.rotationAnchors.splice(index, 1);
     addAuditLog('로테이션 시작점 해제', removed);
@@ -4009,7 +4133,7 @@
       alert('직원의 적용 기간 안에 있는 날짜만 채울 수 있습니다.');
       return;
     }
-    const fill = { id: uid(), empId, startDate, endDate, pattern: parsed.pattern };
+    const fill = { id: uid(), empId, startDate, endDate, pattern: parsed.pattern, holidayOff: !!$('#bulkFillHolidayOff')?.checked };
     if ([...STATE.scheduleRanges, ...pendingScheduleRanges].some(range => rangesOverlap(range, fill))) {
       alert('범위 병합(경조휴가 등)이 지정된 기간과 겹칩니다. 먼저 병합 범위를 해제해주세요.');
       return;
@@ -4028,7 +4152,7 @@
     if (!list) return;
     if (!pendingBulkFills.length) { list.innerHTML = '아직 등록된 적응기간 채우기가 없습니다.'; return; }
     list.innerHTML = `대기 중인 적응기간 채우기 ${pendingBulkFills.length}건 (맨 아래 [변경 내용 확인 후 저장]에서 함께 저장됩니다): ` + pendingBulkFills.map(fill =>
-      `<span>${escapeAttribute(empName(fill.empId))} ${escapeAttribute(fill.startDate)}~${escapeAttribute(fill.endDate)} [${fill.pattern.map(escapeAttribute).join(',')}] <button type="button" class="btn ghost remove-bulk-fill" data-fill-id="${escapeAttribute(fill.id)}">해제</button></span>`
+      `<span>${escapeAttribute(empName(fill.empId))} ${escapeAttribute(fill.startDate)}~${escapeAttribute(fill.endDate)} [${fill.pattern.map(escapeAttribute).join(',')}]${fill.holidayOff ? ' (휴일 O)' : ''} <button type="button" class="btn ghost remove-bulk-fill" data-fill-id="${escapeAttribute(fill.id)}">해제</button></span>`
     ).join(' / ');
     list.querySelectorAll('.remove-bulk-fill').forEach(button => {
       button.addEventListener('click', () => removeBulkFill(button.dataset.fillId));
@@ -4109,9 +4233,19 @@
     renderEditSessionBar();
   }
 
-  function openScheduleEditor(){
+  async function openScheduleEditor(){
     const panel = $('#scheduleEditPanel');
     if (!panel) return;
+    const admin = !!adminToken && Date.now() < adminUntil;
+    if (!admin && !approverSessionActive()) { requireScheduleEditor('근무표 편집'); return; }
+    // 승인 담당자는 편집을 시작할 때 잠금을 잡는다. 근무자·시스템 관리자가 편집 중이면 열지 않는다.
+    if (!admin && !approverEditLock) {
+      try { await requestLock('/api/lock/acquire'); }
+      catch (error) { securityMessage(error.message); showToast(error.message, 'warn'); return; }
+      approverEditLock = true;
+      startLockHeartbeat();
+      showLockBanner(null);
+    }
     panel.hidden = false;
     populateScheduleEditSelectors();
     renderManualEmployeeOptions();
@@ -4138,6 +4272,8 @@
     scheduleEditorEdits = {};
     editSession = null;
     renderEditSessionBar();
+    // 승인 담당자는 편집을 닫으면 잠금을 돌려준다(시스템 관리자는 로그인 동안 계속 들고 있다).
+    if (approverEditLock) { approverEditLock = false; releaseLockNow('', '', approverToken); }
   }
 
   function rangesOverlap(first, second){
@@ -4176,7 +4312,7 @@
   // 편집 표에 입력한 칸·대기 중인 병합·채우기를 STATE 에 반영한다(편집 세션 안에서는 아직 저장하지 않음).
   // 반영한 건수를 돌려주고, 관리자 인증이 없으면 -1.
   function applyScheduleEditor(){
-    if (!requireAdmin('월간 근무표 편집')) return -1;
+    if (!requireScheduleEditor('월간 근무표 편집')) return -1;
     const rangeCount = pendingScheduleRanges.length;
     const fillCount = pendingBulkFills.length;
     // 사용자가 직접 타이핑한 칸만 반영한다. 화면에 그냥 표시되던 값은 건드리지 않는다.
@@ -4201,7 +4337,7 @@
     [...pendingScheduleRanges, ...pendingBulkFills].forEach(item => monthKeysBetween(item.startDate, item.endDate).forEach(key => months.add(key)));
     const notes = [
       ...pendingScheduleRanges.map(range => `범위 병합: ${empName(range.empId)} ${range.startDate}~${range.endDate} "${range.value}"`),
-      ...pendingBulkFills.map(fill => `적응기간 채우기: ${empName(fill.empId)} ${fill.startDate}~${fill.endDate} [${fill.pattern.join(',')}]`),
+      ...pendingBulkFills.map(fill => `적응기간 채우기: ${empName(fill.empId)} ${fill.startDate}~${fill.endDate} [${fill.pattern.join(',')}]${fill.holidayOff ? ' (휴일 O)' : ''}`),
       ...(changes.length ? [`근무 칸 직접 수정 ${changes.length}칸`] : [])
     ];
     snapshotHistoricalSchedule();
@@ -4240,13 +4376,82 @@
     return changes.length + rangeCount + fillCount;
   }
 
+  // 관리자가 칸에 직접 넣은 '휴가'(오늘 이후)를 그 직원 명의의 확정 휴가 신청으로 묶는다.
+  // 수동 입력도 결국 직원에게 듣고 넣은 휴가이므로, 신청으로 바꿔 두면 직원이 [취소 신청]을 낼 수 있다.
+  // 같은 날 대신 들어간 칸도 대근으로 함께 묶는다: 일근 휴가 → '대일', 야/조 휴가 → 원래 그 근무가 아니던 사람의 야/조.
+  // 묶인 칸은 수동 입력(scheduleOverrides)에서 빠지고 신청의 chain 으로만 남는다(보이는 값은 같다).
+  function planManualLeaveRequests(){
+    const today = fmt(getToday());
+    const overrides = STATE.scheduleOverrides || {};
+    const cells = Object.entries(overrides).map(([key, ov]) => {
+      const [date, empId] = key.split('::');
+      return { key, date, empId, shift: ov?.shift };
+    }).filter(cell => cell.date >= today && EMPLOYEES.some(emp => emp.id === cell.empId)
+      && !getScheduleRange(cell.empId, new Date(cell.date + 'T00:00:00')));
+    const byKey = new Map(cells.map(cell => [cell.key, cell]));
+    const used = new Set();
+    const order = id => EMPLOYEES.findIndex(emp => emp.id === id);
+    const plainShift = (empId, date) => calculatedShift(empId, new Date(date + 'T00:00:00'));
+    const leaves = cells.filter(cell => cell.shift === '휴가')
+      .sort((a, b) => a.date === b.date ? order(a.empId) - order(b.empId) : (a.date < b.date ? -1 : 1));
+    const plans = [];
+    for (const leave of leaves) {
+      if (used.has(leave.key)) continue;
+      const days = [leave];
+      // 야근 날 휴가 + 다음 날 조근 휴가는 직원 신청과 같이 하나의 야+조 휴가로 묶는다.
+      if (plainShift(leave.empId, leave.date) === '야') {
+        const next = byKey.get(shiftKey(leave.empId, addDays(new Date(leave.date + 'T00:00:00'), 1)));
+        if (next && next.shift === '휴가' && !used.has(next.key) && plainShift(next.empId, next.date) === '조') days.push(next);
+      }
+      days.forEach(day => used.add(day.key));
+      const set = days.length === 2;
+      const chain = days.map((day, i) => ({ date: day.date, empId: leave.empId, shift: '휴가', label: set ? (i ? '휴가(조)' : '휴가(야)') : '휴가' }));
+      const keys = days.map(day => day.key);
+      const others = date => cells.filter(cell => cell.date === date && cell.empId !== leave.empId && !used.has(cell.key))
+        .sort((a, b) => order(a.empId) - order(b.empId));
+      const take = (cell, label) => { used.add(cell.key); keys.push(cell.key); chain.push({ date: cell.date, empId: cell.empId, shift: cell.shift, label }); };
+      let firstSub = null;
+      days.forEach((day, i) => {
+        const base = plainShift(leave.empId, day.date);
+        if (base === '일') {
+          const sub = others(day.date).find(cell => cell.shift === '대일');
+          if (sub) take(sub, '대일(일근 대근)');
+        } else if (base === '야' || base === '조') {
+          const candidates = others(day.date).filter(cell => cell.shift === base && plainShift(cell.empId, cell.date) !== base);
+          // 야+조 휴가는 같은 사람이 이틀을 이어서 서는 게 보통이라 첫날 대근자를 먼저 찾는다.
+          const sub = candidates.find(cell => i && cell.empId === firstSub) || candidates[0];
+          if (sub) { take(sub, `대근 투입(${base})`); if (!i) firstSub = sub.empId; }
+        }
+      });
+      // 야+조 휴가 둘째 날 대근자가 원래 일근이었다면 그 자리를 메운 '대일'(2차 대근)도 묶는다.
+      if (set) {
+        const second = others(days[1].date).find(cell => cell.shift === '대일');
+        if (second) take(second, '2차 대근(연쇄)');
+      }
+      plans.push({ empId: leave.empId, type: set ? 'set' : 'day', startDate: leave.date, chain, keys });
+    }
+    return plans;
+  }
+  function convertManualLeaves(){
+    const plans = planManualLeaveRequests();
+    const now = new Date().toISOString();
+    plans.forEach(plan => {
+      const req = { id: uid(), empId: plan.empId, type: plan.type, startDate: plan.startDate, chain: plan.chain,
+        submittedAt: now, status: 'confirmed', enteredBy: 'admin' };
+      STATE.requests.push(req);
+      plan.keys.forEach(key => { delete STATE.scheduleOverrides[key]; });
+      addAuditLog('수동 휴가 신청 전환', { requestId: req.id, empId: req.empId, startDate: req.startDate, chain: req.chain });
+    });
+    return plans.length;
+  }
+
   // ── 관리자 편집 세션 ──
   // 근무표 편집 패널을 여는 순간의 편집 대상 값을 기준본으로 떠 두고, 패널 안의 변경은 STATE 에만 반영해
   // 본 화면 표로 미리 보여 준다. [변경 내용 확인 후 저장] → 요약 확인 → [최종 저장] 때 한 번에 서버에 저장하고,
   // [모두 취소]하면 기준본으로 되돌린다. 편집 중에 다른 곳에서 저장하면 saveState()가 기준본 값으로 저장한다.
   const EDIT_SESSION_KEYS = ['employees', 'employeeOrderHistory', 'rotationAnchors', 'deletedEmployeesTrash',
     'formerEmployees', 'scheduleOverrides', 'scheduleRanges', 'scheduleSnapshots'];
-  const EDIT_AUDIT_ACTIONS = new Set(['수동 근무 편집', '근무 범위 병합', '근무 범위 해제', '적응기간 일괄 채우기',
+  const EDIT_AUDIT_ACTIONS = new Set(['근무표 편집', '수동 근무 편집', '근무 범위 병합', '근무 범위 해제', '적응기간 일괄 채우기',
     '로테이션 시작점 지정', '로테이션 시작점 해제', '직원 구성 편집', '직원 완전 삭제', '직원 복구']);
   let editSession = null;
   let editSessionExpiryWarned = false;
@@ -4345,13 +4550,18 @@
 
   async function reviewEditSession(){
     if (!editSession) beginEditSession();
-    if (!requireAdmin('근무표·직원 변경 저장')) return;
+    if (!requireScheduleEditor('근무표·직원 변경 저장')) return;
     // 표에 입력만 하고 반영 버튼을 누르지 않은 내용도 여기서 함께 반영해 확인받는다.
     if (settingsEmployeeEditor.isDirty() && !settingsEmployeeEditor.apply()) return;
     if (applyScheduleEditor() < 0) return;
     renderEndedStaffList();
-    if (!editSessionDirty()) { showToast('저장할 변경이 없습니다.'); renderEditSessionBar(); return; }
+    const manualLeaves = planManualLeaveRequests();
+    if (!editSessionDirty() && !manualLeaves.length) { showToast('저장할 변경이 없습니다.'); renderEditSessionBar(); return; }
     const summary = editSessionSummary();
+    if (manualLeaves.length) {
+      summary.notes.push(`직접 입력한 휴가 ${manualLeaves.length}건을 직원 신청(확정)으로 전환 — 직원이 취소 신청할 수 있게 됩니다: `
+        + manualLeaves.map(plan => `${empName(plan.empId)} ${plan.startDate}${plan.chain.some(c => c.empId !== plan.empId) ? ' (대근 ' + plan.chain.filter(c => c.empId !== plan.empId).map(c => empName(c.empId)).join('·') + ')' : ''}`).join(', '));
+    }
     const ok = await confirmEditSession(summary);
     if (ok) commitEditSession(summary);
   }
@@ -4390,10 +4600,12 @@
   function commitEditSession(summary){
     const notes = editSession.notes.slice();
     editSession = null;
-    addAuditLog('관리자 편집 저장', { notes, changedCells: summary?.diffs?.length || 0 });
+    // 저장과 같은 순간에 전환해야, 편집 세션 밖 저장(stateWithoutEditDraft)과 섞이지 않는다.
+    const converted = convertManualLeaves();
+    addAuditLog('관리자 편집 저장', { notes, changedCells: summary?.diffs?.length || 0, convertedLeaves: converted, by: scheduleEditorName() });
     saveState();
     renderAll();
-    showToast(`변경 ${notes.length}건을 저장했습니다.`, 'ok');
+    showToast(`변경 ${notes.length + (converted ? 1 : 0)}건을 저장했습니다.${converted ? ` (직접 입력 휴가 ${converted}건 → 직원 신청)` : ''}`, 'ok');
     // 패널이 열려 있으면 다음 편집을 위해 새 세션을 시작한다.
     if (!$('#scheduleEditPanel')?.hidden) beginEditSession();
     renderEditSessionBar();
@@ -4458,7 +4670,7 @@
   function initTabs(){
     $$('#tabbar button').forEach(btn => {
       btn.addEventListener('click', () => {
-        if (btn.dataset.tab === 'settings' && (!adminToken || Date.now() >= adminUntil)) return;
+        if (btn.dataset.tab === 'settings' && (!adminToken || Date.now() >= adminUntil) && !approverSessionActive()) return;
         $$('#tabbar button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         $$('main section').forEach(s => s.style.display = 'none');
@@ -4488,7 +4700,7 @@
       }
     });
     window.addEventListener('pagehide', () => {
-      if ((adminToken && Date.now() < adminUntil) || (employeeToken && Date.now() < employeeUntil)) releaseLockBeacon();
+      if ((adminToken && Date.now() < adminUntil) || (employeeToken && Date.now() < employeeUntil) || approverEditLock) releaseLockBeacon();
     });
     await initializeStorage();
     if (!LOCAL_MODE) startLockPolling();
@@ -4631,17 +4843,39 @@
     setInterval(updateLiveClock, 1000);
     // 메일 승인 링크로 들어오면 로그인 유형을 승인 담당자로 먼저 골라 둔다.
     if (new URLSearchParams(location.search).get('approve')) { $('#loginRole').value = 'approver'; updateLoginRoleFields(); }
+    // 동작(클릭·키보드·스크롤·마우스 이동·터치)이 있으면 로그인을 15분 다시 늘린다.
+    // 서버 세션도 1분에 한 번만 알려 늘린다. 서버가 세션을 모르면(서버 재시작 등) 곧바로 로그아웃된다.
+    let lastTouchSent = 0;
+    const noteActivity = () => {
+      const now = Date.now();
+      const extend = until => until > now ? now + SESSION_IDLE_MS : until;
+      adminUntil = extend(adminUntil);
+      employeeUntil = extend(employeeUntil);
+      approverUntil = extend(approverUntil);
+      if (LOCAL_MODE || now - lastTouchSent < 60000 || !(adminToken || employeeToken || approverToken)) return;
+      lastTouchSent = now;
+      fetch('/api/auth/touch', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken, 'X-Employee-Token': employeeToken, 'X-Approver-Token': approverToken }, body: '{}'
+      }).then(response => response.json()).then(result => {
+        if (adminToken && result.admin === false) adminUntil = 0;
+        if (employeeToken && result.employee === false) employeeUntil = 0;
+        if (approverToken && result.approver === false) approverUntil = 0;
+      }).catch(() => {});
+    };
+    for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove', 'scroll']) {
+      window.addEventListener(type, noteActivity, { capture: true, passive: true });
+    }
     let expirySaveTried = false;
     setInterval(async () => {
       const until = adminToken ? adminUntil : employeeToken ? employeeUntil : approverToken ? approverUntil : 0;
       if (!until) { expirySaveTried = false; return; }
-      // 근무표 편집의 확인 안 한 변경은 자동 저장하지 않으므로, 관리자 로그인이 끝나기 2분 전에 알린다.
+      // 근무표 편집의 확인 안 한 변경은 자동 저장하지 않으므로, 동작이 없어 로그아웃되기 2분 전에 알린다.
       // (로그아웃돼도 변경은 이 탭에 남아 있어, 다시 로그인하면 이어서 저장할 수 있다.)
-      if (adminToken && editSessionDirty() && !editSessionExpiryWarned && adminUntil - Date.now() <= 120000) {
+      if (editSessionDirty() && !editSessionExpiryWarned && until - Date.now() <= 120000) {
         editSessionExpiryWarned = true;
-        showToast('관리자 로그인이 2분 안에 끝납니다. 근무표 편집 변경을 저장하려면 [변경 내용 확인 후 저장]을 눌러주세요.', 'warn');
+        showToast('2분 더 동작이 없으면 로그아웃됩니다. 근무표 편집 변경을 저장하려면 [변경 내용 확인 후 저장]을 눌러주세요.', 'warn');
       }
-      if (adminUntil - Date.now() > 120000) editSessionExpiryWarned = false;
+      if (until - Date.now() > 120000) editSessionExpiryWarned = false;
       // 세션이 끝나기 30초 전에 저장 대기 중인 변경을 먼저 보낸다.
       if (!expirySaveTried && until - Date.now() <= 30000 && stateSync?.info().dirty) {
         expirySaveTried = true;
@@ -4652,8 +4886,8 @@
         logoutEmployee();
         expirySaveTried = false;
         showToast(unsaved
-          ? '로그인 시간(15분)이 끝나 로그아웃했습니다. 저장하지 못한 변경은 이 브라우저에 보관되어 있으니 다시 로그인해 확인해주세요.'
-          : '로그인 시간(15분)이 끝나 로그아웃했습니다.', unsaved ? 'warn' : undefined);
+          ? '15분 동안 동작이 없어 자동 로그아웃했습니다. 저장하지 못한 변경은 이 브라우저에 보관되어 있으니 다시 로그인해 확인해주세요.'
+          : '15분 동안 동작이 없어 자동 로그아웃했습니다.', unsaved ? 'warn' : undefined);
       }
     }, 1000);
 
