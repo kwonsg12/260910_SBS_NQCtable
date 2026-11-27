@@ -21,7 +21,8 @@ const functions = ['fmt', 'stripTime', 'addDays', 'dateInRange', 'dayIndex', 'wo
   'wtOrderFor', 'wtRoutineIds', 'wtRoutineNames', 'staffEventIds', 'staffEventList', 'staffEventsFor', 'staffEventUndoError', 'legacyAnchorMatches',
   'legacyRepairOptions', 'prepareLegacyRepair', 'removeStaffEventData',
   'withStaffEventRemoved', 'staffAdaptationPeriods', 'staffNeedsOnboarding', 'staffImpact', 'staffAffectedMonths', 'wtPlan', 'wtApply', 'cancelStaffEvent',
-  'isRotationAnchorLinked', 'regularOverridesForRotationCorrection', 'rotationAppliedPreview', 'setStandaloneRotationAnchor', 'removeRotationAnchor', 'wtLabel'];
+  'isRotationAnchorLinked', 'regularOverridesForRotationCorrection', 'rotationAppliedPreview', 'setStandaloneRotationAnchor', 'removeRotationAnchor', 'wtLabel',
+  'applyRotationCorrection', 'applyManualRotationAnchor'];
 const json = value => JSON.parse(JSON.stringify(value));
 function fixture({ extra = true, history = true } = {}) {
   let today = '2026-11-27';
@@ -45,7 +46,9 @@ function fixture({ extra = true, history = true } = {}) {
     addAuditLog: (action, details) => state.auditLogs.unshift({ id: `log_${++ids}`, action, details, at: new FixedDate().toISOString() }),
     monthKeysFrom: from => [from.slice(0, 7)], saveEditorChange() {}, requireScheduleEditor: () => true, confirm: () => true,
     alert: m => { throw Error(m); }, renderAll() {}, renderManualEmployeeOptions() {}, populateEmpSelects() {},
-    renderScheduleEditor() {}, renderRotationAnchorList(){}, renderRotationAnchorPreview(){}, renderManualRotationPreview(){}, showToast(){}, settingsEmployeeEditor: { open() {} }
+    renderScheduleEditor() {}, renderRotationAnchorPreview(){}, renderManualRotationPreview(){}, showToast(){}, settingsEmployeeEditor: { open() {}, isDirty:()=>false, apply:()=>true },
+    applyScheduleEditor:()=>0, focusRotationMonth:key=>{c.focusedRotationDate=key;}, manualAnchorValues:()=>c.manualCorrectionValues,
+    $: selector=>selector==='#manualAnchorPreview'?c.manualCorrectionPreview:null, manualCorrectionPreview:{}
   });
   vm.runInContext(functions.map(source).join('\n'), c);
   const date = key => new FixedDate(`${key}T00:00:00`);
@@ -307,6 +310,23 @@ test('같은 날짜 보정을 바로 다시 적용하면 이전 일반 입력값
   // 루틴 보정 이후 관리자가 직접 지정한 새로운 값은 그대로 우선한다.
   state.scheduleOverrides['2026-12-11::a']={shift:'O',at:'2026-11-28T01:00:00Z'};
   assert.equal(shift('a','2026-12-11'),'O');
+});
+
+test('근무표 편집의 로테이션 시작점 보정도 직원 정보와 같은 즉시 적용 경로를 사용한다', () => {
+  const {c,state,shift}=fixture();
+  state.scheduleOverrides['2026-12-06::a']={shift:'일',at:'2026-11-01'};
+  c.scheduleEditorEdits['2026-12-07::a']='일';
+  c.applyScheduleEditor=()=>{
+    for(const [key,value] of Object.entries(c.scheduleEditorEdits))state.scheduleOverrides[key]={shift:value,at:'2026-11-27'};
+    c.scheduleEditorEdits={};return 1;
+  };
+  c.manualCorrectionValues={empId:'a',startDate:'2026-12-06',startShift:'야'};
+  c.confirm=()=>{throw Error('중간 확인 없이 반영해야 합니다');};
+  assert.ok(c.applyManualRotationAnchor());
+  assert.deepEqual(['2026-12-06','2026-12-07','2026-12-08','2026-12-09'].map(d=>shift('a',d)),['야','조','O','일']);
+  assert.equal(state.scheduleOverrides['2026-12-06::a'],undefined);assert.equal(state.scheduleOverrides['2026-12-07::a'],undefined);
+  assert.equal(c.focusedRotationDate,'2026-12-06');
+  assert.match(c.manualCorrectionPreview.textContent,/12\/6 야 · 12\/7 조/);
 });
 
 test('추가 교대 루틴 보정은 자동대근 역할을 바꾸지 않고 과거 날짜·상일근·예정 인계는 거절한다', () => {
