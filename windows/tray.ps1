@@ -5,7 +5,7 @@
   - 트레이 아이콘 색으로 서버 상태를 보여 준다 (초록 실행 중 · 노랑 켜는 중 · 빨강 멈춤).
   - 서버가 죽으면 저절로 다시 켠다 (5초 → 최대 60초 간격).
   - 이 PC가 잠들지 않게 한다 (실행기가 떠 있는 동안만. Windows 설정은 바꾸지 않는다).
-  - 상태 창: 접속 주소 복사, 근무표 열기, 다시 시작, 로그 보기, 자동 실행 켜기/끄기.
+  - 상태 창: 접속 주소 복사, 근무표 열기, 다시 시작, 업데이트(GitHub 새 버전), 로그 보기, 자동 실행 켜기/끄기.
   - 자동 실행은 "시작프로그램" 폴더의 바로가기로 한다 (관리자 권한 필요 없음).
 
   사용:
@@ -350,7 +350,7 @@ function New-Button([string]$Text, [int]$Left, [scriptblock]$OnClick) {
   $b = New-Object System.Windows.Forms.Button
   $b.Text = $Text
   $b.Location = New-Object System.Drawing.Point($Left, 212)
-  $b.Size = New-Object System.Drawing.Size(122, 38)
+  $b.Size = New-Object System.Drawing.Size(98, 38)
   $b.Add_Click($OnClick)
   $form.Controls.Add($b)
   return $b
@@ -360,10 +360,11 @@ $openBtn.BackColor = [System.Drawing.Color]::FromArgb(165, 96, 61)
 $openBtn.ForeColor = [System.Drawing.Color]::White
 $openBtn.FlatStyle = 'Flat'
 $openBtn.FlatAppearance.BorderSize = 0
-$restartBtn = New-Button '다시 시작' 156 { Restart-FromUser }
-$stopBtn = New-Button '멈춤' 288 { Toggle-FromUser }
-$logBtn = New-Button '로그 폴더' 420 { New-Item -ItemType Directory -Force -Path $LogDir | Out-Null; Start-Process explorer.exe $LogDir }
-$logBtn.Size = New-Object System.Drawing.Size(116, 38)
+$restartBtn = New-Button '다시 시작' 128 { Restart-FromUser }
+$stopBtn = New-Button '멈춤' 232 { Toggle-FromUser }
+$updateBtn = New-Button '업데이트' 336 { Start-UpdateFromUser }
+$logBtn = New-Button '로그 폴더' 440 { New-Item -ItemType Directory -Force -Path $LogDir | Out-Null; Start-Process explorer.exe $LogDir }
+$logBtn.Size = New-Object System.Drawing.Size(96, 38)
 
 $autoBox = New-Object System.Windows.Forms.CheckBox
 $autoBox.Text = 'Windows 에 로그인하면 저절로 켜기'
@@ -417,6 +418,8 @@ $copyItem.Add_Click({ $url = Get-LanUrl; if (-not $url) { $url = $LocalUrl }; [S
 [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 $restartItem = $menu.Items.Add('서버 다시 시작')
 $restartItem.Add_Click({ Restart-FromUser })
+$updateItem = $menu.Items.Add('GitHub 에서 업데이트')
+$updateItem.Add_Click({ Start-UpdateFromUser })
 $autoItem = New-Object System.Windows.Forms.ToolStripMenuItem('Windows 로그인 시 자동 실행')
 $autoItem.CheckOnClick = $true
 $autoItem.Checked = Test-AutoStart
@@ -459,6 +462,39 @@ function Toggle-FromUser {
     $script:NextTry = Get-Date
   }
   Invoke-Watchdog
+}
+
+# [업데이트]: windows\업데이트.cmd 를 실행한다 (새 버전 확인 → 서버 끄기 → DB 백업 → git pull → 다시 켜기).
+# update.ps1 은 이 실행기를 자식 프로세스까지 통째로 끄므로(taskkill /T), 업데이트 창을 이 실행기의
+# 자식으로 띄우면 업데이트 도중에 같이 꺼진다. 그래서 탐색기를 거쳐 따로 띄운다.
+function Start-UpdateFromUser {
+  $updateCmd = Join-Path $PSScriptRoot '업데이트.cmd'
+  if (-not (Test-Path -LiteralPath $updateCmd)) {
+    [void][System.Windows.Forms.MessageBox]::Show("업데이트 파일이 없습니다:`n$updateCmd", $AppName, 'OK', 'Error')
+    return
+  }
+  $editing = ''
+  try {
+    $lock = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/lock" -TimeoutSec 2
+    if ($lock.locked) { $editing = [string]$lock.holderName }
+  } catch { }
+  $message = "GitHub 에서 새 버전을 받아 반영합니다.`n`n" +
+    "· 새 버전이 없으면 아무것도 바꾸지 않습니다.`n" +
+    "· 새 버전이 있으면 서버가 잠깐(1분 안팎) 꺼졌다 켜지고, 로그인한 사람은 모두 다시 로그인해야 합니다.`n" +
+    "· 근무표 데이터(geunmupyo.db)는 먼저 backups 폴더에 백업합니다.`n" +
+    "· 끝나면 접속해 있던 브라우저 탭을 모두 새로 열어 주세요.`n`n업데이트할까요?"
+  $iconType = 'Question'
+  if ($editing) {
+    $message = "지금 $editing 님이 근무표를 편집 중입니다. 업데이트하면 저장하지 않은 편집 내용이 사라질 수 있습니다.`n`n" + $message
+    $iconType = 'Warning'
+  }
+  $answer = [System.Windows.Forms.MessageBox]::Show($message, $AppName, 'YesNo', $iconType)
+  if ($answer -ne 'Yes') { return }
+  try {
+    Start-Process -FilePath (Join-Path $env:WINDIR 'explorer.exe') -ArgumentList ('"' + $updateCmd + '"')
+  } catch {
+    [void][System.Windows.Forms.MessageBox]::Show("업데이트를 시작하지 못했습니다: $($_.Exception.Message)`n`nwindows\업데이트.cmd 를 직접 더블클릭해 주세요.", $AppName, 'OK', 'Error')
+  }
 }
 
 function Quit-App {

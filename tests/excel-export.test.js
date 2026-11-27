@@ -64,43 +64,89 @@ test('XML special characters are text and no extra workers silently disappear', 
   const {sheet} = await contents(data);
   assert.match(cell(sheet,'D13'),/=A1 &amp; &lt;직원&gt;/);
   assert.match(cell(sheet,'E13'),/t="s"/);
-  data.staff.push(data.staff[0]); await assert.rejects(createWorkbook(data),{status:400});
+  // NC 는 적응 인원까지 5명 이상도 들어간다(줄을 늘린다). 지나치게 많으면 거절한다.
+  while (data.staff.length < 21) data.staff.push(data.staff[0]);
+  await assert.rejects(createWorkbook(data),{status:400});
   await assert.rejects(createWorkbook({...payload(),month:13}),{status:400});
   const short = payload(); short.staff[0].shifts.pop(); await assert.rejects(createWorkbook(short),{status:400});
 });
-test('browser export uses visible month, monthly order, active dates and effective shifts', async () => {
+test('browser export uses visible month, work types, active dates, colors, merged ranges and approval names', async () => {
   const html = await fs.readFile(path.join(__dirname,'../index.html'),'utf8');
-  const fn = html.slice(html.indexOf('  // 이름으로 판별하므로 앞뒤 공백'),html.indexOf('  async function exportPdf(){'));
+  const pick = name => { const s = html.indexOf('  function ' + name + '('); return html.slice(s, html.indexOf('\n  function ', s + 1)); };
+  const fn = ['shiftKind', 'buildExcelPayload'].map(pick).join('\n')
+    + html.slice(html.indexOf('  async function exportExcel(){'), html.indexOf('  async function mailMySchedule(){'));
   let body; let downloaded; let revoked; const button={disabled:false};
+  const types = {b:'NC', a:'NC', tc:'TC', day:'dispatch'};
+  const range = {empId:'a', startDate:'2028-02-10', endDate:'2028-02-12', value:'경조휴가'};
   const context = {
-    STATE:{settings:{dayWorkerName:'변경한 일근자'}},
     $:()=>button, getCurrentMonthView:()=>({year:2028,monthIndex:1}),
-    getActiveStaff:()=>[{id:'b',name:'B',routine:true},{id:'day',name:'변경한 일근자',routine:false},{id:'tc',name:'교육생',routine:false},{id:'a',name:'A',routine:true}],
-    isRoutineWorker:e=>e.routine, isEmployeeActiveOnDate:(e,d)=>e.id!=='b'||d.getDate()>1,
-    effectiveShift:(id,d)=>id==='a'&&d.getDate()===2?'휴가':'야', getHolidayInfo:d=>d.getDate()===9?{}:null,
+    getActiveStaff:()=>[{id:'b',name:'B'},{id:'day',name:'이주형'},{id:'tc',name:'교육생'},{id:'a',name:'A'}],
+    workTypeOf:e=>types[e.id], isEmployeeActiveOnDate:(e,d)=>e.id!=='b'||d.getDate()>1,
+    effectiveShift:(id,d)=>id==='a'&&d.getDate()===2?'휴가':id==='a'&&d.getDate()>=10&&d.getDate()<=12?'경조휴가':id==='tc'&&d.getDate()===3?'대일':'야',
+    isSubstituteShift:(id,d)=>id==='b'&&d.getDate()===5, isStandardShift:v=>['일','야','조','O','휴가','대일','대근'].includes(v),
+    getScheduleRange:(id,d)=>id==='a'&&d.getDate()>=10&&d.getDate()<=12?range:undefined,
+    getHolidayInfo:d=>d.getDate()===9?{}:null, getApprovalLines:()=>[{title:'담당',name:'홍창훈'},{title:'팀장',name:'최정문'}],
     fetch:async (url,options)=>{assert.equal(url,'/api/export/excel');body=JSON.parse(options.body);return {ok:true,blob:async()=>({})};},
     URL:{createObjectURL:()=> 'blob:test',revokeObjectURL:u=>revoked=u},
     document:{createElement:()=>({click(){downloaded=this.download;},remove(){}}),body:{appendChild(){}}},
     showToast(){},alert(message){throw Error(message);},console,setTimeout:fn=>fn()
   };
   vm.createContext(context); await vm.runInContext(fn+';exportExcel()',context);
-  assert.equal(body.month,2); assert.equal(body.year,2028); assert.equal(body.staff[0].name,'B');
-  assert.doesNotMatch(JSON.stringify(body), /변경한 일근자/);
-  assert.equal(body.staff.length,2); assert.equal(body.staff[0].shifts.length,29);
-  assert.equal(body.staff[0].shifts[0],''); assert.equal(body.staff[1].shifts[1],'휴가');
-  assert.equal(body.tcStaff.length,1); assert.equal(body.tcStaff[0].name,'교육생');
-  assert.equal(body.tcStaff[0].shifts.length,29); assert.equal(body.tcStaff[0].shifts[0],'야');
+  assert.equal(body.month,2); assert.equal(body.year,2028);
+  // 묶음은 근무 형태로: NC(B, A) · TC(교육생) · 일근(이주형)
+  assert.deepEqual(body.staff.map(p=>p.name),['B','A']);
+  assert.deepEqual(body.tcStaff.map(p=>p.name),['교육생']);
+  assert.deepEqual(body.dayStaff.map(p=>p.name),['이주형']);
+  assert.equal(body.staff[0].shifts.length,29); assert.equal(body.staff[0].shifts[0],'');
+  // 색: 휴가 leave · 대일 sub · 대근(야/조) sub · 경조휴가 custom
+  assert.equal(body.staff[1].shifts[1],'휴가'); assert.equal(body.staff[1].kinds[1],'leave');
+  assert.equal(body.tcStaff[0].kinds[2],'sub'); assert.equal(body.staff[0].kinds[4],'sub');
+  assert.equal(body.staff[0].kinds[5],''); assert.equal(body.staff[1].kinds[9],'custom');
+  // 병합 기간은 한 덩어리로
+  assert.deepEqual(body.staff[1].spans,[{start:10,end:12,label:'경조휴가',kind:'custom'}]);
+  assert.deepEqual(body.approvalNames,['홍창훈','최정문']);
   assert.equal(body.holidays[8],true); assert.match(downloaded,/2028년 2월.*xlsx$/);
   assert.equal(button.disabled,false); assert.equal(revoked,'blob:test');
-  // 이름으로 찾지 못하면(공백 차이는 무시) 아무도 빼지 않고 경고한다.
-  const toasts=[];
-  for (const [name, excluded] of [['  변경한   일근자 ',true],['없는 이름',false]]) {
-    toasts.length=0; context.STATE.settings.dayWorkerName=name; context.showToast=(m,t)=>toasts.push([m,t]);
-    await vm.runInContext('exportExcel()',context);
-    assert.equal(/변경한 일근자/.test(JSON.stringify(body)), !excluded);
-    assert.equal(toasts[0][1], excluded ? 'ok' : 'warn');
-    if (!excluded) assert.match(toasts[0][0], /찾지 못해/);
-  }
+  // PDF 용(파견사원 제외)
+  const pdf = vm.runInContext('buildExcelPayload(2028, 1, { includeDayWorkers: false })', context);
+  assert.equal(pdf.payload.dayStaff.length,0); assert.equal(pdf.excluded,1);
+});
+
+test('엑셀: 색 칠하기, 병합 칸, 일근 줄, 결재 이름, NC 5명 이상', async () => {
+  const data = payload(2026, 11);
+  data.staff.push({name:'적응', shifts:Array(30).fill('일')});
+  data.staff[0].shifts[0] = '휴가';
+  data.staff[1].kinds = Array(30).fill(''); data.staff[1].kinds[1] = 'sub';
+  data.staff[2].shifts.fill('경조휴가', 9, 12);
+  data.staff[2].spans = [{start:10, end:12, label:'경조휴가', kind:'custom'}];
+  data.tcStaff = [{name:'황돈희', shifts:Array(30).fill('일')}];
+  data.dayStaff = [{name:'이주형', shifts:Array(30).fill('일')}];
+  data.approvalNames = ['홍창훈', '최정문'];
+  const {sheet, zip} = await contents(data);
+  const styles = await zip.file('xl/styles.xml').async('string');
+  const xfs = styles.match(/<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/)[1].match(/<xf\b[^>]*?(?:\/>|>[\s\S]*?<\/xf>)/g);
+  const fills = styles.match(/<fills\b[^>]*>([\s\S]*?)<\/fills>/)[1].match(/<fill>[\s\S]*?<\/fill>/g);
+  const fillOf = address => fills[Number(/fillId="(\d+)"/.exec(xfs[Number(/ s="(\d+)"/.exec(cell(sheet, address))[1])])[1])];
+  // NC 5명: 13~17, TC 18, 일근 19
+  assert.match(cell(sheet,'D17'),/적응/); assert.match(cell(sheet,'C13'),/NC/);
+  assert.match(sheet,/<mergeCell ref="C13:C17"\/>/);
+  assert.match(cell(sheet,'C18'),/>TC</); assert.match(cell(sheet,'D18'),/황돈희/);
+  assert.match(cell(sheet,'C19'),/일근/); assert.match(cell(sheet,'D19'),/이주형/);
+  assert.doesNotMatch(sheet, /<row\b[^>]*\br="19"[^>]* hidden="1">/);
+  assert.match(fillOf('E13'), /FFFFFF00/);          // 휴가 노랑
+  assert.match(fillOf('F14'), /FF92D050/);          // 대근 초록
+  assert.match(fillOf('N15'), /FFD9D9D9/);          // 경조휴가 회색
+  assert.match(cell(sheet,'N15'),/경조휴가/); assert.match(cell(sheet,'O15'),/\/>$/); assert.match(cell(sheet,'P15'),/\/>$/);
+  assert.match(sheet,/<mergeCell ref="N15:P15"\/>/);
+  assert.match(cell(sheet,'AA6'),/홍창훈/); assert.match(cell(sheet,'AE6'),/최정문/);
+  assert.match(cell(sheet,'C23'),/09:00/);
+  const workbook = await zip.file('xl/workbook.xml').async('string');
+  assert.ok(workbook.includes('!$C$2:$AJ$23'));
+  const count = Number(/<mergeCells count="(\d+)"/.exec(sheet)[1]);
+  assert.equal(count, (sheet.match(/<mergeCell ref=/g) || []).length);
+  // 겹치는 병합은 거절
+  data.staff[2].spans.push({start:12, end:13, label:'x'});
+  await assert.rejects(createWorkbook(data), {status:400});
 });
 
 for (const count of [0,1,3]) {
@@ -118,9 +164,9 @@ for (const count of [0,1,3]) {
     if(count) { assert.match(cell(sheet,'E17'),/\/>$/); assert.match(cell(sheet,'F17'),/휴가/); }
     assert.match(cell(sheet,`D${17+count}`),/\/>$/);
     assert.match(cell(sheet,`C${21+count}`),/09:00/);
-    assert.match(cell(sheet,'AM10'),/&lt;휴가신청절차&gt;/);
-    assert.match(cell(sheet,'AM14'),/대일/); assert.match(cell(sheet,'AM15'),/휴가/);
-    assert.match(cell(sheet,'AO14'),/대근 해당자가 직접 표기/);
+    // 예전 <휴가신청절차> 안내(AK 열부터)는 없앴다.
+    assert.doesNotMatch(sheet,/휴가신청절차|대근 해당자가 직접 표기/);
+    assert.doesNotMatch(sheet,/<c r="A[K-P]\d+"/);
     const refs=[...sheet.matchAll(/<c r="([A-Z]+\d+)"/g)].map(m=>m[1]);
     assert.equal(new Set(refs).size,refs.length);
     for (const row of sheet.matchAll(/<row\b[^>]*\br="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)) {

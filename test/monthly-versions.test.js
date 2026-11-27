@@ -52,7 +52,7 @@ function setup(){
     localStorage: { setItem: () => saves++ }, showLocalStorageStatus(){},
     renderAll(){}, showToast(){}, notify(){}, addAuditLog(){},
     alert: message => c.alerts.push(message), prompt: () => '반려 사유',
-    location: { reload(){} },
+    location: { reload(){} }, stateSync: { reload: async () => false },
     securityMessage: message => c.securityMessages.push(message),
     flushPendingState: async () => {},
     askCredential: async () => ({ secret: '123456', reason: '반려 사유' }),

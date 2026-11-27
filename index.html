@@ -22,7 +22,7 @@
     --today:#fbeee4;
     /* 엑셀 양식(templates/schedule.xlsx) 격자 색: 얇은 안쪽 선 · 굵은 바깥 테두리 · 주말 파랑 · 휴가 노랑 · 대근 초록 */
     --xl-rule:#efe6dc; --xl-frame:#d9c8b6; --xl-weekend:#eef3fc;
-    --xl-leave:#fcefa8; --xl-leave-t:#6b5300; --xl-sub:#d3efc2; --xl-sub-t:#2c5e14;
+    --xl-leave:#fcefa8; --xl-leave-t:#6b5300; --xl-sub:#d3efc2; --xl-sub-t:#2c5e14; --xl-custom:#e3e3e3;
     --xl-head:#faf5ef;
     --shadow:0 1px 2px rgba(60,35,15,.04),0 8px 28px rgba(60,35,15,.06);
     --radius:20px;
@@ -215,6 +215,8 @@
   table.grid .shift.cell-대일::before,table.grid .shift.cell-대근::before{background:var(--xl-sub);}
   table.grid .shift.cell-대일{font-size:12.5px;}
   table.grid .shift.cell-custom{background:transparent!important;color:var(--text)!important;font-size:12px;letter-spacing:-0.04em;}
+  /* 경조휴가 같은 수동 입력·범위 병합은 엑셀처럼 회색 칸 */
+  table.grid .shift.cell-custom::before{content:"";position:absolute;inset:4px 3px;border-radius:8px;z-index:-1;background:var(--xl-custom);}
   table.grid .shift.cell-protected{background:transparent!important;color:var(--accent-text)!important;font-weight:700;box-shadow:none;}
   table.grid .shift.cell-protected::after{content:"";position:absolute;inset:4px 3px;border-radius:8px;border:1.5px solid var(--accent);}
   /* 비고: 표 바로 아래 붙은 칸 + 근무 시간 줄 */
@@ -898,13 +900,15 @@
             <strong>직원 구성 편집</strong>
             <span class="quota">이름 수정, 직원 추가·삭제, 적용 기간을 관리합니다. (삭제 시 이번 달까지는 기록이 유지되고 다음 달부터 제외됩니다)</span>
           </div>
-          <p class="quota" style="margin:0 0 8px;"><b>루틴 근무자</b> = 4조 교대로 서로 대근을 서는 인원이며, 체크박스가 아니라 <b>이 표의 순서로 정해집니다</b> — 위에서부터 4명이 루틴 근무자이고, 휴가 신청 시 <b>이 4명 중에서만</b> 대근이 자동 배정됩니다. ▲▼로 위 4번째 안으로 옮기면 루틴 근무자로 편입되고, 5번째 밖으로 밀려나면 자동 대근 대상에서 빠집니다.</p>
+          <p class="quota" style="margin:0 0 8px;"><b>근무 형태</b>를 고르면 같은 형태끼리 자동으로 묶여 정렬됩니다(NC 교대근무 → TC 상일근 → 파견사원). 묶음 안의 직급 순서는 ▲▼로 맞추세요.</p>
+          <p class="quota" style="margin:0 0 8px;"><b>NC 교대근무</b>는 묶음의 <b>위 4줄</b>이 <b>자동대근</b> 대상입니다(휴가 신청 시 이 4명 중에서만 대근이 배정됩니다). 적응기간 인원은 NC로 넣어 아래쪽에 두었다가, 단독 투입되면 ▲로 위 4줄 안으로 올리세요. <b>TC 상일근</b>·<b>파견사원</b>은 대근을 서지 않고, 휴가는 대근자 없이 기록용으로만 들어갑니다. 파견사원(지금은 이주형)은 근무표 <b>일근</b> 칸에 따로 나오며 평일 일·토·일·공휴일 O가 자동으로 들어갑니다.</p>
           <p class="quota" style="margin:0 0 8px;">▲▼로 표에 표시될 <b>직급 순서</b>를 조절하세요. 위 "편집 연도/편집 월"에 놓인 달부터 적용되며, 그 이전 달의 근무표 순서는 바뀌지 않습니다.</p>
           <p class="quota" style="margin:0 0 8px;"><b>사내메일</b>을 등록하면 그 직원에게 배정된 대근과 본인 휴가·비번 보장 신청의 처리 결과(반려 사유 포함)가 매일 요약 메일로 발송됩니다. 비워두면 메일을 받지 않습니다.</p>
           <p class="quota" style="margin:0 0 8px;"><b>로그인 PIN</b>을 설정하면 해당 직원이 상단 로그인 위젯에서 이름과 이 PIN으로 로그인해 휴가·비번 보장 신청을 내고 본인 신청을 취소할 수 있습니다. PIN 설정 전에는 로그인할 수 없습니다.</p>
-          <div class="gridwrap"><table class="employee-edit-table"><thead><tr><th>이름</th><th style="width:24%;">사내메일</th><th>적용 시작일</th><th>종료일</th><th>루틴 근무자</th><th>로그인 PIN</th><th>순서</th><th>행</th></tr></thead><tbody id="employeeEditTableBody"></tbody></table></div>
+          <div class="gridwrap"><table class="employee-edit-table"><thead><tr><th>이름</th><th style="width:24%;">사내메일</th><th>적용 시작일</th><th>종료일</th><th>근무 형태</th><th>로그인 PIN</th><th>순서</th><th>행</th></tr></thead><tbody id="employeeEditTableBody"></tbody></table></div>
           <div class="row" style="margin-top:10px;">
             <button class="btn secondary" id="addEmployeeRowBtn" type="button">직원 추가</button>
+            <button class="btn secondary" id="addDayWorkerRowBtn" type="button" hidden>파견사원 추가</button>
             <button class="btn" id="applyEmployeeEditorBtn" type="button">직원 구성 표에 반영</button>
           </div>
           <div class="ended-staff-panel" id="endedStaffPanel">
@@ -1062,9 +1066,8 @@
       showToast(`${emp.name}님의 PIN을 설정했습니다.`);
     }
   });
-  // 루틴 근무자(4조 교대, 서로 대근을 서는 인원)는 체크박스가 아니라 "직원 구성 편집" 표의
-  // 순서로 정해진다 — 그 달 활성 직원 중 위에서부터 4명이 루틴 근무자다. ▲▼로 순서를 바꾸면
-  // 그 즉시(적용 후) 루틴 근무자 구성도 함께 바뀐다.
+  // 루틴 근무자(자동대근 대상, 서로 대근을 서는 인원)는 "직원 구성 편집"에서 근무 형태가 NC 교대근무인 사람 중
+  // 그 달 순서상 위 4명이다. 그 아래 NC(적응·추가)·TC 상일근·파견사원은 자동대근 대상이 아니다.
   let EMPLOYEES = [
     {id:'choi', name:'최도인', phase:2, startDate:'2026-01-01', endDate:null},
     {id:'yang', name:'양명국', phase:0, startDate:'2026-01-01', endDate:null},
@@ -1072,6 +1075,9 @@
     {id:'kimg', name:'김건호', phase:1, startDate:'2026-01-01', endDate:null},
   ];
   const ROUTINE_HEADCOUNT = 4;
+  // 직원 편집의 [근무 형태]. 이 순서로 묶어서 정렬한다.
+  const WORK_TYPES = ['NC', 'TC', 'dispatch'];
+  const WORK_TYPE_LABEL = { NC: 'NC 교대근무', TC: 'TC 상일근', dispatch: '파견사원' };
   // 일근 묶음(파견사원). 2년마다 바뀌므로 설정 탭에서 이름을 바꿀 수 있다.
   const DEFAULT_DAY_WORKER_NAME = '이주형';
 
@@ -1079,8 +1085,10 @@
   function isRoutineWorker(emp, date){
     if (!emp) return false;
     const ref = (date instanceof Date && !Number.isNaN(date.getTime())) ? date : getToday();
-    // 일근(파견사원)은 교대 인원이 아니므로 순서상 위에 있어도 NC 4명 자리에 세지 않는다.
-    const top = getActiveStaff(ref.getFullYear(), ref.getMonth()).filter(e => !isDispatchedDayWorker(e)).slice(0, ROUTINE_HEADCOUNT);
+    // NC 교대근무 중 위에서부터 4명만 자동대근 대상이다. TC 상일근·파견사원은 순서상 위에 있어도 세지 않는다.
+    // (근무 형태를 정한 적 없는 예전 데이터는 NC 후보로 본다 — 예전처럼 순서로 정해진다.)
+    const top = getActiveStaff(ref.getFullYear(), ref.getMonth())
+      .filter(e => !isDispatchedDayWorker(e) && (e.workType || 'NC') === 'NC').slice(0, ROUTINE_HEADCOUNT);
     return top.some(e => e.id === emp.id);
   }
 
@@ -1456,15 +1464,11 @@
   function enterApproverView() {
     approverViewing = true;
     applyEmployeeGate();
-    openApproverInbox();
-    openApprovalFromLink();
-  }
-  // 승인함 열기: '승인함' 탭이 있으면 그 탭, 탭이 '대근 · 승인 · 기록'으로 합쳐져 있으면 그 안의 승인함을 연다.
-  function openApproverInbox() {
-    const approveTab = document.querySelector('#tabbar button[data-tab="approve"]');
-    if (approveTab) { approveTab.click(); return; }
-    document.querySelector('#tabbar button[data-tab="activity"]')?.click();
-    document.querySelector('[data-activity="approve"]')?.click();
+    // 첫 화면은 근무표. 메일의 승인 링크(?approve=)로 들어왔으면 그 건을 바로 연다(finishLogin 안에서).
+    finishLogin();
+    if (new URLSearchParams(location.search).get('approve')) return;
+    const waiting = STATE.approvals.filter(a => a.status === 'pending' && a.approverIds?.includes(approverLoginId)).length;
+    if (waiting) showToast(`승인 대기 ${waiting}건이 있습니다. [대근 · 승인 · 기록] 탭의 승인함에서 처리하세요.`);
   }
   function finishLogin() {
     scheduleFocusEmp = null;
@@ -2370,11 +2374,11 @@
   // 빈 묶음은 그리지 않는다(TC 가 없으면 TC 묶음 생략). 묶음 안 순서는 화면 순서 그대로.
   function scheduleGroups(staff, year, monthIndex){
     const month = new Date(year, monthIndex, 1);
-    const exportable = staff.filter(emp => !isDispatchedDayWorker(emp));
+    // 직원 편집의 [근무 형태]로 묶는다. NC 안에서 위 4명이 자동대근 대상(isRoutineWorker)이고, 그 아래는 적응·추가 인원이다.
     return [
-      { label: 'NC', staff: exportable.filter(emp => isRoutineWorker(emp, month)), pdfIgnore: false },
-      { label: 'TC', staff: exportable.filter(emp => !isRoutineWorker(emp, month)), pdfIgnore: false },
-      { label: '일근', staff: staff.filter(emp => isDispatchedDayWorker(emp)), pdfIgnore: true }
+      { label: 'NC', staff: staff.filter(emp => workTypeOf(emp, month) === 'NC'), pdfIgnore: false },
+      { label: 'TC', staff: staff.filter(emp => workTypeOf(emp, month) === 'TC'), pdfIgnore: false },
+      { label: '일근', staff: staff.filter(emp => workTypeOf(emp, month) === 'dispatch'), pdfIgnore: true }
     ].filter(group => group.staff.length);
   }
 
@@ -2972,7 +2976,9 @@
         secret = input.secret; reason = input.reason;
       }
       await securityRequest('/api/approvals/decision', { id, approverId: actor.id, pin: secret, approved: ok, reason });
-      location.reload();
+      // 새로고침(location.reload)하면 메모리에만 있는 로그인 토큰이 사라져 로그아웃된다. 서버 상태만 다시 받는다.
+      if (await stateSync?.reload()) renderAll();
+      showToast(ok ? '승인했습니다.' : '반려했습니다.');
     } catch (error) { securityMessage(error.message); }
   }
 
@@ -3466,27 +3472,60 @@
     const name = dispatchedNameKey(STATE?.settings?.dayWorkerName);
     return !name || name === '서예찬' ? DEFAULT_DAY_WORKER_NAME : name;
   }
+  // 직원 편집의 [근무 형태](workType)를 따른다. 근무 형태를 정한 적 없는 예전 데이터는 이름으로 판별한다.
   function isDispatchedDayWorker(employee){
     if (!employee) return false;
+    if (WORK_TYPES.includes(employee.workType)) return employee.workType === 'dispatch';
     return dispatchedNameKey(employee.name) === dayWorkerName();
+  }
+  // 그 달의 근무 형태: 'NC'(교대) · 'TC'(상일근) · 'dispatch'(파견사원).
+  // 근무 형태를 정한 적 없는 예전 데이터는 예전처럼 순서로 정한다(교대 4명 = NC, 그 밖 = TC).
+  function workTypeOf(employee, date){
+    if (!employee) return '';
+    if (WORK_TYPES.includes(employee.workType)) return employee.workType;
+    if (isDispatchedDayWorker(employee)) return 'dispatch';
+    return isRoutineWorker(employee, date) ? 'NC' : 'TC';
   }
 
   // 엑셀 양식에 넣을 한 달 근무. [엑셀] 버튼과 월 확정 요청 스냅샷이 함께 쓴다.
   // 확정이 승인되면 서버가 이 값으로 엑셀을 만들어 서버 PC의 backups/monthly 에 보관한다(backup.js).
-  function buildExcelPayload(year, monthIndex){
-    const activeStaff = getActiveStaff(year, monthIndex);
-    const exportableStaff = activeStaff.filter(emp => !isDispatchedDayWorker(emp));
+  // 칸 색 종류(엑셀·PDF 공통): 휴가 노랑, 대일·대근(야/조) 초록, 경조휴가 같은 수동 입력 회색.
+  function shiftKind(empId, date, sh){
+    if (sh === '휴가') return 'leave';
+    if (sh === '대일' || sh === '대근') return 'sub';
+    if ((sh === '야' || sh === '조') && isSubstituteShift(empId, date)) return 'sub';
+    return !sh || isStandardShift(sh) ? '' : 'custom';
+  }
+
+  // 엑셀(서버 /api/export/excel)과 PDF 가 같은 데이터로 그린다. 묶음은 직원 편집의 [근무 형태]를 따른다.
+  // includeDayWorkers=false 이면 파견사원(일근) 줄을 뺀다(PDF).
+  function buildExcelPayload(year, monthIndex, { includeDayWorkers = true } = {}){
     const month = new Date(year, monthIndex, 1);
-    const staff = exportableStaff.filter(emp => isRoutineWorker(emp, month));
-    const tcStaff = exportableStaff.filter(emp => !isRoutineWorker(emp, month));
-    if (staff.length > 4) throw new Error('샘플 양식에는 NC 교대근무자를 4명까지 넣을 수 있습니다. 등록 인원을 확인해 주세요.');
+    const groups = { NC: [], TC: [], dispatch: [] };
+    getActiveStaff(year, monthIndex).forEach(emp => groups[workTypeOf(emp, month)]?.push(emp));
+    if (groups.NC.length > 20) throw new Error('NC 교대근무 인원이 너무 많습니다(최대 20명). 직원 구성을 확인해 주세요.');
     const dates = Array.from({length:new Date(year, monthIndex + 1, 0).getDate()}, (_, i) => new Date(year, monthIndex, i + 1));
-    const row = emp => ({name:emp.name, shifts:dates.map(date =>
-      isEmployeeActiveOnDate(emp, date) ? effectiveShift(emp.id, date) : '')});
+    const row = emp => {
+      const shifts = [], kinds = [], spans = [];
+      dates.forEach((date, i) => {
+        if (!isEmployeeActiveOnDate(emp, date)) { shifts.push(''); kinds.push(''); return; }
+        const sh = effectiveShift(emp.id, date) || '';
+        const kind = shiftKind(emp.id, date, sh);
+        shifts.push(sh); kinds.push(kind);
+        // 범위 병합(경조휴가 등)은 엑셀에서도 한 칸으로 합친다.
+        const range = getScheduleRange(emp.id, date);
+        if (!range) return;
+        const last = spans[spans.length - 1];
+        if (last && last.range === range && last.end === i) last.end = i + 1;
+        else spans.push({ range, start: i + 1, end: i + 1, label: sh, kind: kind || 'custom' });
+      });
+      return { name: emp.name, shifts, kinds, spans: spans.map(({ range, ...span }) => span) };
+    };
     return {
       payload: {year, month:monthIndex + 1, holidays:dates.map(date => !!getHolidayInfo(date)),
-        tcStaff:tcStaff.map(row), staff:staff.map(row)},
-      excluded: activeStaff.length - exportableStaff.length
+        staff:groups.NC.map(row), tcStaff:groups.TC.map(row), dayStaff:includeDayWorkers ? groups.dispatch.map(row) : [],
+        approvalNames:getApprovalLines().slice(0, 2).map(line => line.name || '')},
+      excluded: includeDayWorkers ? 0 : groups.dispatch.length
     };
   }
 
@@ -3495,7 +3534,7 @@
     btn.disabled = true;
     try {
       const {year, monthIndex} = getCurrentMonthView();
-      const {payload, excluded} = buildExcelPayload(year, monthIndex);
+      const {payload} = buildExcelPayload(year, monthIndex);
       const staff = payload.staff, tcStaff = payload.tcStaff;
       const response = await fetch('/api/export/excel', {
         method:'POST', headers:{'Content-Type':'application/json'},
@@ -3511,12 +3550,7 @@
       link.download = `${year}년 ${monthIndex + 1}월 통합관제실 근무표.xlsx`;
       document.body.appendChild(link); link.click(); link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
-      const dispatchedName = dayWorkerName();
-      // 이름으로 고르기 때문에, 설정한 이름이 직원 구성과 안 맞거나 같은 이름이 여럿이면 바로 알린다.
-      showToast(`엑셀을 내려받았습니다. NC ${staff.length}명 · TC ${tcStaff.length}명`
-        + (excluded === 0 ? ` · 파견사원 '${dispatchedName}'을(를) 직원 구성에서 찾지 못해 제외하지 않았습니다.`
-          : excluded > 1 ? ` · 이름이 '${dispatchedName}'인 직원 ${excluded}명을 모두 제외했습니다.` : ''),
-        excluded === 1 ? 'ok' : 'warn');
+      showToast(`엑셀을 내려받았습니다. NC ${staff.length}명 · TC ${tcStaff.length}명 · 일근 ${payload.dayStaff.length}명`, 'ok');
     } catch(error) {
       console.error('엑셀 생성 오류:', error);
       alert(error.message || '엑셀 생성 중 오류가 발생했습니다.');
@@ -3546,62 +3580,101 @@
     } finally { btn.disabled = false; }
   }
 
+  // PDF 는 엑셀 파일과 같은 모양으로 그린다(같은 데이터 buildExcelPayload). 파견사원(일근) 줄은 항상 뺀다.
+  const SHEET_COLORS = { leave: '#ffff00', sub: '#92d050', custom: '#d9d9d9', weekend: '#bdd7ee' };
+  const SHEET_LEGEND = '[일: 09:00 ~ 18:30 ,   야: 18:00 ~ 00:00 ,  조: 00:00 ~ 09:00 ,   O:비번]';
+  function buildSheetHtml(payload){
+    const escape = escapeAttribute;
+    const days = payload.holidays.length;
+    const weekdays = ['일','월','화','수','목','금','토'];
+    const offDay = day => {
+      if (day > days) return false;
+      const weekday = new Date(payload.year, payload.month - 1, day).getDay();
+      return weekday === 0 || weekday === 6 || payload.holidays[day - 1];
+    };
+    const line = '1px solid #000', thick = '2px solid #000';
+    const cell = (content, style = '') => `<td style="border:${line};text-align:center;vertical-align:middle;${style}">${content}</td>`;
+    let head1 = `<tr style="height:50px;"><td colspan="2" rowspan="2" style="border:${line};border-right:${thick};text-align:center;font-weight:700;font-size:20px;">${payload.year}년 ${payload.month}월</td>`;
+    let head2 = '<tr style="height:50px;">';
+    for (let day = 1; day <= 31; day++) {
+      const bg = offDay(day) ? `background:${SHEET_COLORS.weekend};` : '';
+      head1 += cell(day <= days ? day : '', bg + 'font-weight:700;font-size:20px;');
+      head2 += cell(day <= days ? weekdays[new Date(payload.year, payload.month - 1, day).getDay()] : '', bg + 'font-weight:700;font-size:20px;');
+    }
+    const personRow = (person, groupCell, rowStyle) => {
+      let html = `<tr style="height:48px;${rowStyle}">${groupCell}<td style="border:${line};border-right:${thick};text-align:center;font-weight:700;font-size:20px;white-space:nowrap;">${escape(person.name)}</td>`;
+      const spans = new Map((person.spans || []).map(span => [span.start, span]));
+      for (let day = 1; day <= 31; day++) {
+        const span = spans.get(day);
+        if (span) {
+          html += `<td colspan="${span.end - span.start + 1}" style="border:${line};text-align:center;vertical-align:middle;font-size:20px;background:${SHEET_COLORS[span.kind] || SHEET_COLORS.custom};">${escape(span.label)}</td>`;
+          day = span.end;
+          continue;
+        }
+        const value = day <= days ? person.shifts[day - 1] : '';
+        const kind = day <= days ? (person.kinds?.[day - 1] || '') : '';
+        const bg = kind ? SHEET_COLORS[kind] : offDay(day) ? SHEET_COLORS.weekend : '';
+        html += cell(escape(value), `font-size:${value.length > 2 ? 15 : 20}px;white-space:nowrap;${bg ? `background:${bg};` : ''}`);
+      }
+      return html + '</tr>';
+    };
+    const groups = [['NC', payload.staff, Math.max(4, payload.staff.length)], ['TC', payload.tcStaff, payload.tcStaff.length]];
+    let body = '';
+    groups.forEach(([label, people, rows], groupIndex) => {
+      for (let i = 0; i < rows; i++) {
+        const person = people[i] || { name: '', shifts: Array(days).fill(''), kinds: [] };
+        const groupCell = i === 0 ? `<td rowspan="${rows}" style="border:${line};text-align:center;font-weight:700;font-size:20px;">${label}</td>` : '';
+        body += personRow(person, groupCell, i === 0 && groupIndex ? `border-top:${thick};` : '');
+      }
+    });
+    const [manager = '', lead = ''] = payload.approvalNames || [];
+    const approval = `<table style="border-collapse:collapse;border:${thick};width:430px;font-size:22px;">
+        <tr style="height:58px;"><td style="border:${line};text-align:center;font-weight:700;letter-spacing:1.4em;padding-left:1.4em;">담당</td><td style="border:${line};text-align:center;font-weight:700;letter-spacing:1.4em;padding-left:1.4em;">팀장</td></tr>
+        <tr style="height:130px;"><td style="border:${line};text-align:center;width:50%;">${escape(manager)}</td><td style="border:${line};text-align:center;width:50%;">${escape(lead)}</td></tr></table>`;
+    return `<div style="width:1700px;padding:24px;background:#fff;color:#000;font-family:'맑은 고딕','Malgun Gothic',sans-serif;">
+      <div style="display:flex;align-items:flex-start;">
+        <div style="flex:1;display:flex;justify-content:center;padding-top:62px;"><div style="border:2px solid #2e7d4f;padding:10px 90px;font-size:38px;font-weight:800;letter-spacing:.04em;">${payload.month}월&nbsp;&nbsp;통합관제실 근무표</div></div>
+        ${approval}
+      </div>
+      <table style="border-collapse:collapse;border:${thick};width:100%;table-layout:fixed;margin-top:30px;">
+        <colgroup><col style="width:78px;"><col style="width:98px;">${'<col>'.repeat(31)}</colgroup>
+        <thead>${head1}</tr>${head2}</tr></thead>
+        <tbody style="border-top:${thick};">${body}
+          <tr style="height:240px;"><td colspan="33" style="border:${line};border-top:${thick};vertical-align:bottom;text-align:left;padding:8px;font-size:22px;font-weight:700;white-space:pre;">${escape(SHEET_LEGEND)}</td></tr>
+        </tbody>
+      </table>
+    </div>`;
+  }
+
   async function exportPdf(){
     const btn = $('#exportPdfBtn');
-    const actions = $('.schedule-actions-row');
-    const scheduleNav = $('.schedule-nav');
-    const element = $('#schedulePageRoot');
-    const rail = $('.schedule-rail');
-    if (!btn || !actions || !scheduleNav || !element) return;
-
+    if (!btn) return;
     btn.disabled = true;
-    actions.classList.add('export-hidden');
-    scheduleNav.classList.add('export-invisible');
-    rail?.classList.add('export-hidden');
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-30000px;top:0;z-index:-1;background:#fff;';
     try{
+      const {year, monthIndex} = getCurrentMonthView();
+      const {payload} = buildExcelPayload(year, monthIndex, { includeDayWorkers: false });
+      holder.innerHTML = buildSheetHtml(payload);
+      document.body.appendChild(holder);
       await new Promise(resolve => requestAnimationFrame(resolve));
-      const canvas = await html2canvas(element, {
-        scale: Math.max(3, Math.min(4, window.devicePixelRatio * 2)),
-        windowWidth: Math.max(1280, window.innerWidth),
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
+      const canvas = await html2canvas(holder.firstElementChild, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/png');
       const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      });
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 5;
-      const imgWidth = pageWidth - margin * 2;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      const verticalOffset = imgHeight < pageHeight - margin * 2
-        ? (pageHeight - imgHeight) / 2
-        : margin;
-      let position = verticalOffset;
-      pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= pageHeight - margin * 2;
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight + margin;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight, undefined, 'FAST');
-        heightLeft -= pageHeight - margin * 2;
-      }
-      const fileName = buildExportName('PDF');
-      pdf.save(fileName + '.pdf');
+      const margin = 6;
+      // 엑셀 인쇄처럼 한 장에 맞춘다(가로·세로 중 넘치는 쪽 기준으로 줄이고 가운데 둔다).
+      const ratio = Math.min((pageWidth - margin * 2) / canvas.width, (pageHeight - margin * 2) / canvas.height);
+      const width = canvas.width * ratio, height = canvas.height * ratio;
+      pdf.addImage(imgData, 'PNG', (pageWidth - width) / 2, (pageHeight - height) / 2, width, height, undefined, 'FAST');
+      pdf.save(buildExportName('PDF') + '.pdf');
     } catch(err) {
       console.error('PDF 생성 오류:', err);
       alert('PDF 생성 중 오류가 발생했습니다: ' + (err.message || err));
     } finally{
-      actions.classList.remove('export-hidden');
-      scheduleNav.classList.remove('export-invisible');
-      rail?.classList.remove('export-hidden');
+      holder.remove();
       btn.disabled = false;
     }
   }
@@ -3734,41 +3807,102 @@
   function createEmployeeEditor(tableBodyId){
     let draft = [];
 
+    // 이 표를 연 시점의 내용(반영 안 한 수정이 있는지 판단 기준). 근무 형태를 채워 넣은 뒤의 모습으로 둔다.
+    let baseline = '[]';
+
+    // 근무 형태를 정한 적 없는 예전 데이터는 표 순서로 채운다: 파견사원(이름) → 나머지 중 위 4명 NC, 그 밖 TC.
+    function fillWorkTypes(rows){
+      let shift = 0;
+      for (const row of rows) {
+        if (WORK_TYPES.includes(row.workType)) continue;
+        if (isDispatchedDayWorker(row)) { row.workType = 'dispatch'; continue; }
+        row.workType = shift < ROUTINE_HEADCOUNT ? 'NC' : 'TC';
+        shift++;
+      }
+      return rows;
+    }
+    // 근무 형태끼리 묶는다(NC → TC → 파견사원). 같은 형태 안의 순서(직급 순서)는 그대로 둔다.
+    function groupByWorkType(rows){
+      return rows.map((row, index) => ({ row, index }))
+        .sort((x, y) => (WORK_TYPES.indexOf(x.row.workType) - WORK_TYPES.indexOf(y.row.workType)) || (x.index - y.index))
+        .map(item => item.row);
+    }
+    // NC 교대근무 중 위 4명(오늘 기준 종료되지 않은 사람)이 자동대근 대상이다.
+    function autoSubstituteIds(){
+      const today = fmt(stripTime(new Date()));
+      return new Set(draft.filter(row => row.workType === 'NC' && (!row.endDate || row.endDate >= today))
+        .slice(0, ROUTINE_HEADCOUNT).map(row => row.id));
+    }
+    function workTypeNote(row, auto){
+      if (row.workType === 'NC') return auto.has(row.id)
+        ? '<span class="tag ok">자동대근</span>'
+        : '<span class="tag muted">적응·추가 (대근 없음)</span>';
+      if (row.workType === 'TC') return '<span class="tag muted">상일근 · 대근 없음</span>';
+      return '<span class="tag muted">평일 일·휴일 O · 대근 없음</span>';
+    }
+
     function render(){
       const body = document.getElementById(tableBodyId);
       if (!body) return;
-      body.innerHTML = draft.map((employee, index) => `
-        <tr data-index="${index}">
+      const dayWorkerBtn = document.getElementById('addDayWorkerRowBtn');
+      if (dayWorkerBtn) dayWorkerBtn.hidden = draft.some(employee => employee.workType === 'dispatch' && !employee.endDate);
+      const auto = autoSubstituteIds();
+      body.innerHTML = draft.map((employee, index) => {
+        // ▲▼는 같은 근무 형태 안에서만 움직인다(형태가 다르면 [근무 형태]를 바꾼다).
+        const canUp = index > 0 && draft[index - 1].workType === employee.workType;
+        const canDown = index < draft.length - 1 && draft[index + 1].workType === employee.workType;
+        const firstOfGroup = index > 0 && draft[index - 1].workType !== employee.workType;
+        return `
+        <tr data-index="${index}"${firstOfGroup ? ' style="border-top:2px solid #cbd5e1;"' : ''}>
           <td><input type="text" data-field="name" value="${escapeAttribute(employee.name)}" placeholder="이름"></td>
           <td><input type="text" data-field="email" value="${escapeAttribute(employee.email || '')}" placeholder="hong@sbs.co.kr"></td>
           <td><input type="date" data-field="startDate" value="${escapeAttribute(employee.startDate || '')}"></td>
           <td><input type="date" data-field="endDate" value="${escapeAttribute(employee.endDate || '')}"></td>
-          <td><span class="meta">${index < ROUTINE_HEADCOUNT ? '루틴(자동대근)' : '—'}</span></td>
+          <td style="white-space:nowrap;">
+            <select data-work-type style="margin-bottom:4px;">${WORK_TYPES.map(type => `<option value="${type}"${employee.workType === type ? ' selected' : ''}>${WORK_TYPE_LABEL[type]}</option>`).join('')}</select>
+            <div>${workTypeNote(employee, auto)}</div>
+          </td>
           <td style="white-space:nowrap;">
             <div class="meta" style="margin-bottom:4px;">${employee.pinConfigured ? '설정됨' : '없음'}</div>
             <button class="btn ghost" type="button" data-security-action="employee-pin" data-id="${escapeAttribute(employee.id)}">${employee.pinConfigured ? 'PIN 변경' : 'PIN 등록'}</button>
           </td>
           <td style="white-space:nowrap;">
-            <button class="btn ghost move-employee-row" type="button" data-dir="up" data-index="${index}" title="위로" ${index === 0 ? 'disabled' : ''}>▲</button>
-            <button class="btn ghost move-employee-row" type="button" data-dir="down" data-index="${index}" title="아래로" ${index === draft.length - 1 ? 'disabled' : ''}>▼</button>
+            <button class="btn ghost move-employee-row" type="button" data-dir="up" data-index="${index}" title="위로" ${canUp ? '' : 'disabled'}>▲</button>
+            <button class="btn ghost move-employee-row" type="button" data-dir="down" data-index="${index}" title="아래로" ${canDown ? '' : 'disabled'}>▼</button>
           </td>
           <td><button class="btn ghost remove-employee-row" type="button" data-index="${index}">삭제</button></td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
       body.querySelectorAll('input[data-field]').forEach(input => {
         const updateDraft = () => {
           const row = draft[Number(input.closest('tr').dataset.index)];
           if (!row) return;
-          row[input.dataset.field] = input.type === 'checkbox' ? input.checked : input.value;
+          row[input.dataset.field] = input.value;
           renderEditSessionBar();
         };
         input.addEventListener('input', updateDraft);
         input.addEventListener('change', updateDraft);
+        // 종료일을 바꾸면 자동대근 4명이 바뀔 수 있어 표시를 다시 그린다(입력 중에는 다시 그리지 않는다).
+        if (input.dataset.field === 'endDate') input.addEventListener('change', () => render());
+      });
+      body.querySelectorAll('select[data-work-type]').forEach(select => {
+        select.addEventListener('change', () => {
+          const row = draft[Number(select.closest('tr').dataset.index)];
+          if (!row) return;
+          // 형태를 바꾸면 그 형태 묶음의 맨 아래로 간다. 직급 순서는 ▲▼로 맞춘다.
+          draft = draft.filter(other => other !== row);
+          row.workType = select.value;
+          draft.push(row);
+          draft = groupByWorkType(draft);
+          render();
+          renderEditSessionBar();
+        });
       });
       body.querySelectorAll('.move-employee-row').forEach(button => {
         button.addEventListener('click', () => {
           const index = Number(button.dataset.index);
           const target = button.dataset.dir === 'up' ? index - 1 : index + 1;
-          if (target < 0 || target >= draft.length) return;
+          if (target < 0 || target >= draft.length || draft[target].workType !== draft[index].workType) return;
           [draft[index], draft[target]] = [draft[target], draft[index]];
           render();
         });
@@ -3782,7 +3916,8 @@
     }
 
     function open(){
-      draft = EMPLOYEES.map(employee => ({ ...employee }));
+      draft = groupByWorkType(fillWorkTypes(EMPLOYEES.map(employee => ({ ...employee }))));
+      baseline = JSON.stringify(draft);
       render();
     }
 
@@ -3790,20 +3925,30 @@
     // 사본에도 반영해줘야 "없음"/"설정됨" 표시와 버튼 문구가 바로 바뀐다.
     function markPinConfigured(id){
       const row = draft.find(employee => employee.id === id);
-      if (row) { row.pinConfigured = true; render(); }
+      if (!row) return;
+      row.pinConfigured = true;
+      const base = JSON.parse(baseline);
+      const baseRow = base.find(employee => employee.id === id);
+      if (baseRow) { baseRow.pinConfigured = true; baseline = JSON.stringify(base); }
+      render();
     }
 
-    function addRow(){
-      const applyDate = fmt(stripTime(new Date()));
-      // 새로 추가되는 인원은 맨 아래에 들어가므로 기본적으로 루틴 근무자가 아니다(적응·상근 인원).
-      // 루틴 근무자로 편입하려면 ▲로 위 4번째 안으로 올리면 된다.
-      draft.push({ id: uid(), name: '', phase: 0, startDate: applyDate, endDate: null });
+    // 새 인원은 기본으로 NC 교대근무(적응·추가)로 NC 묶음 맨 아래에 들어간다 → 자동대근 대상이 아니다.
+    // 단독 투입되면 ▲로 NC 위 4줄 안으로 올리면 자동대근 대상이 된다.
+    function addRow(workType = 'NC', name = ''){
+      const row = { id: uid(), name, phase: 0, startDate: fmt(stripTime(new Date())), endDate: null, workType };
+      draft.push(row);
+      draft = groupByWorkType(draft);
       render();
-      const lastName = document.querySelector(`#${tableBodyId} tr:last-child input[data-field="name"]`);
-      if (lastName) lastName.focus();
+      const input = document.querySelector(`#${tableBodyId} tr[data-index="${draft.indexOf(row)}"] input[data-field="name"]`);
+      if (input) input.focus();
     }
+
+    // 파견사원 추가: 이름은 설정의 일근 이름(지금은 이주형).
+    function addDayWorkerRow(){ addRow('dispatch', dayWorkerName()); }
 
     function apply(){
+      draft = groupByWorkType(fillWorkTypes(draft));
       const employees = draft.filter(employee => employee.name.trim());
       if (!employees.length) { alert('최소 1명의 근무자를 입력해주세요.'); return false; }
       if (employees.some(employee => !employee.startDate || (employee.endDate && employee.endDate < employee.startDate))) {
@@ -3844,8 +3989,7 @@
       saveEditorChange(`직원 구성 편집 (${editMonth.year}년 ${editMonth.monthIndex + 1}월부터 순서 적용)` + (removedNames.length ? ` · 다음 달부터 제외: ${removedNames.join(', ')}` : ''),
         monthKeysFrom(`${effectiveMonth}-01`));
       // 표의 초안을 반영된 목록으로 다시 맞춘다(이후 "반영 안 한 수정" 판단 기준).
-      draft = EMPLOYEES.map(employee => ({ ...employee }));
-      render();
+      open();
       populateEmpSelects();
       renderManualEmployeeOptions();
       renderAll();
@@ -3855,10 +3999,10 @@
 
     // 표에서 고쳤지만 아직 [직원 구성 표에 반영]을 누르지 않은 수정이 있는지
     function isDirty(){
-      return JSON.stringify(draft.filter(employee => (employee.name || '').trim())) !== JSON.stringify(EMPLOYEES.map(employee => ({ ...employee })));
+      return JSON.stringify(draft.filter(employee => (employee.name || '').trim())) !== baseline;
     }
 
-    return { open, addRow, apply, render, markPinConfigured, isDirty };
+    return { open, addRow, addDayWorkerRow, apply, render, markPinConfigured, isDirty };
   }
 
   const settingsEmployeeEditor = createEmployeeEditor('employeeEditTableBody');
@@ -4815,7 +4959,8 @@
     $('#settingsSaveBtn').addEventListener('click', saveSettings);
     $('#adminSettingsSaveBtn').addEventListener('click', saveSettings);
     $('#quotaSaveBtn').addEventListener('click', saveQuota);
-    $('#addEmployeeRowBtn').addEventListener('click', settingsEmployeeEditor.addRow);
+    $('#addEmployeeRowBtn').addEventListener('click', () => settingsEmployeeEditor.addRow());
+    $('#addDayWorkerRowBtn').addEventListener('click', settingsEmployeeEditor.addDayWorkerRow);
     $('#applyEmployeeEditorBtn').addEventListener('click', () => {
       settingsEmployeeEditor.apply();
       renderEndedStaffList();

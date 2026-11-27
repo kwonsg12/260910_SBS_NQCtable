@@ -49,6 +49,16 @@ test('update.ps1 은 이 폴더의 tray.ps1 을 끄고 같은 방식으로 다�
   assert.match(source, /http:\/\/127\.0\.0\.1:\$Port\/api\/lock/);
 });
 
+test('트레이 [업데이트] 는 업데이트.cmd 를 탐색기를 거쳐 띄운다 (update.ps1 이 트레이를 자식까지 끄므로)', () => {
+  const source = read('tray.ps1').toString('utf8');
+  assert.match(source, /New-Button '업데이트' \d+ \{ Start-UpdateFromUser \}/);
+  assert.match(source, /\$menu\.Items\.Add\('GitHub 에서 업데이트'\)/);
+  const body = source.slice(source.indexOf('function Start-UpdateFromUser'), source.indexOf('function Quit-App'));
+  assert.match(body, /Join-Path \$PSScriptRoot '업데이트\.cmd'/);
+  assert.match(body, /'explorer\.exe'/);
+  assert.match(body, /MessageBox\]::Show\(\$message, \$AppName, 'YesNo'/);
+});
+
 for (const name of ['tray.ps1', 'update.ps1']) {
   test(`${name} 은 PowerShell 문법 오류가 없다`, { skip: process.platform !== 'win32' && 'Windows 에서만' }, () => {
     const file = path.join(dir, name).replace(/'/g, "''");
