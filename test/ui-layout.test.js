@@ -250,6 +250,11 @@ test('근무 형태 바꾸기: 바꾼 날부터만 형태가 바뀌고, TC 는 �
   assert.equal(context.baseShift('a', new Date(2026, 11, 14)), '일');
   // NC 가 된 kim 은 시작점(10일 조)부터 교대로 돈다.
   assert.deepEqual([10, 11, 12, 13].map(d => context.baseShift('kim', new Date(2026, 11, d))), ['조', 'O', '일', '야']);
+  // 달 중간에 새로 들어오는 사람(새 사람으로 등록)은 시작일 전에는 자동대근에 끼지 않는다.
+  staff.push({ id: 'new', name: 'new', workType: 'NC', startDate: '2026-12-21', endDate: null });
+  staff[1].workTypeChanges = [{ from: '2026-12-21', workType: 'TC', at: '2' }];
+  assert.equal(routine(20), 'b,c,d,kim');
+  assert.equal(routine(21), 'c,d,kim,new');
 });
 
 test('근무 형태 바꾸기 창: 파견사원은 고를 수 없고, 날짜는 직접 고르며, 대신 들어올 사람 단계가 크게 있다', () => {
@@ -257,5 +262,9 @@ test('근무 형태 바꾸기 창: 파견사원은 고를 수 없고, 날짜는 
   assert.match(script, /<input type="date" name="from" required min="\$\{today\}">/);
   assert.match(script, /class="wt-step wt-partner-step"/);
   assert.match(script, /data-work-type-change=/);
+  // 대신 들어올 사람에 '새 사람'(이름·사내메일)을 바로 등록할 수 있다.
+  assert.match(script, /data-partner="__new__"/);
+  assert.match(script, /name="newName"/);
+  assert.match(script, /새 사람의 이름을 입력해 주세요/);
   assert.ok(!/on[a-z]+="/.test(script.slice(script.indexOf('function openWorkTypeDialog'), script.indexOf('function createEmployeeEditor'))));
 });
