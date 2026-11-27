@@ -41,6 +41,7 @@ function setup() {
     stateSync: { enqueue: state => enqueued.push(JSON.parse(JSON.stringify(state))) },
     recordMonthlyVersionChanges() { c.versionRecords++; },
     getActiveStaff: () => c.EMPLOYEES, isEmployeeActiveOnDate: () => true,
+    scheduleGroups: (staff, year, month) => [{staff:staff.map(e=>({...e,scheduleType:'NC',scheduleDays:Array.from({length:new Date(year,month+1,0).getDate()},(_,i)=>i+1)}))}],
     getShiftForDate: (empId, date) => c.STATE.scheduleOverrides[`${empId}_${date.getDate()}`]?.shift || '일',
     getApprovalLines: () => [], fmt: d => d.toISOString().slice(0, 10), getToday: () => new Date('2026-12-01T00:00:00Z'),
     uid: () => 'log' + ++ids, $: () => ({ hidden: true }),

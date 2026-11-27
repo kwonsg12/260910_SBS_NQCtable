@@ -40,6 +40,7 @@ function setup(){
     getCurrentMonthView: () => ({ year: 2099, monthIndex: 0 }),
     getToday: () => new Date('2099-01-01T00:00:00'),
     getActiveStaff: () => c.staff,
+    scheduleGroups: (staff, year, month) => [{staff:staff.map(e=>({...e,scheduleType:'NC',scheduleDays:Array.from({length:new Date(year,month+1,0).getDate()},(_,i)=>i+1)}))}],
     isEmployeeActiveOnDate: (emp, date) => !emp.endDate || date.getDate() <= Number(emp.endDate.slice(-2)),
     getShiftForDate: () => c.shift,
     getApprovalLines: () => [{ title: '담당', name: '' }, { title: '팀장', name: '' }],
@@ -102,6 +103,19 @@ test('approval request captures a detached display snapshot without credentials'
   f.c.shift = '휴가'; f.c.staff[0].name = '수정됨';
   assert.equal(approval.scheduleSnapshot.employees[0].name, '직원');
   assert.equal(approval.scheduleSnapshot.employees[0].shifts[0], '일');
+});
+test('새 확정본은 근무 형태별 표시 행과 적용일을 비교하되 이전 확정본은 그대로 호환한다', () => {
+  const {c}=setup();
+  const initial=c.monthlySnapshot('2099-01');
+  const copy=x=>JSON.parse(JSON.stringify(x));
+  const legacy=copy(initial);delete legacy.displayRows;
+  assert.equal(c.monthlySnapshotDiff(legacy,initial).length,0);
+  const changed=copy(initial);
+  changed.displayRows=[{id:'a',type:'NC',days:[1,2,3]},{id:'a',type:'TC',days:Array.from({length:28},(_,i)=>i+4)}];
+  assert.ok(c.monthlySnapshotDiff(initial,changed).some(r=>r.label==='직원 표시 순서'));
+  const moved=copy(changed);moved.displayRows[0].days.push(4);moved.displayRows[1].days.shift();
+  assert.ok(c.monthlySnapshotDiff(changed,moved).some(r=>r.label.includes('적용일')));
+  assert.equal(legacy.displayRows,undefined);
 });
 test('approved version and stamp reference exactly the requested snapshot', async () => {
   const f = setup(), approval = await f.approve();

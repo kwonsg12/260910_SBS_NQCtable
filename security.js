@@ -54,6 +54,9 @@ function validateStaffHistory(old, next) {
   const orderHistory = next.employeeOrderHistory || [];
   if (!Array.isArray(orderHistory)) fail(400, '직원 순서 이력 형식이 잘못되었습니다.');
   for (const entry of orderHistory) {
+    if (entry?.displayOnly && (entry.displayOnly !== true || !entry.from || entry.eventId || entry.move || !Array.isArray(entry.order))) {
+      fail(400, '표시 순서 변경은 직원 인계와 분리해야 합니다.');
+    }
     if (entry?.from && (!validStaffDate(entry.from) || (entry.eventId ? !entry.move?.incoming : !Array.isArray(entry.order) || new Set(entry.order).size !== entry.order.length))) {
       fail(400, '날짜별 직원 순서 이력이 잘못되었습니다.');
     }

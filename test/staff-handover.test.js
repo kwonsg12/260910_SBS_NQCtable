@@ -18,7 +18,8 @@ const functions = ['fmt', 'stripTime', 'addDays', 'dateInRange', 'dayIndex', 'wo
   'isDispatchedDayWorker', 'dispatchedNameKey', 'dayWorkerName', 'rotationRoleAt', 'isRoutineWorker', 'workTypeOf', 'staffOrderDate', 'getOrderedEmployeeIds', 'getActiveStaff',
   'isEmployeeActiveOnDate', 'getRotationAnchorFor', 'rotationShift', 'getHolidayInfo', 'isWeekendOrHoliday', 'baseShift', 'shiftKey', 'isPastDate',
   'getScheduleRange', 'findChainAssignment', 'calculatedShift', 'getShiftForDate', 'effectiveShift', 'snapshotHistoricalSchedule', 'bulkFillValueFor',
-  'wtOrderFor', 'wtRoutineIds', 'wtRoutineNames', 'wtHandoverCandidates', 'staffEventIds', 'staffEventList', 'staffEventsFor', 'laterStaffEvent', 'staffChangeLinked', 'staffEventUndoError', 'legacyAnchorMatches',
+  'scheduleGroups', 'buildExcelPayload', 'shiftKind', 'isSubstituteShift', 'isStandardShift',
+  'wtOrderFor', 'recordStaffDisplayOrder', 'insertLegacyStaffOrder', 'wtRoutineIds', 'wtRoutineNames', 'wtHandoverCandidates', 'staffEventIds', 'staffEventList', 'staffEventsFor', 'laterStaffEvent', 'staffChangeLinked', 'staffEventUndoError', 'legacyAnchorMatches',
   'legacyRepairOptions', 'prepareLegacyRepair', 'removeStaffEventData',
   'withStaffEventRemoved', 'staffAdaptationPeriods', 'staffAdaptationHistory', 'staffNeedsOnboarding', 'staffImpact', 'staffAffectedMonths', 'wtPlan', 'wtApply', 'cancelStaffEvent',
   'isRotationAnchorLinked', 'regularOverridesForRotationCorrection', 'rotationAppliedPreview', 'setStandaloneRotationAnchor', 'removeRotationAnchor', 'wtLabel',
@@ -41,7 +42,7 @@ function fixture({ extra = true, history = true } = {}) {
   const c = vm.createContext({ Date: FixedDate, EMPLOYEES: employees, STATE: state, ROUTINE_HEADCOUNT: 4,
     WORK_TYPES: ['NC', 'TC', 'dispatch'], CYCLE: ['일', '야', '조', 'O'], DEFAULT_DAY_WORKER_NAME: '파견', ANCHOR: new FixedDate(2026, 7, 1),
     COMPANY_HOLIDAYS: { '2026-12-24': '창립기념일' }, FIXED_PUBLIC_HOLIDAYS: { '12-25': '성탄절' }, LUNAR_HOLIDAYS: {}, stateHolidayMap: {},
-    getToday: () => new FixedDate(), uid: () => `test_${++ids}`, empName: id => c.EMPLOYEES.find(e => e.id === id)?.name || id,
+    getToday: () => new FixedDate(), getApprovalLines:()=>[], uid: () => `test_${++ids}`, empName: id => c.EMPLOYEES.find(e => e.id === id)?.name || id,
     pendingBulkFills: [], pendingScheduleRanges: [], scheduleEditorEdits: {}, cloneValue: v => v === undefined ? undefined : json(v),
     addAuditLog: (action, details) => state.auditLogs.unshift({ id: `log_${++ids}`, action, details, at: new FixedDate().toISOString() }),
     monthKeysFrom: from => [from.slice(0, 7)], saveEditorChange() {}, requireScheduleEditor: () => true, confirm: () => true,
@@ -71,6 +72,71 @@ test('월 이력과 날짜 이력이 호환되고 다음 변경일까지 순서�
   assert.ok(!c.getActiveStaff(2026, 10, date('2026-11-30')).some(e => e.id === 'new'));
   assert.ok(c.getActiveStaff(2026, 11, date('2026-12-01')).some(e => e.id === 'new'));
   assert.deepEqual(json(c.getActiveStaff(2026, 11).slice(0, 4).map(e => e.id)), ['a', 'b', 'c', 'd']);
+});
+
+test('표시 순서는 예전 근무 형태 없는 직원의 자동대근 자격이나 교대 루틴을 바꾸지 않는다', () => {
+  const {c, state, date, emp, routine, shift}=fixture();
+  for(const id of ['a','b','c','d','tc']) delete emp(id).workType;
+  const key='2099-01-05', before=['a','b','c','d','tc'].map(id=>shift(id,key));
+  c.recordStaffDisplayOrder(key,['tc','d','c','b','a','new','dispatch']);
+  assert.deepEqual(json(c.getActiveStaff(2099,0,date(key)).map(e=>e.id)),['tc','d','c','b','a','new','dispatch']);
+  assert.deepEqual(routine(key),['a','b','c','d']);
+  assert.deepEqual(['a','b','c','d','tc'].map(id=>shift(id,key)),before);
+  assert.equal(c.workTypeOf(emp('tc'),date(key)),'TC');
+  assert.equal(c.isRoutineWorker(emp('a'),date(key)),true);
+  assert.equal(c.isRoutineWorker(emp('tc'),date(key)),false);
+  assert.equal(state.employeeOrderHistory.at(-1).displayOnly,true);
+});
+
+test('이미 예정된 인계 전후 및 같은 날 표시 순서를 바꿔도 자격과 인계, 수정 취소가 유지된다', () => {
+  const {c,state,plan,routine,shift,date}=fixture();
+  const from='2099-02-10';
+  const handover=plan('a','TC',from,'tc');assert.equal(handover.error,'');c.wtApply(handover);
+  const saved=json(state), anchor=json(state.rotationAnchors);
+  c.recordStaffDisplayOrder('2099-02-01',['d','c','b','a','tc','new','dispatch']);
+  assert.deepEqual(json(c.getActiveStaff(2099,1,date(from)).map(e=>e.id)),['d','c','b','tc','a','new','dispatch']);
+  assert.deepEqual(routine(from),['tc','b','c','d']);
+  c.recordStaffDisplayOrder(from,['new','c','tc','d','b','a','dispatch']);
+  assert.deepEqual(routine(from),['tc','b','c','d']);
+  assert.equal(shift('tc',from),handover.event.startShift);
+  assert.deepEqual(json(state.rotationAnchors),anchor);
+  assert.doesNotThrow(()=>validateSave(saved,json(state),true));
+  assert.ok(c.cancelStaffEvent(c.staffEventsFor('tc')[0]));
+  assert.deepEqual(routine(from),['a','b','c','d']);
+  assert.deepEqual(json(c.getActiveStaff(2099,1,date(from)).map(e=>e.id)),['new','c','tc','d','b','a','dispatch']);
+  assert.equal(state.employeeOrderHistory.filter(e=>e.displayOnly).length,2);
+});
+
+test('한 달에 TC·NC 전환이 여러 번 있어도 날짜별로 정확히 두 행에 분리하고 Excel/PDF와 병합 범위를 맞춘다', () => {
+  const {c,state,plan,shift}=fixture();
+  c.wtApply(plan('a','TC','2026-12-10','tc'));
+  const returnPlan=plan('a','NC','2026-12-20','__extra__');assert.equal(returnPlan.error,'');c.wtApply(returnPlan);
+  state.scheduleRanges.push({id:'range',empId:'a',startDate:'2026-12-08',endDate:'2026-12-12',value:'교육'});
+  const groups=c.scheduleGroups(c.getActiveStaff(2026,11),2026,11);
+  const range=(start,end)=>Array.from({length:end-start+1},(_,i)=>start+i);
+  const rows=groups.flatMap(g=>g.staff).filter(r=>r.id==='a');
+  assert.equal(rows.length,2);
+  assert.deepEqual(json(rows.find(r=>r.scheduleType==='NC').scheduleDays),[...range(1,9),...range(20,31)]);
+  assert.deepEqual(json(rows.find(r=>r.scheduleType==='TC').scheduleDays),range(10,19));
+  const {payload}=c.buildExcelPayload(2026,11);
+  const nc=payload.staff.find(r=>r.name==='a'),tc=payload.tcStaff.find(r=>r.name==='a');
+  for(const day of range(1,31)) {
+    const values=[nc.shifts[day-1],tc.shifts[day-1]].filter(Boolean);
+    assert.deepEqual(values,[shift('a','2026-12-'+String(day).padStart(2,'0'))]);
+  }
+  assert.deepEqual(json(nc.spans),[{start:8,end:9,label:'교육',kind:'custom'}]);
+  assert.deepEqual(json(tc.spans),[{start:10,end:12,label:'교육',kind:'custom'}]);
+  assert.equal(payload.dayStaff.length,1);
+  assert.equal(c.buildExcelPayload(2026,11,{includeDayWorkers:false}).payload.dayStaff.length,0);
+});
+
+test('월 중 신규 투입·전출도 재직한 날짜만 해당 근무 형태 행에 표시한다', () => {
+  const {c,plan}=fixture();
+  const takeover=plan('a','transfer','2026-12-15','__new__','transfer',{id:'fresh',name:'fresh',startDate:'2026-12-10'});
+  assert.equal(takeover.error,'');c.wtApply(takeover);
+  const rows=c.scheduleGroups(c.getActiveStaff(2026,11),2026,11).flatMap(g=>g.staff);
+  assert.deepEqual(json(rows.find(r=>r.id==='a').scheduleDays),Array.from({length:14},(_,i)=>i+1));
+  assert.deepEqual(json(rows.find(r=>r.id==='fresh').scheduleDays),Array.from({length:22},(_,i)=>i+10));
 });
 
 test('기존 NC 퇴출 경로: TC와 자리·사이클을 날짜부터 인계하고 양쪽에서 같은 이벤트를 취소한다', () => {
