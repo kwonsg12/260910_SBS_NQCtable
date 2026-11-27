@@ -335,9 +335,12 @@ test('설정: 왼쪽 메뉴에서 근무표 편집 · 직원 구성을 고르고
   assert.match(script, /setStandaloneRotationAnchor\(values, \{ staffOnly: true, replace: true \}\)/);
   assert.match(script, /focusRotationMonth\(values.startDate\)/);
   assert.match(script, /rotationAppliedPreview\(values.empId, values.startDate\)/);
+  assert.ok(!script.includes('staffRotationActual'), '직원 정보에는 보정 적용 결과 줄을 별도 표시하지 않는다');
   assert.ok(!script.includes('data-staff-rotation-remove'), '직원 정보에는 별도의 보정 해제 버튼을 두지 않는다');
   assert.ok(!script.includes('remove-rotation-anchor'), '다른 시작점 목록에도 별도 해제 버튼을 두지 않는다');
-  assert.match(script, /setStandaloneRotationAnchor\(manualAnchorValues\(\), \{ replace: true \}\)/);
+  const manualCorrection = script.slice(script.indexOf('function applyManualRotationAnchor()'), script.indexOf('function isRotationAnchorLinked(anchor)'));
+  assert.match(manualCorrection, /applyRotationCorrection\(values\)/);
+  assert.match(manualCorrection, /setStandaloneRotationAnchor\(values, \{ staffOnly: true, replace: true \}\)/);
   assert.ok(!html.includes('id="rotationAnchorList"') && !html.includes('id="manualRotationAnchorList"'), '루틴 보정 이력 목록은 표시하지 않는다');
   assert.ok(!script.includes('renderRotationAnchorList'));
   const correctionCell = script.slice(script.indexOf('function rotationCorrectionCell(row)'), script.indexOf('function workTypeCell(row)'));
