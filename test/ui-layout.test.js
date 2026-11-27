@@ -188,7 +188,7 @@ test('일근(파견사원) 기본 근무: 평일 일, 토·일·공휴일 O, NC 
     getHolidayInfo: d => d.getDate() === 25 && d.getMonth() === 11 ? { name: '성탄절' } : null,
     getActiveStaff: () => emps, getToday: () => new Date(2026, 11, 1)
   });
-  vm.runInContext(['stripTime', 'fmt', 'getRotationAnchorFor', 'baseShift', 'isWeekendOrHoliday', 'dispatchedNameKey', 'dayWorkerName', 'isDispatchedDayWorker', 'isRoutineWorker'].map(pick).join('\n'), context);
+  vm.runInContext(['stripTime', 'fmt', 'getRotationAnchorFor', 'baseShift', 'rotationShift', 'isWeekendOrHoliday', 'dispatchedNameKey', 'dayWorkerName', 'isDispatchedDayWorker', 'isRoutineWorker', 'workTypeChangesOf', 'activeWorkTypeChange', 'workTypeAt'].map(pick).join('\n'), context);
   const shift = day => context.baseShift('lee', new Date(2026, 11, day));
   assert.equal(shift(1), '일');   // 화
   assert.equal(shift(5), 'O');    // 토
@@ -211,7 +211,7 @@ test('직원 편집의 [근무 형태]가 이름보다 우선하고, NC 교대�
     STATE: { settings: {} }, DEFAULT_DAY_WORKER_NAME: '이주형', WORK_TYPES: ['NC', 'TC', 'dispatch'], ROUTINE_HEADCOUNT: 4,
     getActiveStaff: () => staff, getToday: () => new Date(2026, 11, 1)
   });
-  vm.runInContext(['dispatchedNameKey', 'dayWorkerName', 'isDispatchedDayWorker', 'workTypeOf', 'isRoutineWorker'].map(pick).join('\n'), context);
+  vm.runInContext(['fmt', 'dispatchedNameKey', 'dayWorkerName', 'isDispatchedDayWorker', 'workTypeOf', 'isRoutineWorker', 'workTypeChangesOf', 'activeWorkTypeChange', 'workTypeAt'].map(pick).join('\n'), context);
   assert.equal(context.isDispatchedDayWorker({ name: '이주형' }), true);                       // 근무 형태 없는 예전 데이터: 이름으로
   assert.equal(context.isDispatchedDayWorker({ name: '이주형', workType: 'TC' }), false);
   assert.equal(context.isDispatchedDayWorker({ name: '새 사원', workType: 'dispatch' }), true);
@@ -220,4 +220,51 @@ test('직원 편집의 [근무 형태]가 이름보다 우선하고, NC 교대�
   assert.equal(context.workTypeOf(staff[5]), 'NC');
   assert.equal(context.workTypeOf(staff[1]), 'TC');
   assert.equal(context.workTypeOf(staff[6]), 'dispatch');
+});
+
+test('근무 형태 바꾸기: 바꾼 날부터만 형태가 바뀌고, TC 는 평일 일·휴일 O, 자동대근 4명도 그 날부터 바뀐다', () => {
+  const pick = name => { const s = script.indexOf('  function ' + name + '('); return script.slice(s, script.indexOf('\n  function ', s + 1)); };
+  const staff = [
+    { id: 'a', name: 'a', workType: 'NC', phase: 0, workTypeChanges: [{ from: '2026-12-10', workType: 'TC', at: '1' }] },
+    { id: 'b', name: 'b', workType: 'NC', phase: 1 }, { id: 'c', name: 'c', workType: 'NC', phase: 2 }, { id: 'd', name: 'd', workType: 'NC', phase: 3 },
+    { id: 'kim', name: 'kim', workType: 'TC', phase: 0, workTypeChanges: [{ from: '2026-12-10', workType: 'NC', at: '1' }] }
+  ];
+  const context = vm.createContext({
+    EMPLOYEES: staff, STATE: { settings: {}, rotationAnchors: [{ id: 'x', empId: 'kim', startDate: '2026-12-10', startShift: '조', at: '1' }] },
+    DEFAULT_DAY_WORKER_NAME: '이주형', WORK_TYPES: ['NC', 'TC', 'dispatch'], ROUTINE_HEADCOUNT: 4, CYCLE: ['일', '야', '조', 'O'], dayIndex: () => 0,
+    getHolidayInfo: () => null, getActiveStaff: () => staff, getToday: () => new Date(2026, 11, 1)
+  });
+  vm.runInContext(['stripTime', 'fmt', 'getRotationAnchorFor', 'baseShift', 'rotationShift', 'isWeekendOrHoliday', 'dispatchedNameKey', 'dayWorkerName',
+    'isDispatchedDayWorker', 'workTypeOf', 'isRoutineWorker', 'workTypeChangesOf', 'activeWorkTypeChange', 'workTypeAt'].map(pick).join('\n'), context);
+  // 바꾸기 전날까지는 예전 형태, 그 날부터 새 형태. 지난 달은 그대로다.
+  assert.equal(context.workTypeAt(staff[0], '2026-12-09'), 'NC');
+  assert.equal(context.workTypeAt(staff[0], '2026-12-10'), 'TC');
+  assert.equal(context.workTypeOf(staff[0], new Date(2026, 10, 15)), 'NC');
+  // 자동대근: 9일은 a,b,c,d / 10일부터 b,c,d,kim
+  // 날짜는 vm 안에서 만든다(isRoutineWorker 의 instanceof Date 가 vm 의 Date 를 본다).
+  const routine = day => staff.filter(e => context.isRoutineWorker(e, vm.runInContext(`new Date(2026, 11, ${day})`, context))).map(e => e.id).join(',');
+  assert.equal(routine(9), 'a,b,c,d');
+  assert.equal(routine(10), 'b,c,d,kim');
+  // TC 가 된 a: 평일 일, 토·일 O (12/12 토, 12/14 월)
+  assert.equal(context.baseShift('a', new Date(2026, 11, 12)), 'O');
+  assert.equal(context.baseShift('a', new Date(2026, 11, 14)), '일');
+  // NC 가 된 kim 은 시작점(10일 조)부터 교대로 돈다.
+  assert.deepEqual([10, 11, 12, 13].map(d => context.baseShift('kim', new Date(2026, 11, d))), ['조', 'O', '일', '야']);
+  // 달 중간에 새로 들어오는 사람(새 사람으로 등록)은 시작일 전에는 자동대근에 끼지 않는다.
+  staff.push({ id: 'new', name: 'new', workType: 'NC', startDate: '2026-12-21', endDate: null });
+  staff[1].workTypeChanges = [{ from: '2026-12-21', workType: 'TC', at: '2' }];
+  assert.equal(routine(20), 'b,c,d,kim');
+  assert.equal(routine(21), 'c,d,kim,new');
+});
+
+test('근무 형태 바꾸기 창: 파견사원은 고를 수 없고, 날짜는 직접 고르며, 대신 들어올 사람 단계가 크게 있다', () => {
+  assert.match(script, /const WT_CHOICES = \['NC', 'TC'\];/);
+  assert.match(script, /<input type="date" name="from" required min="\$\{today\}">/);
+  assert.match(script, /class="wt-step wt-partner-step"/);
+  assert.match(script, /data-work-type-change=/);
+  // 대신 들어올 사람에 '새 사람'(이름·사내메일)을 바로 등록할 수 있다.
+  assert.match(script, /data-partner="__new__"/);
+  assert.match(script, /name="newName"/);
+  assert.match(script, /새 사람의 이름을 입력해 주세요/);
+  assert.ok(!/on[a-z]+="/.test(script.slice(script.indexOf('function openWorkTypeDialog'), script.indexOf('function createEmployeeEditor'))));
 });
