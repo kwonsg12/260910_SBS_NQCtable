@@ -10,7 +10,7 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
-const { db, getState, setState, backupTo } = require('./db');
+const { db, getState, setState, backupTo, getTcHolidayPolicyFrom } = require('./db');
 const { createSecurity, publicState, targets } = require('./security');
 const { readFileSync, existsSync } = require('node:fs');
 const { createHash } = require('node:crypto');
@@ -24,6 +24,7 @@ const app = express();
 // A local HTTPS reverse proxy may forward the original protocol.
 app.set('trust proxy', 'loopback');
 const PORT = Number(process.env.PORT) || 8000;
+const tcHolidayPolicyFrom = getTcHolidayPolicyFrom();
 // 월 근무표 확정이 승인되면 서버 PC 에 엑셀·JSON 확정본을 남긴다(backup.js).
 const security = createSecurity({ db, getState, setState, onMonthlyApproved: version => saveMonthlyBackup(version) });
 const mailMySchedule = createMyScheduleMailer({ getState, security });
@@ -125,7 +126,7 @@ app.post('/api/my-schedule/mail', async (req, res, next) => {
 app.get('/api/state', (req, res) => {
   res.set('Cache-Control', 'no-store');
   const row = getState();
-  res.json({ state: row ? publicState(row.state) : null, updatedAt: row ? row.updatedAt : null, revision: row ? row.revision : 0 });
+  res.json({ state: row ? publicState(row.state) : null, updatedAt: row ? row.updatedAt : null, revision: row ? row.revision : 0, tcHolidayPolicyFrom });
 });
 
 // 검증·PIN 보호·버전 충돌 처리는 security.save가 전담한다.

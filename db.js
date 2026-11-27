@@ -60,10 +60,20 @@ function setState(stateObj, baseRevision) {
   return { updatedAt, revision: baseRevision + 1 };
 }
 
+// 휴일 기본값 보정은 업그레이드 이전의 근무 기록까지 소급하지 않는다.
+// 최초 적용일만 별도 보관하여 서버를 재시작하거나 날짜가 지나도 같은 규칙으로 계산한다.
+function getTcHolidayPolicyFrom(now = new Date()) {
+  const key = 'tc_holiday_policy_from';
+  const today = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  db.prepare('INSERT OR IGNORE INTO kv_store (key, value, updated_at, revision) VALUES (?, ?, ?, 1)')
+    .run(key, today, now.toISOString());
+  return db.prepare('SELECT value FROM kv_store WHERE key = ?').get(key).value;
+}
+
 // 서버가 켜진 채로 DB 전체(근무표 상태·PIN 해시·메일 발송 기록)를 파일 하나로 복사한다.
 // VACUUM INTO 는 일관된 시점의 사본을 만든다. 같은 이름의 파일이 있으면 SQLite 가 거절한다.
 function backupTo(file) {
   db.prepare('VACUUM INTO ?').run(file);
 }
 
-module.exports = { db, getState, setState, backupTo };
+module.exports = { db, getState, setState, backupTo, getTcHolidayPolicyFrom };

@@ -17,7 +17,7 @@ function source(name) {
 const functions = ['fmt', 'stripTime', 'addDays', 'dateInRange', 'dayIndex', 'workTypeChangesOf', 'activeWorkTypeChange', 'workTypeAt',
   'isDispatchedDayWorker', 'dispatchedNameKey', 'dayWorkerName', 'rotationRoleAt', 'isRoutineWorker', 'workTypeOf', 'staffOrderDate', 'getOrderedEmployeeIds', 'getActiveStaff',
   'isEmployeeActiveOnDate', 'getRotationAnchorFor', 'rotationShift', 'getHolidayInfo', 'isWeekendOrHoliday', 'baseShift', 'shiftKey', 'isPastDate',
-  'getScheduleRange', 'findChainAssignment', 'calculatedShift', 'getShiftForDate', 'effectiveShift', 'snapshotHistoricalSchedule', 'bulkFillValueFor',
+  'getScheduleRange', 'findChainAssignment', 'calculatedShift', 'tcHolidayOverrideIgnored', 'getShiftForDate', 'effectiveShift', 'snapshotHistoricalSchedule', 'bulkFillValueFor',
   'scheduleGroups', 'buildExcelPayload', 'shiftKind', 'isSubstituteShift', 'isStandardShift',
   'wtOrderFor', 'recordStaffDisplayOrder', 'insertLegacyStaffOrder', 'wtRoutineIds', 'wtRoutineNames', 'wtHandoverCandidates', 'staffEventIds', 'staffEventList', 'staffEventsFor', 'laterStaffEvent', 'staffChangeLinked', 'staffEventUndoError', 'legacyAnchorMatches',
   'legacyRepairOptions', 'prepareLegacyRepair', 'removeStaffEventData',
@@ -42,6 +42,7 @@ function fixture({ extra = true, history = true } = {}) {
   const c = vm.createContext({ Date: FixedDate, EMPLOYEES: employees, STATE: state, ROUTINE_HEADCOUNT: 4,
     WORK_TYPES: ['NC', 'TC', 'dispatch'], CYCLE: ['일', '야', '조', 'O'], DEFAULT_DAY_WORKER_NAME: '파견', ANCHOR: new FixedDate(2026, 7, 1),
     COMPANY_HOLIDAYS: { '2026-12-24': '창립기념일' }, FIXED_PUBLIC_HOLIDAYS: { '12-25': '성탄절' }, LUNAR_HOLIDAYS: {}, stateHolidayMap: {},
+    tcHolidayPolicyFrom: '2026-11-27',
     getToday: () => new FixedDate(), getApprovalLines:()=>[], uid: () => `test_${++ids}`, empName: id => c.EMPLOYEES.find(e => e.id === id)?.name || id,
     pendingBulkFills: [], pendingScheduleRanges: [], scheduleEditorEdits: {}, cloneValue: v => v === undefined ? undefined : json(v),
     addAuditLog: (action, details) => state.auditLogs.unshift({ id: `log_${++ids}`, action, details, at: new FixedDate().toISOString() }),
@@ -596,6 +597,65 @@ test('휴일 O는 기본 근무에만 적용되고 회사 휴일·법정휴일·
   assert.equal(shift('a', '2026-12-24'), '수동');
   assert.equal(shift('a', '2026-12-25'), '휴가');
   assert.equal(shift('a', '2026-11-01'), '과거');
+});
+
+test('이미 저장된 TC 전환의 이전 일반 근무는 토·일·회사·법정휴일에 O가 되며 실제 예외와 보정 이전 기록은 유지된다', () => {
+  const {c,state,emp,shift,setToday}=fixture();
+  emp('a').workTypeChanges=[{from:'2026-11-10',workType:'TC',at:'2026-11-05T12:00:00Z'}];
+  const before='2026-11-01T12:00:00Z', after='2026-11-06T12:00:00Z';
+  for(const day of ['2026-11-21','2026-11-28','2026-11-29','2026-12-24','2026-12-25','2026-12-26','2026-12-27','2026-12-30']) {
+    state.scheduleOverrides[day+'::a']={shift:'일',at:before};
+  }
+  state.scheduleOverrides['2026-11-29::a'].shift='야';
+  state.scheduleOverrides['2026-12-26::a'].shift='교육';
+  state.scheduleOverrides['2026-12-27::a'].at=after;
+  state.scheduleOverrides['2026-12-30::a'].shift='야';
+  state.scheduleOverrides['2026-12-31::a']={shift:'O',at:before};
+  state.scheduleSnapshots['2026-11-21::a']='O';
+  state.requests.push({id:'cover',empId:'b',status:'confirmed',submittedAt:'2026-10-31T00:00:00Z',chain:[{empId:'a',date:'2026-12-25',shift:'대일'}]});
+  state.scheduleRanges.push({id:'range',empId:'a',startDate:'2026-12-12',endDate:'2026-12-13',value:'교육'});
+  state.scheduleOverrides['2026-12-12::a']={shift:'일',at:before};
+  const raw=json(state.scheduleOverrides);
+  assert.equal(shift('a','2026-11-21'),'일','정책 적용 이전 과거 기록 유지');
+  for(const day of ['2026-11-28','2026-11-29','2026-12-24']) assert.equal(shift('a',day),'O');
+  assert.equal(shift('a','2026-12-25'),'대일','기존 명시적 대근을 되살린다');
+  assert.equal(shift('a','2026-12-26'),'교육');
+  assert.equal(shift('a','2026-12-27'),'일','전환 등록 후 직접 지정한 예외는 유지한다');
+  assert.equal(shift('a','2026-12-30'),'야','평일 수동 입력은 변경하지 않는다');
+  assert.equal(shift('a','2026-12-31'),'O');
+  assert.equal(shift('a','2026-12-12'),'교육');
+  setToday('2026-12-01');c.snapshotHistoricalSchedule();
+  assert.equal(shift('a','2026-11-28'),'O','날짜가 지나도 보정된 값은 유지');
+  assert.deepEqual(json(state.scheduleOverrides),raw,'저장된 수동 값 원본은 삭제하지 않는다');
+});
+
+test('새 TC 인계에서 휴일 O가 미리보기 및 실제 근무표에 반영되고 취소하면 원래 근무로 복구된다', () => {
+  const {c,state,emp,plan,shift}=fixture();
+  const old={shift:'일',at:'2026-11-01T00:00:00Z'};
+  state.scheduleOverrides['2026-12-05::a']={...old};
+  state.scheduleOverrides['2026-12-12::a']={...old};
+  state.scheduleOverrides['2026-12-13::a']={...old};
+  const p=plan('a','TC','2026-12-11','tc');assert.equal(p.error,'');assert.equal(p.holidayResets,2);
+  assert.equal(p.rows.find(r=>r.name==='a').cells.find(cell=>cell.key==='2026-12-12').after,'O');
+  c.wtApply(p);
+  assert.equal(shift('a','2026-12-05'),'일');
+  assert.equal(shift('a','2026-12-12'),'O');assert.equal(shift('a','2026-12-13'),'O');
+  assert.equal(state.scheduleOverrides['2026-12-12::a'].shift,'일');
+  assert.ok(c.cancelStaffEvent(c.staffEventsFor('a')[0]));
+  assert.equal(shift('a','2026-12-12'),'일');
+});
+
+test('예정 인계 날짜를 수정해도 최초 전환 후 입력한 명시적 휴일 근무 예외는 유지된다', () => {
+  const {c,state,emp,plan,shift,setToday}=fixture();
+  c.wtApply(plan('a','TC','2026-12-10','tc'));
+  const previous=c.staffEventsFor('a')[0];
+  state.scheduleOverrides['2026-12-13::a']={shift:'일',at:'2026-11-28T00:00:00Z'};
+  assert.equal(shift('a','2026-12-13'),'일');
+  setToday('2026-11-29');
+  const moved=c.withStaffEventRemoved(previous,()=>c.wtPlan(emp('a'),'TC','2026-12-11','tc','일',null,'TC',previous));
+  assert.equal(moved.error,'');c.wtApply(moved,previous);
+  assert.equal(shift('a','2026-12-13'),'일');
+  assert.equal(moved.event.tcHolidayBeforeAt,previous.tcHolidayBeforeAt);
 });
 
 test('이전 월별 인계의 감사 로그가 일치하면 안전하게 취소하고 불명확한 이력은 차단한다', () => {

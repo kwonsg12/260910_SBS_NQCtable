@@ -1768,6 +1768,8 @@
   }
 
   const STORE_KEY = 'ncq_schedule_v1';
+  // 최초 보정 적용일 이전의 실제 근무 기록은 그대로 둔다. 공유 모드에서는 서버가 같은 날짜를 돌려준다.
+  let tcHolidayPolicyFrom = fmt(stripTime(new Date()));
   let STATE = normalizeState();
   if (Array.isArray(STATE.employees) && STATE.employees.length) EMPLOYEES = STATE.employees;
   let pendingScheduleRanges = [];
@@ -1970,6 +1972,7 @@
         (!result.state || typeof result.state !== 'object' || Array.isArray(result.state)))) {
         throw new Error('Invalid state response');
       }
+      if (method === 'GET' && /^\d{4}-\d{2}-\d{2}$/.test(result.tcHolidayPolicyFrom || '')) tcHolidayPolicyFrom = result.tcHolidayPolicyFrom;
       return result;
     } finally { clearTimeout(timeout); }
   }
@@ -2000,7 +2003,12 @@
 
   async function initializeStorage() {
     if (LOCAL_MODE) {
-      try { STATE = normalizeState(JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); }
+      try {
+        STATE = normalizeState(JSON.parse(localStorage.getItem(STORE_KEY) || '{}'));
+        const policy = localStorage.getItem(STORE_KEY + '_tcHolidayPolicyFrom');
+        if (/^\d{4}-\d{2}-\d{2}$/.test(policy || '')) tcHolidayPolicyFrom = policy;
+        else localStorage.setItem(STORE_KEY + '_tcHolidayPolicyFrom', tcHolidayPolicyFrom);
+      }
       catch { localSaveFailed = true; }
       EMPLOYEES = STATE.employees;
       showLocalStorageStatus();
@@ -2264,12 +2272,22 @@
       cursor.setDate(cursor.getDate() + 1);
     }
   }
+  // TC 전환 전에 남은 일반 근무칸은 전환 이후 휴일 기본 근무(O)를 덮어쓰지 않는다.
+  // 원래 기록은 지우지 않으므로 인계 취소·다음 근무 형태 변경 및 명시적 예외 입력은 독립적이다.
+  function tcHolidayOverrideIgnored(emp, date, override){
+    if (!emp || !override || !['일','야','조'].includes(override.shift) || fmt(date) < tcHolidayPolicyFrom || !isWeekendOrHoliday(date)) return false;
+    const change = activeWorkTypeChange(emp, date);
+    if (change?.workType !== 'TC') return false;
+    const transitionAt = Date.parse(change.tcHolidayBeforeAt || change.at || '');
+    const editedAt = Date.parse(override.at || '');
+    return Number.isFinite(transitionAt) && (!Number.isFinite(editedAt) || editedAt <= transitionAt);
+  }
   function getShiftForDate(empId, date){
     const key = shiftKey(empId, date);
     const range = getScheduleRange(empId, date);
     if (range) return range.value;
     const override = STATE.scheduleOverrides[key];
-    if (override) {
+    if (override && !tcHolidayOverrideIgnored(EMPLOYEES.find(e => e.id === empId), date, override)) {
       // 수동으로 입력한 근무값과 휴가/대근 배정이 같은 칸에 겹칠 때는 "나중에 내린 결정"이 이긴다.
       // (수동 입력이 항상 이기면, 근무를 손으로 넣은 직원은 휴가를 내도 계속 근무로 표시된다)
       const assignment = findChainAssignment(empId, date);
@@ -4451,7 +4469,7 @@
     return { covers, manual, confirmed };
   }
   // 단독 투입/기존 NC 퇴출 두 경로가 같은 계산기와 같은 이벤트를 사용한다.
-  function wtPlan(emp, target, from, partnerId, startShift, newPerson = null, outgoingAction = 'TC'){
+  function wtPlan(emp, target, from, partnerId, startShift, newPerson = null, outgoingAction = 'TC', previousEvent = null){
     const fromDate = new Date(from + 'T00:00:00');
     const today = fmt(stripTime(new Date()));
     const leaving = target !== 'NC';
@@ -4501,7 +4519,9 @@
       : '';
     const action = target === 'transfer' ? 'transfer' : outgoingAction;
     const changes = [], anchors = [];
-    if (outgoing && action !== 'transfer') changes.push({ empId: outgoing.id, from, workType: 'TC', at, eventId });
+    const tcHolidayBeforeAt = previousEvent?.outgoingId === outgoing?.id && previousEvent?.outgoingAction === 'TC'
+      ? previousEvent.tcHolidayBeforeAt || previousEvent.legacy?.changes.find(c => c.empId === outgoing.id && c.workType === 'TC')?.at || previousEvent.at || at : at;
+    if (outgoing && action !== 'transfer') changes.push({ empId: outgoing.id, from, workType: 'TC', at, eventId, tcHolidayBeforeAt });
     if (incoming && !fresh && workTypeAt(incoming, from) !== 'NC') changes.push({ empId: incoming.id, from, workType: 'NC', at, eventId });
     if (incoming) anchors.push({ id: uid(), empId: incoming.id, startDate: from,
       startShift: outgoing ? rotationShift(outgoing, fromDate) : (startShift || '일'), at, eventId, inheritFrom: outgoing?.id || null });
@@ -4509,6 +4529,7 @@
       outgoingId: outgoing?.id || null, incomingId: incoming?.id || null, outgoingAction: action,
       placement: incoming ? (extraPlacement ? 'extra' : 'routine') : null,
       previousEndDate: outgoing?.endDate || null, incomingOnboardingBefore: !!incoming?.onboarding, freshId: fresh?.id || null, startShift: anchors[0]?.startShift || startShift };
+    if (outgoing && action !== 'transfer') event.tcHolidayBeforeAt = tcHolidayBeforeAt;
     const people = EMPLOYEES.concat(fresh ? [fresh] : []).map(e => {
       const mine = changes.filter(c => c.empId === e.id).map(({ empId, ...rest }) => rest);
       let next = mine.length ? { ...e, workTypeChanges: [...workTypeChangesOf(e), ...mine] } : { ...e };
@@ -4543,15 +4564,24 @@
       const prev = EMPLOYEES.find(e => e.id === person.id);
       const beforeShift = prev && isEmployeeActiveOnDate(prev, date) ? effectiveShift(person.id, date) : '';
       const next = people.find(e => e.id === person.id);
-      const explicit = (STATE.scheduleOverrides || {})[shiftKey(person.id, date)] || getScheduleRange(person.id, date) || findChainAssignment(person.id, date);
+      const override = (STATE.scheduleOverrides || {})[shiftKey(person.id, date)];
+      const range = getScheduleRange(person.id, date), assignment = findChainAssignment(person.id, date);
+      const resetHoliday = !range && tcHolidayOverrideIgnored(next, date, override);
+      const explicit = override || range || assignment;
       const afterShift = key < from ? (fresh?.id === person.id && isEmployeeActiveOnDate(next, date) ? (isWeekendOrHoliday(date) ? 'O' : '일') : beforeShift)
-        : !isEmployeeActiveOnDate(next, date) ? '' : explicit ? beforeShift
+        : !isEmployeeActiveOnDate(next, date) ? '' : resetHoliday ? assignment?.shift || 'O' : explicit ? beforeShift
         : workTypeAt(next, key) === 'TC' ? (isWeekendOrHoliday(date) ? 'O' : '일') : phaseOf(person.id, date);
       return { key, before: beforeShift, after: afterShift };
     }) }));
     const affectedFrom = fresh && fresh.startDate < from ? fresh.startDate : from;
+    const nextOutgoing = people.find(e => e.id === outgoing?.id);
+    const holidayResets = nextOutgoing && action !== 'transfer' ? Object.entries(STATE.scheduleOverrides || {}).filter(([key, override]) => {
+      const [day, id] = key.split('::'), date = new Date(day + 'T00:00:00');
+      return id === nextOutgoing.id && day >= from && isEmployeeActiveOnDate(nextOutgoing, date)
+        && !getScheduleRange(id, date) && !findChainAssignment(id, date) && tcHolidayOverrideIgnored(nextOutgoing, date, override);
+    }).length : 0;
     return { event, people, changes, anchors, move, rows, fresh, affectedFrom, error: error || phaseError,
-      ...staffImpact(involvedIds, affectedFrom), routineBefore: before.map(id => empName(id)),
+      ...staffImpact(involvedIds, affectedFrom), holidayResets, routineBefore: before.map(id => empName(id)),
       routineAfter: after.map(id => people.find(e => e.id === id).name) };
   }
   function wtApply(plan, previous = null){
@@ -4624,7 +4654,7 @@
     const plan = () => {
       const partner = selectedPartner();
       return context(() => wtPlan(EMPLOYEES.find(e => e.id === primaryId), ui.target, ui.from,
-        partner, ui.startShift, ui.fresh, ui.target === 'transfer' ? 'transfer' : ui.outgoingAction));
+        partner, ui.startShift, ui.fresh, ui.target === 'transfer' ? 'transfer' : ui.outgoingAction, previous));
     };
     const renderPreview = () => {
       const box = $d('.wt-preview'), impact = $d('.wt-impact'), error = $d('.wt-error');
@@ -4641,6 +4671,7 @@
       if (!p.error && p.event.outgoingId && p.event.incomingId) items.push(`<li>기존 교대 루틴 인계 · ${escapeAttribute(p.event.startShift)}부터 시작</li>`);
       if (p.covers.length) items.push(`<li class="wt-warn">기존 휴가·대근 ${p.covers.length}건 보존: ${escapeAttribute(p.covers.slice(0, 4).join(' / '))}</li>`);
       if (p.manual) items.push(`<li class="wt-warn">수동 기록 ${p.manual}건 보존</li>`);
+      if (p.holidayResets) items.push(`<li>기존 일반 근무 ${p.holidayResets}칸 휴일 O 적용</li>`);
       if (p.confirmed.length) items.push(`<li class="wt-warn">재확정 필요: ${escapeAttribute(p.confirmed.join(', '))}</li>`);
       if ((ui.target === 'transfer' || ui.outgoingAction === 'transfer') && p.event.outgoingId) items.push('<li>전출 직원은 적용 전날까지 재직</li>');
       impact.innerHTML = `<ul>${items.join('')}</ul>`;
