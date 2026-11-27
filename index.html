@@ -506,6 +506,49 @@
   #loginForm h1{margin:0 0 8px;}
   #loginForm label{margin:0;}
   dialog.modal{border:0;}
+  /* 근무 형태 바꾸기 창 */
+  dialog.wt-dialog{width:min(620px,calc(100% - 24px));}
+  .wt-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+  .wt-title{margin:2px 0 0;font-size:19px;}
+  .wt-step{margin-top:16px;}
+  .wt-step > b{display:block;font-size:13px;color:var(--muted);font-weight:600;margin-bottom:8px;}
+  .wt-types{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .wt-type{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line2);background:#fff;font-family:inherit;text-align:left;cursor:pointer;color:var(--text);}
+  .wt-type span{font-size:12.5px;color:var(--faint);}
+  .wt-type.on{border-color:var(--accent);background:var(--accent-soft);}
+  .wt-type.on strong{color:var(--accent-text);}
+  .wt-type:disabled{cursor:default;background:var(--sunk);border-color:transparent;}
+  .wt-date{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0;}
+  .wt-date input{font-size:16px;padding:10px 12px;}
+  .wt-partner-step{padding:14px 16px;border-radius:16px;border:2px solid var(--accent);background:var(--accent-soft);}
+  .wt-partner-step > b{color:var(--accent-text);font-size:14px;}
+  .wt-ask{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.5;}
+  .wt-ask > span{font-size:20px;color:var(--accent-text);line-height:1.2;}
+  .wt-cands{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px;}
+  .wt-cand{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border-radius:12px;border:1.5px solid var(--line2);background:#fff;font-family:inherit;text-align:left;cursor:pointer;color:var(--text);}
+  .wt-cand strong{font-size:15px;}
+  .wt-cand span:last-child{font-size:12px;color:var(--faint);}
+  .wt-cand.on{border:2px solid var(--accent);}
+  .wt-cand.on span:last-child{color:var(--accent-text);}
+  .wt-av{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--sunk);font-weight:700;font-size:13px;margin-bottom:4px;}
+  .wt-none{background:transparent;border:1px dashed var(--line2);}
+  .wt-start{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px;font-size:13.5px;}
+  .wt-chip{min-width:40px;height:34px;border-radius:999px;border:1px solid var(--line2);background:#fff;font-weight:700;font-family:inherit;cursor:pointer;}
+  .wt-chip.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .wt-strip{display:grid;grid-template-columns:58px repeat(7,minmax(0,1fr));gap:3px;text-align:center;font-size:12.5px;}
+  .wt-strip > span{padding:5px 0;border-radius:7px;}
+  .wt-d{color:var(--faint);}
+  .wt-from{color:var(--accent-text);font-weight:700;}
+  .wt-n{text-align:left;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .wt-c{background:var(--sunk);font-weight:600;}
+  .wt-c.wt-diff{background:var(--accent);color:#fff;}
+  .wt-impact{margin-top:14px;padding:12px 14px;border-radius:12px;background:var(--bg);font-size:13.5px;}
+  .wt-impact:empty{display:none;}
+  .wt-impact ul{margin:6px 0 0;padding-left:18px;line-height:1.7;}
+  .wt-warn{color:var(--amber);}
+  .wt-error{margin:10px 0 0;color:var(--red);font-weight:600;font-size:13.5px;}
+  .wt-history{display:flex;flex-direction:column;gap:2px;font-size:12.5px;margin-bottom:4px;}
+  .wt-open{display:block;padding:2px 0;font-size:12.5px;}
   dialog.modal::backdrop{background:rgba(36,25,15,.38);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
   .pin-change{display:grid;gap:10px;}
   /* 좁은 휴대폰에서는 'OOO님으로 로그인됨' 문구를 숨겨 PIN 변경·로그아웃·새로고침이 한 줄에 들어가게 한다(이름은 근무표의 '나' 표시로 보인다). */
@@ -1078,6 +1121,27 @@
   // 직원 편집의 [근무 형태]. 이 순서로 묶어서 정렬한다.
   const WORK_TYPES = ['NC', 'TC', 'dispatch'];
   const WORK_TYPE_LABEL = { NC: 'NC 교대근무', TC: 'TC 상일근', dispatch: '파견사원' };
+  // 근무 형태 바꾸기(2026-11-27): 사람마다 "언제부터 무엇으로" 기록을 둔다.
+  //   employee.workType        — 처음(바꾸기 전) 근무 형태
+  //   employee.workTypeChanges — [{ from: 'YYYY-MM-DD', workType: 'NC'|'TC', at }]
+  // 그 날의 근무 형태는 from 이 그 날 이전인 마지막 기록이다. 지난 달은 그대로 남는다.
+  function workTypeChangesOf(emp){
+    return (Array.isArray(emp?.workTypeChanges) ? emp.workTypeChanges : [])
+      .filter(change => change && /^\d{4}-\d{2}-\d{2}$/.test(change.from) && WORK_TYPES.includes(change.workType))
+      .slice().sort((a, b) => a.from !== b.from ? (a.from < b.from ? -1 : 1) : (String(a.at) < String(b.at) ? -1 : 1));
+  }
+  function activeWorkTypeChange(emp, date){
+    const key = typeof date === 'string' ? date : fmt(date);
+    let hit = null;
+    for (const change of workTypeChangesOf(emp)) if (change.from <= key) hit = change;
+    return hit;
+  }
+  function workTypeAt(emp, date){
+    if (!emp) return undefined;
+    const change = activeWorkTypeChange(emp, date);
+    return change ? change.workType : emp.workType;
+  }
+
   // 일근 묶음(파견사원). 2년마다 바뀌므로 설정 탭에서 이름을 바꿀 수 있다.
   const DEFAULT_DAY_WORKER_NAME = '이주형';
 
@@ -1088,7 +1152,7 @@
     // NC 교대근무 중 위에서부터 4명만 자동대근 대상이다. TC 상일근·파견사원은 순서상 위에 있어도 세지 않는다.
     // (근무 형태를 정한 적 없는 예전 데이터는 NC 후보로 본다 — 예전처럼 순서로 정해진다.)
     const top = getActiveStaff(ref.getFullYear(), ref.getMonth())
-      .filter(e => !isDispatchedDayWorker(e) && (e.workType || 'NC') === 'NC').slice(0, ROUTINE_HEADCOUNT);
+      .filter(e => !isDispatchedDayWorker(e) && (workTypeAt(e, ref) || 'NC') === 'NC').slice(0, ROUTINE_HEADCOUNT);
     return top.some(e => e.id === emp.id);
   }
 
@@ -1505,6 +1569,13 @@
     if (!emp) return '';
     // 일근 묶음(파견사원)은 교대 없이 평일 일근, 토·일·공휴일은 O.
     if (isDispatchedDayWorker(emp)) return isWeekendOrHoliday(stripTime(date)) ? 'O' : '일';
+    // [근무 형태 바꾸기]로 TC 상일근이 된 기간은 평일 일·토·일·공휴일 O.
+    if (activeWorkTypeChange(emp, date)?.workType === 'TC') return isWeekendOrHoliday(stripTime(date)) ? 'O' : '일';
+    return rotationShift(emp, date);
+  }
+  // 교대(일→야→조→O) 계산만. 로테이션 시작점이 있으면 그것을, 없으면 phase 를 따른다.
+  function rotationShift(emp, date){
+    const empId = emp.id;
     const anchor = getRotationAnchorFor(empId, date);
     if (anchor) {
       const startIdx = CYCLE.indexOf(anchor.startShift);
@@ -3482,7 +3553,8 @@
   // 근무 형태를 정한 적 없는 예전 데이터는 예전처럼 순서로 정한다(교대 4명 = NC, 그 밖 = TC).
   function workTypeOf(employee, date){
     if (!employee) return '';
-    if (WORK_TYPES.includes(employee.workType)) return employee.workType;
+    const typeAt = workTypeAt(employee, date || getToday());
+    if (WORK_TYPES.includes(typeAt)) return typeAt;
     if (isDispatchedDayWorker(employee)) return 'dispatch';
     return isRoutineWorker(employee, date) ? 'NC' : 'TC';
   }
@@ -3803,6 +3875,230 @@
     });
   }
 
+  // ───────── 근무 형태 바꾸기 (NC 교대근무 ↔ TC 상일근, 2026-11-27) ─────────
+  // 사람은 그대로 두고 "언제부터 무엇으로"만 정한다. 그 전날까지는 예전 근무 그대로다.
+  //   NC → TC: 그 날부터 평일 일·휴일 O. 대신 들어올 사람을 고르면 그 사람이 이 사람의 교대 자리를
+  //            (야·조·O·일 순서 그대로) 이어받고, 표 순서에서도 자리를 바꾼다.
+  //   TC → NC: 누구 자리를 이어받을지(그 사람은 TC 로) 또는 새 자리의 시작 근무를 고른다.
+  // 이미 잡힌 휴가·대근 기록은 서버가 고칠 수 없게 막아 두어서, 그대로 두고 경고만 보여 준다.
+  const WT_CHOICES = ['NC', 'TC'];
+  function wtLabel(dateKey){ return `${Number(dateKey.slice(5, 7))}/${Number(dateKey.slice(8))}`; }
+  function wtOrderFor(monthKey){
+    const [y, m] = monthKey.split('-').map(Number);
+    const ids = (getOrderedEmployeeIds(y, m - 1) || EMPLOYEES.map(e => e.id)).slice();
+    EMPLOYEES.forEach(e => { if (!ids.includes(e.id)) ids.push(e.id); });
+    return ids;
+  }
+  // 바꾼 뒤의 직원들(사본)과 순서로 그 날의 자동대근 4명을 다시 센다.
+  function wtRoutineNames(people, order, dateKey){
+    const rank = new Map(order.map((id, index) => [id, index]));
+    return people
+      .filter(e => (e.startDate || '2026-01-01') <= dateKey && (!e.endDate || e.endDate >= dateKey))
+      .filter(e => !isDispatchedDayWorker(e) && (workTypeAt(e, dateKey) || 'NC') === 'NC')
+      .sort((a, b) => (rank.has(a.id) ? rank.get(a.id) : 1e9) - (rank.has(b.id) ? rank.get(b.id) : 1e9))
+      .slice(0, ROUTINE_HEADCOUNT).map(e => e.name);
+  }
+  // 고른 내용으로 바뀔 것을 계산한다(아직 STATE 는 건드리지 않음).
+  function wtPlan(emp, target, from, partnerId, startShift){
+    const fromDate = new Date(from + 'T00:00:00');
+    const partner = partnerId ? EMPLOYEES.find(e => e.id === partnerId) : null;
+    const at = new Date().toISOString();
+    const changes = [{ empId: emp.id, from, workType: target, at }];
+    const anchors = [];
+    let swap = null;
+    if (target === 'TC' && partner) {
+      // 들어오는 사람이 TC 면 NC 가 되고, 이 사람의 교대 자리를 이어받는다.
+      if (workTypeAt(partner, from) !== 'NC') changes.push({ empId: partner.id, from, workType: 'NC', at });
+      anchors.push({ id: uid(), empId: partner.id, startDate: from, startShift: rotationShift(emp, fromDate), at, inheritFrom: emp.id });
+      swap = [emp.id, partner.id];
+    } else if (target === 'NC' && partner) {
+      // 이 사람이 partner 의 교대 자리를 이어받고, partner 는 TC 로 간다.
+      changes.push({ empId: partner.id, from, workType: 'TC', at });
+      anchors.push({ id: uid(), empId: emp.id, startDate: from, startShift: rotationShift(partner, fromDate), at, inheritFrom: partner.id });
+      swap = [emp.id, partner.id];
+    } else if (target === 'NC') {
+      anchors.push({ id: uid(), empId: emp.id, startDate: from, startShift: startShift || '일', at });
+    }
+    const people = EMPLOYEES.map(e => {
+      const mine = changes.filter(change => change.empId === e.id).map(({ empId, ...rest }) => rest);
+      return mine.length ? { ...e, workTypeChanges: [...workTypeChangesOf(e), ...mine] } : e;
+    });
+    const monthKey = from.slice(0, 7);
+    const order = wtOrderFor(monthKey);
+    if (swap) {
+      const [a, b] = swap.map(id => order.indexOf(id));
+      if (a >= 0 && b >= 0) [order[a], order[b]] = [order[b], order[a]];
+    } else if (target === 'NC') {
+      // 새 자리: NC 묶음 바로 뒤로 옮긴다 → NC 가 4명보다 적으면 자동대근이 된다.
+      const without = order.filter(id => id !== emp.id);
+      const lastNc = without.reduce((last, id, index) => {
+        const e = EMPLOYEES.find(x => x.id === id);
+        return e && !isDispatchedDayWorker(e) && (workTypeAt(e, from) || 'NC') === 'NC' ? index : last;
+      }, -1);
+      without.splice(lastNc + 1, 0, emp.id);
+      order.splice(0, order.length, ...without);
+    }
+    // 바꾼 뒤 근무 모양(휴가·수동 입력 칸은 그대로 남는다).
+    const afterShift = (person, date) => {
+      const key = fmt(date);
+      if (key < from) return effectiveShift(person.id, date);
+      const changed = people.find(e => e.id === person.id);
+      if (workTypeAt(changed, key) === 'TC') return isWeekendOrHoliday(date) ? 'O' : '일';
+      const anchor = anchors.find(item => item.empId === person.id);
+      if (anchor) {
+        const offset = Math.round((stripTime(date) - fromDate) / 86400000);
+        return CYCLE[((CYCLE.indexOf(anchor.startShift) + offset) % 4 + 4) % 4];
+      }
+      return effectiveShift(person.id, date);
+    };
+    const days = Array.from({ length: 7 }, (_, i) => addDays(fromDate, i - 3));
+    const rows = [emp, partner].filter(Boolean).map(person => ({
+      name: person.name,
+      cells: days.map(date => ({ key: fmt(date), before: effectiveShift(person.id, date), after: afterShift(person, date) }))
+    }));
+    // 이미 잡힌 대근: 바꾼 날 이후 이 사람(들)이 다른 사람 휴가의 대근으로 잡힌 칸.
+    const involved = new Set([emp.id, partner?.id].filter(Boolean));
+    const covers = [];
+    (STATE.requests || []).forEach(request => {
+      if (request.status === 'cancelled') return;
+      (request.chain || []).forEach(entry => {
+        if (involved.has(entry.empId) && entry.empId !== request.empId && entry.date >= from) {
+          covers.push(`${wtLabel(entry.date)} ${empName(request.empId)} 휴가의 대근(${empName(entry.empId)}·${entry.shift})`);
+        }
+      });
+    });
+    const confirmed = Object.keys(STATE.monthlyApprovals || {}).filter(key => key >= monthKey).sort();
+    return {
+      changes, anchors, order, monthKey, rows, covers, confirmed,
+      routineBefore: wtRoutineNames(EMPLOYEES, wtOrderFor(monthKey), from),
+      routineAfter: wtRoutineNames(people, order, from)
+    };
+  }
+  function wtApply(emp, target, from, plan){
+    snapshotHistoricalSchedule(); // 지난 날짜를 고정해 과거 근무표가 다시 계산되지 않게 한다
+    EMPLOYEES = EMPLOYEES.map(e => {
+      const mine = plan.changes.filter(change => change.empId === e.id).map(({ empId, ...rest }) => rest);
+      return mine.length ? { ...e, workTypeChanges: [...workTypeChangesOf(e), ...mine] } : e;
+    });
+    STATE.employees = EMPLOYEES;
+    STATE.rotationAnchors = [...(STATE.rotationAnchors || []), ...plan.anchors.map(({ inheritFrom, ...anchor }) => anchor)];
+    if (!Array.isArray(STATE.employeeOrderHistory)) STATE.employeeOrderHistory = [];
+    if (!STATE.employeeOrderHistory.length) STATE.employeeOrderHistory.push({ month: '0000-01', order: EMPLOYEES.map(e => e.id) });
+    const entry = STATE.employeeOrderHistory.find(item => item.month === plan.monthKey);
+    if (entry) entry.order = plan.order.slice(); else STATE.employeeOrderHistory.push({ month: plan.monthKey, order: plan.order.slice() });
+    STATE.employeeOrderHistory.sort((a, b) => a.month < b.month ? -1 : a.month > b.month ? 1 : 0);
+    const names = plan.changes.map(change => `${empName(change.empId)} ${WORK_TYPE_LABEL[change.workType]}`).join(', ');
+    addAuditLog('직원 구성 편집', { workTypeChange: plan.changes, anchors: plan.anchors, from, orderMonth: plan.monthKey });
+    saveEditorChange(`근무 형태 바꾸기: ${wtLabel(from)}부터 ${names}`, monthKeysFrom(from));
+  }
+  function openWorkTypeDialog(empId){
+    const emp = EMPLOYEES.find(e => e.id === empId);
+    if (!emp) return;
+    if (!requireScheduleEditor('근무 형태 바꾸기')) return;
+    const today = fmt(stripTime(new Date()));
+    const nowType = workTypeAt(emp, today) || 'NC';
+    const ui = { target: nowType === 'NC' ? 'TC' : 'NC', from: '', partner: null, partnerTouched: false, startShift: '일' };
+    const dialog = document.createElement('dialog');
+    dialog.className = 'modal wt-dialog';
+    dialog.innerHTML = `<form method="dialog">
+      <div class="wt-head"><div><div class="quota" style="margin:0;">근무 형태 바꾸기</div><h3 class="wt-title"></h3></div>
+        <button type="button" class="btn ghost" data-act="close" aria-label="닫기">✕</button></div>
+      <div class="wt-step"><b>1. 무엇으로</b><div class="wt-types" role="radiogroup" aria-label="새 근무 형태"></div></div>
+      <div class="wt-step"><b>2. 언제부터</b>
+        <label class="wt-date"><input type="date" name="from" required min="${today}"><span class="quota" style="margin:0;">그 전날까지는 지금 근무 그대로예요</span></label></div>
+      <div class="wt-step wt-partner-step"><b class="wt-partner-title">3. 대신 들어올 사람</b><div class="wt-partner"></div></div>
+      <div class="wt-step"><b>4. 미리보기</b><div class="wt-preview"><p class="quota" style="margin:0;">날짜를 고르면 바꾸는 날 앞뒤 근무가 보여요.</p></div></div>
+      <div class="wt-impact"></div>
+      <p class="wt-error" role="alert" hidden></p>
+      <div class="row" style="justify-content:flex-end;margin-top:14px;"><button type="button" class="btn secondary" data-act="close">취소</button><button type="submit" class="btn" data-act="save">바꾸기</button></div>
+    </form>`;
+    const $d = sel => dialog.querySelector(sel);
+    const close = () => { dialog.close(); dialog.remove(); };
+    const candidates = () => {
+      if (!ui.from) return [];
+      const month = new Date(ui.from + 'T00:00:00');
+      const staff = getActiveStaff(month.getFullYear(), month.getMonth()).filter(e => e.id !== emp.id && !isDispatchedDayWorker(e));
+      if (ui.target === 'TC') {
+        // 지금 TC 인 사람(서로 바꾸기), 또는 자동대근 밖의 NC(적응·추가 → 자리 이어받기)
+        const routine = new Set(wtRoutineNames(EMPLOYEES, wtOrderFor(ui.from.slice(0, 7)), ui.from));
+        return staff.filter(e => workTypeAt(e, ui.from) === 'TC' || ((workTypeAt(e, ui.from) || 'NC') === 'NC' && !routine.has(e.name)))
+          .map(e => ({ id: e.id, name: e.name, note: workTypeAt(e, ui.from) === 'TC' ? '지금 TC 상일근 · 서로 바꾸기' : 'NC 적응·추가 · 자리 이어받기' }));
+      }
+      // TC → NC: 지금 자동대근인 NC 의 자리를 이어받는다(그 사람은 TC 로).
+      const routine = wtRoutineNames(EMPLOYEES, wtOrderFor(ui.from.slice(0, 7)), ui.from);
+      return staff.filter(e => routine.includes(e.name)).map(e => ({ id: e.id, name: e.name, note: '이 사람 자리 이어받기 · 이 사람은 TC 로' }));
+    };
+    const render = () => {
+      const target = ui.target;
+      $d('.wt-title').textContent = `${emp.name} · ${WORK_TYPE_LABEL[nowType]} → ${WORK_TYPE_LABEL[target]}`;
+      $d('.wt-types').innerHTML = WT_CHOICES.map(type => `<button type="button" role="radio" aria-checked="${type === target}" class="wt-type${type === target ? ' on' : ''}" data-type="${type}" ${type === nowType ? 'disabled' : ''}>
+        <strong>${WORK_TYPE_LABEL[type]}</strong><span>${type === nowType ? '지금' : type === 'TC' ? '평일 일 · 토·일·공휴일 O · 대근 없음' : '일→야→조→O 교대 · 자동대근'}</span></button>`).join('');
+      // 3. 대신 들어올 사람 / 들어갈 자리
+      const list = candidates();
+      if (!ui.partnerTouched) ui.partner = list[0]?.id || null;
+      if (ui.partner && !list.some(c => c.id === ui.partner)) ui.partner = null;
+      $d('.wt-partner-title').textContent = target === 'TC' ? '3. 대신 들어올 사람' : '3. 어떤 교대 자리로 들어가나요';
+      const ask = target === 'TC'
+        ? `${ui.from ? wtLabel(ui.from) + '부터 ' : ''}<b>${escapeAttribute(emp.name)}</b>의 교대 자리를 누가 이어받나요?`
+        : `${ui.from ? wtLabel(ui.from) + '부터 ' : ''}<b>${escapeAttribute(emp.name)}</b>이(가) 누구의 교대 자리를 이어받나요?`;
+      const none = target === 'TC'
+        ? { label: '아무도 안 함', note: '자동대근은 다음 NC 순서로 채워져요' }
+        : { label: '새 자리', note: '시작 근무를 직접 골라요' };
+      $d('.wt-partner').innerHTML = !ui.from ? '<p class="quota" style="margin:0;">날짜를 고르면 후보가 나와요.</p>' : `
+        <div class="wt-ask"><span aria-hidden="true">⇄</span><div>${ask}<div class="quota" style="margin:2px 0 0;">고른 사람의 야·조·O·일 순서를 그대로 이어서 서요. 표 순서도 서로 바꿔요.</div></div></div>
+        <div class="wt-cands" role="radiogroup">
+          ${list.map(c => `<button type="button" role="radio" aria-checked="${ui.partner === c.id}" class="wt-cand${ui.partner === c.id ? ' on' : ''}" data-partner="${escapeAttribute(c.id)}">
+            <span class="wt-av">${escapeAttribute(c.name.slice(0, 1))}</span><strong>${escapeAttribute(c.name)}</strong><span>${escapeAttribute(c.note)}</span></button>`).join('')}
+          <button type="button" role="radio" aria-checked="${!ui.partner}" class="wt-cand${!ui.partner ? ' on' : ''}" data-partner="">
+            <span class="wt-av wt-none">–</span><strong>${none.label}</strong><span>${none.note}</span></button>
+        </div>
+        ${target === 'NC' && !ui.partner ? `<div class="wt-start">시작 근무 ${CYCLE.map(sh => `<button type="button" class="wt-chip${ui.startShift === sh ? ' on' : ''}" data-start="${sh}">${sh}</button>`).join('')}<span class="quota" style="margin:0;">${wtLabel(ui.from)}에 이 근무로 시작해 ${CYCLE.join('→')} 순서로 반복</span></div>` : ''}`;
+      // 4. 미리보기 · 함께 바뀌는 것
+      $d('[data-act=save]').textContent = ui.from ? `${wtLabel(ui.from)}부터 바꾸기` : '바꾸기';
+      if (!ui.from) { $d('.wt-impact').innerHTML = ''; return; }
+      const plan = wtPlan(emp, target, ui.from, ui.partner, ui.startShift);
+      const head = plan.rows[0].cells.map(cell => `<span class="wt-d${cell.key === ui.from ? ' wt-from' : ''}">${escapeAttribute(wtLabel(cell.key))}</span>`).join('');
+      $d('.wt-preview').innerHTML = `<div class="wt-strip"><span></span>${head}
+        ${plan.rows.map(row => `<span class="wt-n">${escapeAttribute(row.name)}</span>${row.cells.map(cell => `<span class="wt-c${cell.key >= ui.from ? ' wt-after' : ''}${cell.before !== cell.after ? ' wt-diff' : ''}" title="지금 ${escapeAttribute(cell.before)} → 바꾼 뒤 ${escapeAttribute(cell.after)}">${escapeAttribute(cell.after)}</span>`).join('')}`).join('')}
+        </div><p class="quota" style="margin:6px 0 0;">색이 진한 칸이 바뀌는 칸이에요. 휴가·대근·직접 입력한 칸은 그대로 남아요.</p>`;
+      const items = [];
+      const same = plan.routineBefore.join() === plan.routineAfter.join();
+      items.push(`<li><b>자동대근 4명</b> ${same ? '그대로' : `${escapeAttribute(plan.routineBefore.join(' · ') || '없음')} → <b>${escapeAttribute(plan.routineAfter.join(' · ') || '없음')}</b>`}${plan.routineAfter.length < ROUTINE_HEADCOUNT ? ` <span class="wt-warn">(${plan.routineAfter.length}명뿐이에요)</span>` : ''}</li>`);
+      if (plan.covers.length) items.push(`<li class="wt-warn">이미 잡힌 대근 ${plan.covers.length}건은 그대로 남아요: ${escapeAttribute(plan.covers.slice(0, 4).join(', '))}${plan.covers.length > 4 ? ` 외 ${plan.covers.length - 4}건` : ''} — 필요하면 근무표 편집에서 고쳐 주세요.</li>`);
+      if (plan.confirmed.length) items.push(`<li class="wt-warn">확정된 달(${escapeAttribute(plan.confirmed.join(', '))})이 바뀌어 다시 확정 요청이 필요해요.</li>`);
+      $d('.wt-impact').innerHTML = `<b>함께 바뀌는 것</b><ul>${items.join('')}</ul>`;
+    };
+    dialog.addEventListener('click', event => {
+      const typeBtn = event.target.closest('[data-type]');
+      if (typeBtn && !typeBtn.disabled) { ui.target = typeBtn.dataset.type; ui.partnerTouched = false; render(); return; }
+      const partnerBtn = event.target.closest('[data-partner]');
+      if (partnerBtn) { ui.partner = partnerBtn.dataset.partner || null; ui.partnerTouched = true; render(); return; }
+      const startBtn = event.target.closest('[data-start]');
+      if (startBtn) { ui.startShift = startBtn.dataset.start; render(); return; }
+      if (event.target.closest('[data-act=close]')) close();
+    });
+    $d('input[name=from]').addEventListener('change', event => { ui.from = event.target.value; ui.partnerTouched = false; $d('.wt-error').hidden = true; render(); });
+    $d('form').addEventListener('submit', event => {
+      event.preventDefault();
+      const error = !ui.from ? '언제부터 바꿀지 날짜를 골라 주세요.'
+        : ui.from < today ? '오늘 이후 날짜만 고를 수 있어요. 지난 날은 근무표 편집에서 칸을 직접 고쳐 주세요.'
+        : !isEmployeeActiveOnDate(emp, new Date(ui.from + 'T00:00:00')) ? `${emp.name}님의 적용 기간 안의 날짜를 골라 주세요.`
+        : workTypeAt(emp, ui.from) === ui.target ? `${wtLabel(ui.from)}에는 이미 ${WORK_TYPE_LABEL[ui.target]}이에요.` : '';
+      if (error) { const box = $d('.wt-error'); box.textContent = error; box.hidden = false; return; }
+      const plan = wtPlan(emp, ui.target, ui.from, ui.partner, ui.startShift);
+      wtApply(emp, ui.target, ui.from, plan);
+      close();
+      renderAll();
+      settingsEmployeeEditor.open();
+      showToast(`${wtLabel(ui.from)}부터 ${plan.changes.map(change => `${empName(change.empId)} ${WORK_TYPE_LABEL[change.workType]}`).join(', ')}로 바꿨어요. 맨 아래 [변경 내용 확인 후 저장]을 눌러야 저장돼요.`, 'ok');
+    });
+    dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
+    document.body.append(dialog);
+    render();
+    dialog.showModal();
+    $d('input[name=from]').focus();
+  }
+
   // 직원 추가/삭제·적용기간 편집 UI는 설정 탭과 근무표 탭에서 동일한 동작을 공유한다.
   function createEmployeeEditor(tableBodyId){
     let draft = [];
@@ -3821,24 +4117,43 @@
       }
       return rows;
     }
+    // 이 표는 "편집 월"부터 적용되는 순서다. 근무 형태 바꾸기 기록이 있으면 그 달 1일의 형태로 묶는다.
+    function typeOf(row){
+      const month = getScheduleEditMonth();
+      return workTypeAt(row, fmt(new Date(month.year, month.monthIndex, 1))) || row.workType;
+    }
     // 근무 형태끼리 묶는다(NC → TC → 파견사원). 같은 형태 안의 순서(직급 순서)는 그대로 둔다.
     function groupByWorkType(rows){
       return rows.map((row, index) => ({ row, index }))
-        .sort((x, y) => (WORK_TYPES.indexOf(x.row.workType) - WORK_TYPES.indexOf(y.row.workType)) || (x.index - y.index))
+        .sort((x, y) => (WORK_TYPES.indexOf(typeOf(x.row)) - WORK_TYPES.indexOf(typeOf(y.row))) || (x.index - y.index))
         .map(item => item.row);
     }
     // NC 교대근무 중 위 4명(오늘 기준 종료되지 않은 사람)이 자동대근 대상이다.
     function autoSubstituteIds(){
       const today = fmt(stripTime(new Date()));
-      return new Set(draft.filter(row => row.workType === 'NC' && (!row.endDate || row.endDate >= today))
+      return new Set(draft.filter(row => workTypeAt(row, today) === 'NC' && (!row.endDate || row.endDate >= today))
         .slice(0, ROUTINE_HEADCOUNT).map(row => row.id));
     }
     function workTypeNote(row, auto){
-      if (row.workType === 'NC') return auto.has(row.id)
+      const type = typeOf(row);
+      if (type === 'NC') return auto.has(row.id)
         ? '<span class="tag ok">자동대근</span>'
         : '<span class="tag muted">적응·추가 (대근 없음)</span>';
-      if (row.workType === 'TC') return '<span class="tag muted">상일근 · 대근 없음</span>';
+      if (type === 'TC') return '<span class="tag muted">상일근 · 대근 없음</span>';
       return '<span class="tag muted">평일 일·휴일 O · 대근 없음</span>';
+    }
+    // 바꾸기 기록이 있는 사람은 형태를 고르는 칸 대신 기록을 보여 준다(고르는 칸은 지난 달까지 바꿔 버린다).
+    function workTypeCell(row){
+      const changes = workTypeChangesOf(row);
+      const saved = EMPLOYEES.some(employee => employee.id === row.id);
+      const button = saved && typeOf(row) !== 'dispatch'
+        ? `<button class="btn ghost wt-open" type="button" data-work-type-change="${escapeAttribute(row.id)}">근무 형태 바꾸기</button>` : '';
+      if (!changes.length) {
+        return `<select data-work-type style="margin-bottom:4px;">${WORK_TYPES.map(type => `<option value="${type}"${row.workType === type ? ' selected' : ''}>${WORK_TYPE_LABEL[type]}</option>`).join('')}</select>${button}`;
+      }
+      const steps = [`<span>${escapeAttribute(WORK_TYPE_LABEL[row.workType] || 'NC 교대근무')}</span>`]
+        .concat(changes.map(change => `<span>→ ${escapeAttribute(Number(change.from.slice(5, 7)) + '/' + Number(change.from.slice(8)))}부터 <b>${escapeAttribute(WORK_TYPE_LABEL[change.workType])}</b></span>`));
+      return `<div class="wt-history">${steps.join(' ')}</div>${button}`;
     }
 
     function render(){
@@ -3849,9 +4164,9 @@
       const auto = autoSubstituteIds();
       body.innerHTML = draft.map((employee, index) => {
         // ▲▼는 같은 근무 형태 안에서만 움직인다(형태가 다르면 [근무 형태]를 바꾼다).
-        const canUp = index > 0 && draft[index - 1].workType === employee.workType;
-        const canDown = index < draft.length - 1 && draft[index + 1].workType === employee.workType;
-        const firstOfGroup = index > 0 && draft[index - 1].workType !== employee.workType;
+        const canUp = index > 0 && typeOf(draft[index - 1]) === typeOf(employee);
+        const canDown = index < draft.length - 1 && typeOf(draft[index + 1]) === typeOf(employee);
+        const firstOfGroup = index > 0 && typeOf(draft[index - 1]) !== typeOf(employee);
         return `
         <tr data-index="${index}"${firstOfGroup ? ' style="border-top:2px solid #cbd5e1;"' : ''}>
           <td><input type="text" data-field="name" value="${escapeAttribute(employee.name)}" placeholder="이름"></td>
@@ -3859,7 +4174,7 @@
           <td><input type="date" data-field="startDate" value="${escapeAttribute(employee.startDate || '')}"></td>
           <td><input type="date" data-field="endDate" value="${escapeAttribute(employee.endDate || '')}"></td>
           <td style="white-space:nowrap;">
-            <select data-work-type style="margin-bottom:4px;">${WORK_TYPES.map(type => `<option value="${type}"${employee.workType === type ? ' selected' : ''}>${WORK_TYPE_LABEL[type]}</option>`).join('')}</select>
+            ${workTypeCell(employee)}
             <div>${workTypeNote(employee, auto)}</div>
           </td>
           <td style="white-space:nowrap;">
@@ -3902,9 +4217,15 @@
         button.addEventListener('click', () => {
           const index = Number(button.dataset.index);
           const target = button.dataset.dir === 'up' ? index - 1 : index + 1;
-          if (target < 0 || target >= draft.length || draft[target].workType !== draft[index].workType) return;
+          if (target < 0 || target >= draft.length || typeOf(draft[target]) !== typeOf(draft[index])) return;
           [draft[index], draft[target]] = [draft[target], draft[index]];
           render();
+        });
+      });
+      body.querySelectorAll('[data-work-type-change]').forEach(button => {
+        button.addEventListener('click', () => {
+          if (isDirty()) { showToast('표에 반영하지 않은 수정이 있어요. 먼저 [직원 구성 적용]을 눌러 주세요.', 'warn'); return; }
+          openWorkTypeDialog(button.dataset.workTypeChange);
         });
       });
       body.querySelectorAll('.remove-employee-row').forEach(button => {
