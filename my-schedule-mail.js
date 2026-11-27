@@ -57,7 +57,7 @@ function validate(body) {
 
 // 받은 CSV 를 불러올 교대 앱 주소. 회사 밖(LTE)에서도 열리게 팀 계정의 GitHub Pages 를 쓴다
 // (2026-11-18 사용자: 사내망 /shift/ 는 회사 밖에서 안 열리고, 개인 계정 주소는 공유하기 싫다).
-// .env 의 SHIFT_APP_URL 로 바꿀 수 있다. 서버의 /shift/ 는 사내망 예비용으로 남아 있다.
+// .env 의 SHIFT_APP_URL 로 바꿀 수 있다. 서버의 /down/ (예전 /shift/) 은 사내망용으로 남아 있다.
 const SHIFT_APP_URL = 'https://sbsnqc4821.github.io/NQCshift/';
 function defaultAppUrl() { return (process.env.SHIFT_APP_URL || '').trim() || SHIFT_APP_URL; }
 
