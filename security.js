@@ -72,6 +72,8 @@ function validateStaffHistory(old, next) {
     const outgoing = employees.find(e => e.id === event.outgoingId), incoming = employees.find(e => e.id === event.incomingId);
     if ((!outgoing && event.outgoingId) || (!incoming && event.incomingId) || (!outgoing && !incoming) || (outgoing && outgoing.id === incoming?.id)
       || (event.primaryId !== outgoing?.id && event.primaryId !== incoming?.id)) fail(400, '인계 직원 정보가 일치하지 않습니다.');
+    if (event.placement != null && (!incoming || !['extra', 'routine'].includes(event.placement)
+      || (event.placement === 'extra' ? !!outgoing || event.target !== 'NC' : !outgoing))) fail(409, '추가 교대 자리와 기존 교대 자리 인계를 확인해주세요.');
     for (const emp of [outgoing, incoming].filter(Boolean)) {
       if (ids.has(emp.id)) fail(409, '한 직원에게 예정된 인계가 중복됩니다.');
       ids.add(emp.id);
@@ -99,6 +101,15 @@ function validateStaffHistory(old, next) {
   const linked = [...anchors, ...orderHistory, ...employees.flatMap(e => e.workTypeChanges || [])];
   if (linked.some(e => e.eventId && !eventIds.has(e.eventId))) fail(409, '직원 인계와 연결된 이력이 남아 있습니다.');
   for (const emp of employees) {
+    const roles = emp.rotationRoleChanges || [];
+    if (!Array.isArray(roles) || new Set(roles.map(r => r?.eventId)).size !== roles.length || roles.some(r => {
+      if (!r) return true;
+      const event = events.find(e => e.id === r.eventId);
+      return !validStaffDate(r.from) || !['extra', 'routine'].includes(r.role) || !event
+        || event.incomingId !== emp.id || event.from !== r.from || event.placement !== r.role;
+    }) || events.some(event => event.incomingId === emp.id && event.placement && !roles.some(r => r.eventId === event.id))) {
+      fail(409, '추가 교대·자동대근 역할은 연결된 인계 기록과 함께 저장해야 합니다.');
+    }
     const periods = emp.adaptationPeriods || [];
     if (!Array.isArray(periods)) fail(400, '적응기간 형식이 잘못되었습니다.');
     if (periods.some((p, i) => !validStaffDate(p.startDate) || !validStaffDate(p.endDate) || p.startDate > p.endDate || p.empId !== emp.id

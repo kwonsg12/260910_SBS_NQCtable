@@ -188,7 +188,7 @@ test('일근(파견사원) 기본 근무: 평일 일, 토·일·공휴일 O, NC 
     getHolidayInfo: d => d.getDate() === 25 && d.getMonth() === 11 ? { name: '성탄절' } : null,
     getActiveStaff: () => emps, getToday: () => new Date(2026, 11, 1)
   });
-  vm.runInContext(['stripTime', 'fmt', 'getRotationAnchorFor', 'baseShift', 'rotationShift', 'isWeekendOrHoliday', 'dispatchedNameKey', 'dayWorkerName', 'isDispatchedDayWorker', 'isRoutineWorker', 'workTypeChangesOf', 'activeWorkTypeChange', 'workTypeAt'].map(pick).join('\n'), context);
+  vm.runInContext(['stripTime', 'fmt', 'getRotationAnchorFor', 'baseShift', 'rotationShift', 'isWeekendOrHoliday', 'dispatchedNameKey', 'dayWorkerName', 'isDispatchedDayWorker', 'rotationRoleAt', 'isRoutineWorker', 'workTypeChangesOf', 'activeWorkTypeChange', 'workTypeAt'].map(pick).join('\n'), context);
   const shift = day => context.baseShift('lee', new Date(2026, 11, day));
   assert.equal(shift(1), '일');   // 화
   assert.equal(shift(5), 'O');    // 토
@@ -235,7 +235,7 @@ test('직원 편집의 [근무 형태]가 이름보다 우선하고, NC 교대�
     STATE: { settings: {} }, DEFAULT_DAY_WORKER_NAME: '이주형', WORK_TYPES: ['NC', 'TC', 'dispatch'], ROUTINE_HEADCOUNT: 4,
     getActiveStaff: () => staff, getToday: () => new Date(2026, 11, 1)
   });
-  vm.runInContext(['fmt', 'dispatchedNameKey', 'dayWorkerName', 'isDispatchedDayWorker', 'workTypeOf', 'isRoutineWorker', 'workTypeChangesOf', 'activeWorkTypeChange', 'workTypeAt'].map(pick).join('\n'), context);
+  vm.runInContext(['fmt', 'dispatchedNameKey', 'dayWorkerName', 'isDispatchedDayWorker', 'workTypeOf', 'rotationRoleAt', 'isRoutineWorker', 'workTypeChangesOf', 'activeWorkTypeChange', 'workTypeAt'].map(pick).join('\n'), context);
   assert.equal(context.isDispatchedDayWorker({ name: '이주형' }), true);                       // 근무 형태 없는 예전 데이터: 이름으로
   assert.equal(context.isDispatchedDayWorker({ name: '이주형', workType: 'TC' }), false);
   assert.equal(context.isDispatchedDayWorker({ name: '새 사원', workType: 'dispatch' }), true);
@@ -259,7 +259,7 @@ test('근무 형태 바꾸기: 바꾼 날부터만 형태가 바뀌고, TC 는 �
     getHolidayInfo: () => null, getActiveStaff: () => staff, getToday: () => new Date(2026, 11, 1)
   });
   vm.runInContext(['stripTime', 'fmt', 'getRotationAnchorFor', 'baseShift', 'rotationShift', 'isWeekendOrHoliday', 'dispatchedNameKey', 'dayWorkerName',
-    'isDispatchedDayWorker', 'workTypeOf', 'isRoutineWorker', 'workTypeChangesOf', 'activeWorkTypeChange', 'workTypeAt'].map(pick).join('\n'), context);
+    'isDispatchedDayWorker', 'workTypeOf', 'rotationRoleAt', 'isRoutineWorker', 'workTypeChangesOf', 'activeWorkTypeChange', 'workTypeAt'].map(pick).join('\n'), context);
   // 바꾸기 전날까지는 예전 형태, 그 날부터 새 형태. 지난 달은 그대로다.
   assert.equal(context.workTypeAt(staff[0], '2026-12-09'), 'NC');
   assert.equal(context.workTypeAt(staff[0], '2026-12-10'), 'TC');
@@ -329,6 +329,10 @@ test('설정: 왼쪽 메뉴에서 근무표 편집 · 직원 구성을 고르고
   // 투입 일정은 직원 구성 화면(사람 패널 옆) 안에 있다.
   const staff = panel.slice(panel.indexOf('id="employeeEditorView"'));
   assert.ok(staff.includes('id="onboardingEditorView"'));
+  assert.ok(staff.indexOf('id="applyEmployeeEditorBtn"') < staff.indexOf('id="staffEvents"'));
+  assert.ok(staff.indexOf('id="staffEvents"') < staff.indexOf('id="endedStaffPanel"'));
+  assert.match(script, /<details class="sp-rotation-sub" id="staffRotationTools"><summary>교대 루틴 보정/);
+  assert.match(script, /setStandaloneRotationAnchor\(values, \{ staffOnly: true, replace: true \}\)/);
   // 투입 일정은 고른 직원 패널의 탭(정보 · 투입 일정)으로 들어가고, 처음엔 정보 탭이 보인다.
   assert.match(staff, /data-sp-tab="info"[^>]*>정보</);
   assert.match(staff, /data-sp-tab="onboard"[^>]*>투입 일정</);
