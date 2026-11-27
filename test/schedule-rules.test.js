@@ -64,6 +64,18 @@ test('상일근(교대 4명이 아닌 사람)의 일근 휴가는 대근자 없�
   // 일근이 아닌 날은 상일근이어도 일근 휴가를 낼 수 없다.
   assert.match(c.buildChain('a', 'day', date(d1)).error, /일근인 날짜/);
 });
+test('추가 교대자의 야+조근 휴가는 자동대근을 배정하지 않고 이틀 휴가만 기록한다', () => {
+  const {c,build}=setup();
+  c.EMPLOYEES.find(e=>e.id==='a').routine=false;
+  const result=build();
+  assert.equal(result.error,undefined);assert.equal(result.noSubstitute,true);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.chain.map(e=>[e.empId,e.date,e.shift]))),[['a',d0,'휴가'],['a',d1,'휴가']]);
+});
+test('야+조근 대근 첫날만 자동대근 대상인 직원은 다음 날 자동 배정하지 않는다', () => {
+  const {c,build}=setup();
+  c.isRoutineWorker=(employee,day)=>employee.id!=='b'||day.getMonth()===0;
+  assert.match(build().error,/자동대근 대상 아님/);
+});
 test('next-day protection, employment end and occupied shifts exclude a night substitute', () => {
   for (const change of [
     f => f.c.STATE.protects.push({ empId: 'b', date: d1, status: 'pending' }),

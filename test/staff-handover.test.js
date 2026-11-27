@@ -15,16 +15,18 @@ function source(name) {
   return script.slice(start, script.indexOf('\n  }', start) + 4);
 }
 const functions = ['fmt', 'stripTime', 'addDays', 'dateInRange', 'dayIndex', 'workTypeChangesOf', 'activeWorkTypeChange', 'workTypeAt',
-  'isDispatchedDayWorker', 'dispatchedNameKey', 'dayWorkerName', 'isRoutineWorker', 'workTypeOf', 'staffOrderDate', 'getOrderedEmployeeIds', 'getActiveStaff',
+  'isDispatchedDayWorker', 'dispatchedNameKey', 'dayWorkerName', 'rotationRoleAt', 'isRoutineWorker', 'workTypeOf', 'staffOrderDate', 'getOrderedEmployeeIds', 'getActiveStaff',
   'isEmployeeActiveOnDate', 'getRotationAnchorFor', 'rotationShift', 'getHolidayInfo', 'isWeekendOrHoliday', 'baseShift', 'shiftKey', 'isPastDate',
   'getScheduleRange', 'findChainAssignment', 'calculatedShift', 'getShiftForDate', 'effectiveShift', 'snapshotHistoricalSchedule', 'bulkFillValueFor',
   'wtOrderFor', 'wtRoutineIds', 'wtRoutineNames', 'staffEventIds', 'staffEventList', 'staffEventsFor', 'staffEventUndoError', 'legacyAnchorMatches',
   'legacyRepairOptions', 'prepareLegacyRepair', 'removeStaffEventData',
-  'withStaffEventRemoved', 'staffAdaptationPeriods', 'staffNeedsOnboarding', 'staffImpact', 'staffAffectedMonths', 'wtPlan', 'wtApply', 'cancelStaffEvent'];
+  'withStaffEventRemoved', 'staffAdaptationPeriods', 'staffNeedsOnboarding', 'staffImpact', 'staffAffectedMonths', 'wtPlan', 'wtApply', 'cancelStaffEvent',
+  'isRotationAnchorLinked', 'setStandaloneRotationAnchor', 'removeRotationAnchor'];
 const json = value => JSON.parse(JSON.stringify(value));
 function fixture({ extra = true, history = true } = {}) {
+  let today = '2026-11-27';
   class FixedDate extends Date {
-    constructor(...args) { super(...(args.length ? args : ['2026-11-27T12:00:00'])); }
+    constructor(...args) { super(...(args.length ? args : [today + 'T12:00:00'])); }
     static now() { return new FixedDate().getTime(); }
   }
   const employees = ['a', 'b', 'c', 'd'].map((id, phase) => ({ id, name: id, phase, workType: 'NC', startDate: '2026-01-01' }));
@@ -43,7 +45,7 @@ function fixture({ extra = true, history = true } = {}) {
     addAuditLog: (action, details) => state.auditLogs.unshift({ id: `log_${++ids}`, action, details, at: new FixedDate().toISOString() }),
     monthKeysFrom: from => [from.slice(0, 7)], saveEditorChange() {}, requireScheduleEditor: () => true, confirm: () => true,
     alert: m => { throw Error(m); }, renderAll() {}, renderManualEmployeeOptions() {}, populateEmpSelects() {},
-    renderScheduleEditor() {}, settingsEmployeeEditor: { open() {} }
+    renderScheduleEditor() {}, renderRotationAnchorList(){}, renderRotationAnchorPreview(){}, renderManualRotationPreview(){}, showToast(){}, settingsEmployeeEditor: { open() {} }
   });
   vm.runInContext(functions.map(source).join('\n'), c);
   const date = key => new FixedDate(`${key}T00:00:00`);
@@ -52,7 +54,7 @@ function fixture({ extra = true, history = true } = {}) {
   const type = (id, key) => c.workTypeAt(emp(id), key);
   const shift = (id, key) => c.getShiftForDate(id, date(key));
   const plan = (id, target, key, partner, action = 'TC', fresh = null) => c.wtPlan(emp(id), target, key, partner, '일', fresh, action);
-  return { c, state, date, emp, routine, type, shift, plan };
+  return { c, state, date, emp, routine, type, shift, plan, setToday: key => { today = key; } };
 }
 
 test('월 이력과 날짜 이력이 호환되고 다음 변경일까지 순서가 유지된다', () => {
@@ -169,7 +171,7 @@ test('다른 직원들의 독립된 미래 인계는 서로 취소해도 순서�
 test('중복 인계·적응기간·교대 사이클을 차단하며 4명 미만은 명확한 경고 대상이다', () => {
   const { c, emp, routine, plan } = fixture();
   assert.match(plan('new', 'NC', '2026-12-15', '').error, /기존 NC/);
-  assert.match(plan('tc', 'NC', '2026-12-15', '').error, /4명이 배정/);
+  assert.equal(plan('tc', 'NC', '2026-12-15', '').error, '');
   assert.match(plan('a', 'TC', '2026-12-15', 'b').error, /중복/);
   assert.match(plan('a', 'TC', '2026-12-15', '__new__', 'TC', { id: 'another', name: '신규', startDate: '2026-12-15' }).error, /이미 등록/);
   c.wtApply(plan('a', 'TC', '2026-12-15', 'tc'));
@@ -184,15 +186,101 @@ test('중복 인계·적응기간·교대 사이클을 차단하며 4명 미만�
   assert.equal(emp('new').soloDeployment, undefined);
 });
 
-test('TC가 빈 교대 자리를 채울 때 기존 사이클과 겹치는 시작 근무는 차단한다', () => {
-  const { c, emp, plan, date } = fixture();
+test('새 교대 자리는 기존 근무와 겹쳐도 추가 인원으로 등록하며 자동대근 공백을 메우지 않는다', () => {
+  const { c, emp, date, routine, shift } = fixture();
   const from = '2026-12-15';
-  // 이미 NC 1명은 전출한 상태다. 다른 세 교대의 시작 근무가 중복되면 안 된다.
+  // 이미 NC 1명은 전출한 상태다. 새 자리는 추가 인원이므로 빈 자동대근 자리에 들어가지 않는다.
   emp('a').endDate = '2026-12-14';
   const occupied = c.rotationShift(emp('b'), date(from));
   const vacant = c.rotationShift(emp('a'), date(from));
-  assert.match(c.wtPlan(emp('tc'), 'NC', from, '', occupied).error, /사이클이 중복/);
-  assert.equal(c.wtPlan(emp('tc'), 'NC', from, '', vacant).error, '');
+  const p = c.wtPlan(emp('tc'), 'NC', from, '', occupied);
+  assert.equal(p.error, '');
+  assert.equal(c.wtPlan(emp('tc'), 'NC', from, '__extra__', vacant).error, '');
+  c.wtApply(p);
+  assert.equal(c.rotationRoleAt(emp('tc'), from),'extra');
+  assert.deepEqual(routine(from),['b','c','d']);
+  assert.equal(shift('tc',from),occupied);
+  assert.equal(c.isRoutineWorker(emp('tc'), date(from)),false);
+});
+
+test('자동대근 4명이 모두 있어도 추가 교대 등록 가능, 순서를 올리거나 공백이 생겨도 제외', () => {
+  const { c, state, emp, plan, routine, shift, type, date } = fixture();
+  const from = '2026-12-10', p = plan('tc','NC',from,'__extra__');
+  assert.equal(p.error,''); assert.equal(p.event.placement,'extra'); assert.equal(p.routineAfter.length,4);
+  c.wtApply(p);
+  assert.equal(type('tc','2026-12-09'),'TC');
+  assert.equal(type('tc',from),'NC');
+  assert.equal(shift('tc',from),'일'); assert.equal(shift('tc','2026-12-11'),'야');
+  state.employeeOrderHistory.push({from:'2026-12-12',order:['tc','a','b','c','d','new','dispatch']});
+  assert.deepEqual(routine('2026-12-12'),['a','b','c','d']);
+  emp('a').endDate='2026-12-14';
+  assert.deepEqual(routine('2026-12-15'),['b','c','d']);
+  assert.equal(c.isRoutineWorker(emp('tc'),date('2026-12-15')),false);
+  assert.equal(c.staffNeedsOnboarding(emp('tc'),'2026-12-15'),false);
+});
+
+test('신규 적응 직원도 추가 교대 투입 가능하고 이후 정식 자리 인계만 자동대근으로 전환한다', () => {
+  const {c, emp, plan, routine, shift, setToday} = fixture();
+  const p=plan('new','NC','2026-12-05','__extra__');
+  assert.equal(p.error,''); c.wtApply(p);
+  assert.equal(emp('new').soloDeployment.from,'2026-12-05');
+  assert.equal(shift('new','2026-12-06'),'야');
+  assert.equal(c.staffNeedsOnboarding(emp('new'),'2026-12-06'),false);
+  assert.deepEqual(routine('2026-12-06'),['a','b','c','d']);
+  setToday('2026-12-07');
+  const handover=plan('new','NC','2026-12-15','a');
+  assert.equal(handover.error,''); assert.equal(handover.event.placement,'routine'); c.wtApply(handover);
+  assert.equal(c.rotationRoleAt(emp('new'),'2026-12-14'),'extra');
+  assert.equal(c.rotationRoleAt(emp('new'),'2026-12-15'),'routine');
+  assert.deepEqual(routine('2026-12-15'),['new','b','c','d']);
+  c.cancelStaffEvent(c.staffEventsFor('new').find(e=>e.from==='2026-12-15'));
+  assert.equal(c.rotationRoleAt(emp('new'),'2026-12-15'),'extra');
+  assert.deepEqual(routine('2026-12-15'),['a','b','c','d']);
+});
+
+test('예정 추가 교대 수정·취소는 역할 이력과 교대 시작점도 함께 복구한다', () => {
+  const {c, state, emp, plan, type, routine}=fixture();
+  c.wtApply(plan('tc','NC','2026-12-05','__extra__'));
+  const old=c.staffEventsFor('tc')[0];
+  const updated=c.withStaffEventRemoved(old,()=>plan('tc','NC','2026-12-10','__extra__'));
+  assert.equal(updated.error,'');c.wtApply(updated,old);
+  assert.equal(c.rotationRoleAt(emp('tc'),'2026-12-05'),null);
+  assert.equal(c.rotationRoleAt(emp('tc'),'2026-12-10'),'extra');
+  assert.equal(state.rotationAnchors.length,1);
+  c.cancelStaffEvent(c.staffEventsFor('tc')[0]);
+  assert.equal(emp('tc').rotationRoleChanges,undefined);assert.equal(type('tc','2026-12-10'),'TC');
+  assert.deepEqual(routine('2026-12-10'),['a','b','c','d']);
+});
+
+test('교대 루틴 보정은 지정일부터 반복하며 기존 휴가·수동·과거 기록과 다음 보정은 유지한다', () => {
+  const {c,state,shift,routine}=fixture();
+  state.scheduleSnapshots['2026-11-01::a']='과거';
+  state.scheduleOverrides['2026-12-02::a']={shift:'수동',at:'2026-11-01'};
+  state.requests.push({id:'r',empId:'a',status:'approved',submittedAt:'2026-11-01',chain:[{empId:'a',date:'2026-12-03',shift:'휴가'}]});
+  const set=(startDate,startShift)=>c.setStandaloneRotationAnchor({empId:'a',startDate,startShift},{staffOnly:true,replace:true});
+  assert.ok(set('2026-12-01','일'));
+  assert.deepEqual(['2026-12-01','2026-12-02','2026-12-03','2026-12-04','2026-12-05'].map(d=>shift('a',d)),['일','수동','휴가','O','일']);
+  assert.ok(set('2026-12-10','야'));
+  assert.equal(shift('a','2026-12-10'),'야');
+  assert.ok(set('2026-12-10','조'));
+  assert.equal(state.rotationAnchors.length,2);assert.equal(shift('a','2026-12-10'),'조');
+  assert.ok(c.removeRotationAnchor(state.rotationAnchors.find(a=>a.startDate==='2026-12-10').id,{staffOnly:true}));
+  assert.equal(shift('a','2026-12-10'),'야');assert.equal(shift('a','2026-11-01'),'과거');
+  assert.deepEqual(routine('2026-12-10'),['a','b','c','d']);
+});
+
+test('추가 교대 루틴 보정은 자동대근 역할을 바꾸지 않고 과거 날짜·상일근·예정 인계는 거절한다', () => {
+  const {c,emp,plan,shift,routine,setToday}=fixture();
+  const set=(id,startDate)=>c.setStandaloneRotationAnchor({empId:id,startDate,startShift:'일'},{staffOnly:true,replace:true});
+  assert.throws(()=>set('a','2026-11-26'),/오늘 이후/);
+  assert.throws(()=>set('tc','2026-12-01'),/재직 NC/);
+  c.wtApply(plan('tc','NC','2026-12-01','__extra__'));
+  assert.throws(()=>set('tc','2026-12-10'),/예정된 교대 인계/);
+  setToday('2026-12-05');
+  assert.ok(set('tc','2026-12-10'));
+  assert.equal(shift('tc','2026-12-10'),'일');assert.equal(shift('tc','2026-12-11'),'야');
+  assert.equal(c.rotationRoleAt(emp('tc'),'2026-12-10'),'extra');
+  assert.deepEqual(routine('2026-12-10'),['a','b','c','d']);
 });
 
 test('휴일 O는 기본 근무에만 적용되고 회사 휴일·법정휴일·명시적 기록·과거 스냅샷이 모두 보존된다', () => {
@@ -326,11 +414,14 @@ test('서버는 순서·인계 권한 및 연결 원자성, 미래 기록 취소
   linked.employeeOrderHistory.at(-1).from = event.from;
   linked.employees.find(e => e.id === 'a').endDate = '2099-12-14';
   linked.employees.find(e => e.id === 'new').soloDeployment.from = event.from;
+  linked.employees.find(e => e.id === 'new').rotationRoleChanges[0].from = event.from;
   assert.doesNotThrow(() => validateSave(baseline, linked, true));
   assert.throws(() => validateSave(baseline, { ...baseline, employeeOrderHistory: linked.employeeOrderHistory }, false, 'a'), e => e.status === 403);
   assert.throws(() => validateSave(baseline, { ...baseline, staffHandoverEvents: linked.staffHandoverEvents }, false, 'a'), e => e.status === 403);
   assert.throws(() => validateSave(baseline, { ...linked, rotationAnchors: [] }, true), /연결/);
   assert.throws(() => validateSave(linked, { ...linked, staffHandoverEvents: [] }, true), /연결/);
+  const disconnected = json(linked); delete disconnected.employees.find(e=>e.id==='new').rotationRoleChanges;
+  assert.throws(() => validateSave(baseline, disconnected, true), /역할/);
   assert.doesNotThrow(() => validateSave(linked, baseline, true));
   const past = json(linked); past.staffHandoverEvents[0].from = '2000-01-01';
   assert.throws(() => validateSave(past, baseline, true), /이미 시작/);

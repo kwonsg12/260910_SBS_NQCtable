@@ -386,6 +386,12 @@
   .sp-line .btn{min-height:32px;padding:0 12px;border-radius:8px;font-size:13px;}
   .sp-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:#fdfbf8;}
   .sp-foot .remove-employee-row{color:var(--red);padding:0;min-height:0;}
+  .sp-rotation-sub{border-top:1px solid var(--line);padding:10px 20px;color:var(--muted);font-size:12.5px;}
+  .sp-rotation-sub summary{cursor:pointer;font-weight:600;}
+  .sp-rotation-sub .sp-row2{margin-top:12px;}
+  .sp-rotation-sub .sp-row2 label{display:flex;flex-direction:column;gap:5px;min-width:0;}
+  .sp-rotation-sub .sp-row2 input,.sp-rotation-sub .sp-row2 select{width:100%;min-width:0;box-sizing:border-box;}
+  .sp-rotation-sub .staff-event-row{padding:4px 0;}
   .sp-step{border:1px solid var(--line);border-radius:12px;padding:12px;}
   .sp-step > summary{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;cursor:pointer;list-style:none;font-size:14px;}
   .sp-step > summary::-webkit-details-marker{display:none;}
@@ -674,7 +680,8 @@
   .wt-ask{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.5;}
   .wt-ask > span{font-size:20px;color:var(--accent-text);line-height:1.2;}
   .wt-cands{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px;}
-  .wt-cand{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border-radius:12px;border:1.5px solid var(--line2);background:#fff;font-family:inherit;text-align:left;cursor:pointer;color:var(--text);}
+  .wt-cand{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:2px;padding:10px 12px;min-height:44px;border-radius:12px;border:1.5px solid var(--line2);background:#fff;font-family:inherit;text-align:left;cursor:pointer;color:var(--text);}
+  @media(max-width:480px){.wt-cands{grid-template-columns:repeat(2,minmax(0,1fr));}.wt-cand[data-partner="__extra__"]{grid-column:1/-1;}}
   .wt-cand strong{font-size:15px;}
   .wt-cand span:last-child{font-size:12px;color:var(--faint);}
   .wt-cand.on{border:2px solid var(--accent);}
@@ -1138,18 +1145,6 @@
           <div class="edit-section-head">
             <h3>직원 구성 <span class="staff-summary" id="staffSummary"></span></h3>
           </div>
-          <details class="edit-help">
-            <summary>근무 형태·순서·메일·PIN 도움말</summary>
-            <ul>
-              <li>위에서 <b>날짜를 선택하고 불러오기</b>를 누르면 그 날의 재직 직원과 근무 형태가 보여요. ▲▼ 순서는 조회일부터 다음 순서 변경일까지 적용돼요. 지난 날짜는 조회 전용이에요.</li>
-              <li><b>NC 교대근무</b>의 위 4명이 <b>자동대근</b> 대상이에요. 적응 직원은 자동대근에서 제외되고, 단독 투입 시 기존 NC 자리와 교대 사이클을 이어받아요</li>
-              <li><b>TC 상일근</b>·<b>파견사원</b>은 대근을 서지 않고, 휴가는 대근자 없이 기록만 남아요</li>
-              <li>근무 형태를 날짜부터 바꾸려면 오른쪽 패널의 <b>근무 형태 바꾸기</b>를 눌러요(지난 달은 그대로). <b>퇴사·전출일</b>은 팀을 떠날 때만 넣어요</li>
-              <li>적응기간·단독 투입 날짜는 오른쪽 패널의 <b>투입 일정</b> 탭에서 정해요</li>
-              <li><b>사내메일</b>을 넣으면 대근·신청 결과가 매일 요약 메일로 가요. 처음 로그인 PIN 은 0000 이에요</li>
-            </ul>
-          </details>
-          <details id="staffEvents" class="edit-help" open><summary>예정된 근무 형태 변경 · 인계</summary><div id="staffEventsList" class="quota"></div></details>
           <div class="staff-layout">
             <!-- section 이 아니라 div: 탭을 바꿀 때 main 안의 section 을 모두 숨긴다(initTabs). -->
             <div class="staff-list" id="employeeEditTableBody" role="region" aria-label="직원 목록"></div>
@@ -1162,9 +1157,9 @@
               <div class="sp-pane" id="staffPanel" role="tabpanel" aria-labelledby="spTabInfo"></div>
               <div class="sp-pane staff-onboarding" id="onboardingEditorView" role="tabpanel" aria-labelledby="spTabOnboard" hidden>
                 <div class="sp-sec">
-                  <p class="onboarding-locked" id="onboardingLocked" hidden>새 직원은 [직원 구성 반영]을 누른 뒤에 투입 일정을 정할 수 있어요</p>
+                  <p class="onboarding-locked" id="onboardingLocked" hidden>직원 구성 반영 후 설정</p>
                   <details class="sp-step" open>
-                    <summary><span class="sp-dot">1</span><b>적응기간 채우기</b><span class="edit-hint">기간 동안 하루씩 같은(반복) 값</span></summary>
+                    <summary><span class="sp-dot">1</span><b>적응기간</b></summary>
                     <div class="edit-form edit-form-fill">
                       <label class="sp-hidden">직원<select id="bulkFillEmp"></select></label>
                       <label>시작일<input type="date" id="bulkFillStart"></label>
@@ -1176,16 +1171,16 @@
                     <div id="pendingBulkFillsList" class="quota"></div>
                   </details>
                   <details class="sp-step" open>
-                    <summary><span class="sp-dot sp-dot-on">2</span><b>단독 투입 · 로테이션 시작점</b><span class="edit-hint">기존 직원의 교대 사이클과 자리 인계</span></summary>
+                    <summary><span class="sp-dot sp-dot-on">2</span><b>교대 투입</b></summary>
                     <div class="edit-form edit-form-anchor">
                       <label class="sp-hidden">직원<select id="anchorEmp"></select></label>
                       <label>시작일<input type="date" id="anchorStartDate"></label>
-                      <label>정하는 방법
+                      <label class="sp-hidden">정하는 방법
                         <select id="anchorMode">
                           <option value="inherit">기존 직원 자리 이어받기</option>
                         </select>
                       </label>
-                      <label id="anchorRefEmpWrap" style="display:none;">기준 직원<select id="anchorRefEmp"></select></label>
+                      <label id="anchorRefEmpWrap" style="display:none;">기준 직원 (선택)<select id="anchorRefEmp"></select></label>
                       <label>시작 근무
                         <select id="anchorStartShift">
                           <option value="일">일</option>
@@ -1194,7 +1189,7 @@
                           <option value="O">O</option>
                         </select>
                       </label>
-                      <button class="btn secondary" id="applyRotationAnchorBtn" type="button">단독 투입 인계 설정</button>
+                      <button class="btn secondary" id="applyRotationAnchorBtn" type="button">교대 자리 설정</button>
                     </div>
                     <div id="rotationAnchorPreview" class="quota"></div>
                     <div id="rotationAnchorList" class="quota" style="margin-top:4px;"></div>
@@ -1204,17 +1199,25 @@
             </aside>
           </div>
           <div class="edit-actions">
-            <span class="edit-hint">이름·메일·기간·순서 수정은 [직원 구성 반영] 또는 맨 아래 저장 때 함께 반영돼요</span>
             <span class="edit-actions-gap"></span>
             <button class="btn secondary edit-apply" id="applyEmployeeEditorBtn" type="button">직원 구성 반영</button>
           </div>
+          <details id="staffEvents" class="ended-staff-panel" open>
+            <summary>예정된 근무 변경 <span class="staff-summary" id="staffEventsCount"></span></summary>
+            <div id="staffEventsList" class="quota"></div>
+          </details>
           <details class="ended-staff-panel" id="endedStaffPanel">
             <summary>종료된 직원 · 완전 삭제 내역</summary>
-            <div class="edit-card-head"><h4>종료된 직원</h4><span class="edit-hint">완전 삭제하면 근무표 기록에서도 사라져요 · 아래 내역에서 되돌릴 수 있어요</span></div>
+            <div class="edit-card-head"><h4>종료된 직원</h4><span class="edit-hint">완전 삭제 시 과거 기록도 삭제</span></div>
             <div id="endedStaffList"><p class="empty">종료된 직원이 없습니다.</p></div>
             <div class="edit-card-head" style="margin-top:16px;"><h4>최근 완전 삭제 내역</h4></div>
             <div id="deletedStaffTrashList"><p class="empty">완전 삭제 내역이 없습니다.</p></div>
           </details>
+          <details class="edit-help"><summary>도움말</summary><ul>
+            <li>▲▼ 순서는 조회일부터 적용됩니다. 지난 날짜는 조회 전용입니다.</li>
+            <li>추가 교대·적응·TC·파견 인원은 자동대근에서 제외됩니다.</li>
+            <li>최초 로그인 PIN: 0000</li>
+          </ul></details>
         </div>
 
         <!-- 편집 세션: 위에서 바꾼 내용은 바로 저장되지 않고 여기서 확인한 뒤 한 번에 저장한다. -->
@@ -1351,6 +1354,16 @@
     const change = activeWorkTypeChange(emp, date);
     return change ? change.workType : emp.workType;
   }
+  // 추가 교대 자리는 재직·표 순서와 별개인 날짜별 역할이다. 나중에 기존 NC 자리를
+  // 정식으로 이어받을 때까지는 공백이 생겨도 자동대근에 편입하지 않는다.
+  function rotationRoleAt(emp, date){
+    const key = typeof date === 'string' ? date : fmt(date);
+    let latest = null;
+    for (const change of emp?.rotationRoleChanges || []) {
+      if (change?.from <= key && (!latest || change.from >= latest.from)) latest = change;
+    }
+    return latest?.role || null;
+  }
 
   // 일근 묶음(파견사원). 2년마다 바뀌므로 설정 탭에서 이름을 바꿀 수 있다.
   const DEFAULT_DAY_WORKER_NAME = '이주형';
@@ -1365,7 +1378,7 @@
     const key = fmt(ref);
     const top = getActiveStaff(ref.getFullYear(), ref.getMonth(), ref)
       .filter(e => (e.startDate || '2026-01-01') <= key && (!e.endDate || e.endDate >= key))
-      .filter(e => !isDispatchedDayWorker(e) && (workTypeAt(e, ref) || 'NC') === 'NC'
+      .filter(e => !isDispatchedDayWorker(e) && (workTypeAt(e, ref) || 'NC') === 'NC' && rotationRoleAt(e, key) !== 'extra'
         && (!e.onboarding || (e.onboardingFrom && key < e.onboardingFrom) || (e.soloDeployment?.from && e.soloDeployment.from <= key))).slice(0, ROUTINE_HEADCOUNT);
     return top.some(e => e.id === emp.id);
   }
@@ -2378,7 +2391,7 @@
     if (type === 'day'){
       if (effectiveShift(empId, d0) !== '일') return { error: '일근인 날짜에만 일근 휴가를 신청할 수 있습니다.' };
       // 상일근(교대 4명이 아닌 TC·일근 인원 — 적응기간 교육생 등)은 빠져도 대근이 필요 없으므로 휴가만 넣는다.
-      if (!isRoutineWorker(employee, d0)) return { chain: [{ date: fmt(d0), empId, shift: '휴가', label: '휴가(상일근·대근 없음)' }], noSubstitute: true };
+      if (!isRoutineWorker(employee, d0)) return { chain: [{ date: fmt(d0), empId, shift: '휴가', label: '휴가' }], noSubstitute: true };
       const sub = findByBaseShift(d0, 'O', [empId]);
       if (!sub.id) return { error: '대근 가능한 루틴 근무자가 없습니다.' + substituteNote(sub) + ' 근무표 편집에서 수동으로 지정해주세요.' };
       return { chain: [
@@ -2388,14 +2401,20 @@
     }
     if (effectiveShift(empId, d0) !== '야') return { error: '야+조근 휴가는 야근 다음 날이 조근일 때만 신청할 수 있습니다.' };
     if (!isEmployeeActiveOnDate(employee, d1) || effectiveShift(empId, d1) !== '조') return { error: '다음 날이 적용 기간 내 조근인 경우에만 야+조근 휴가를 신청할 수 있습니다.' };
+    const routine0 = isRoutineWorker(employee, d0), routine1 = isRoutineWorker(employee, d1);
+    if (!routine0 && !routine1) return { chain: [
+      { date: fmt(d0), empId, shift: '휴가', label: '휴가(야)' },
+      { date: fmt(d1), empId, shift: '휴가', label: '휴가(조)' }
+    ], noSubstitute: true };
+    if (routine0 !== routine1) return { error: '두 날짜의 자동대근 대상 여부가 달라요. 근무표 편집에서 수동으로 지정해주세요.' };
     const first = findByBaseShift(d0, 'O', [empId]);
     if (!first.id) return { error: '1차 대근 가능한 루틴 근무자가 없습니다.' + substituteNote(first) };
     const unavailable = [];
     // 첫 후보가 둘째 날 배정 불가라면 나머지 후보도 검사한다.
     for (const id of first.ids){
       const candidate = EMPLOYEES.find(e => e.id === id);
-      if (!isEmployeeActiveOnDate(candidate, d1) || isProtectedOn(id, d1)){
-        unavailable.push(candidate.name + ': 다음 날 적용 기간 밖이거나 비번 보장');
+      if (!isEmployeeActiveOnDate(candidate, d1) || !isRoutineWorker(candidate, d1) || isProtectedOn(id, d1)){
+        unavailable.push(candidate.name + ': 다음 날 적용 기간 밖·자동대근 대상 아님·비번 보장');
         continue;
       }
       const nextShift = effectiveShift(id, d1);
@@ -2459,7 +2478,7 @@
   // 작업 완료 안내는 alert() 대신 토스트로 띄운다.
   // alert()는 모달이라 떠 있는 동안 페이지가 멈추고, 그 사이 누른 클릭은 큐에 쌓이지 않고 버려진다.
   // (적용 직후 바로 다음 버튼을 누르면 "안 먹는" 것처럼 보이던 원인)
-  function showToast(message, tone = 'ok'){
+  function showToast(message, tone = 'ok', group = ''){
     if (tone === 'ok' && stateSync?.info().dirty) {
       message = message.replaceAll('저장되었습니다.', '저장을 요청했습니다.') + ' · 서버 저장은 상단 상태를 확인해주세요.';
       tone = 'info';
@@ -2473,6 +2492,11 @@
     const toast = document.createElement('div');
     toast.className = `toast ${tone}`;
     toast.textContent = message;
+    // 직원 구성에서 연속 반영할 때 안내가 모바일 화면을 가리지 않도록 같은 종류는 하나만 표시한다.
+    if (group) {
+      for (const old of [...host.children]) if (old.dataset.toastGroup === group) old.remove();
+      toast.dataset.toastGroup = group;
+    }
     host.appendChild(toast);
     setTimeout(() => toast.remove(), 3500);
   }
@@ -2897,7 +2921,7 @@
       const substitutes = error ? [] : result.chain.filter(entry => entry.empId !== employeeId);
       const rows = substitutes.map(entry => `<li>${escapeAttribute(pickLabel(entry.date))} · ${escapeAttribute(empName(entry.empId))} (${escapeAttribute(entry.label)})</li>`);
       summary.innerHTML = `<strong>${dates}</strong><br>신청자: ${name}${rows.length ? '<br>대근 배정 예정<ul>' + rows.join('') + '</ul>' : ''}`
-        + (result.noSubstitute ? '<br>상일근이라 대근자 없이 휴가만 들어갑니다.' : '');
+        + (result.noSubstitute ? '<br>자동대근 대상이 아니어서 대근자 없이 휴가만 들어갑니다.' : '');
       if (!error) pendingChain = {empId: employeeId, type: kind, startDate: dateKey, chain: result.chain};
     }
     requestError(error);
@@ -4122,7 +4146,7 @@
   function wtRoutineIds(people, order, dateKey){
     const rank = new Map(order.map((id, index) => [id, index]));
     return people.filter(e => (e.startDate || '2026-01-01') <= dateKey && (!e.endDate || e.endDate >= dateKey))
-      .filter(e => !isDispatchedDayWorker(e) && (workTypeAt(e, dateKey) || 'NC') === 'NC'
+      .filter(e => !isDispatchedDayWorker(e) && (workTypeAt(e, dateKey) || 'NC') === 'NC' && rotationRoleAt(e, dateKey) !== 'extra'
         && (!e.onboarding || (e.onboardingFrom && dateKey < e.onboardingFrom) || (e.soloDeployment?.from && e.soloDeployment.from <= dateKey)))
       .sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity))
       .slice(0, ROUTINE_HEADCOUNT).map(e => e.id);
@@ -4187,10 +4211,10 @@
       const from = escapeAttribute(event.from);
       const id = escapeAttribute(event.id);
       const label = event.outgoingId ? `${empName(event.outgoingId)} ${event.outgoingAction === 'transfer' ? '전출' : 'TC 전환'}` : '';
-      const incoming = event.incomingId ? `${empName(event.incomingId)} NC 투입` : '';
+      const incoming = event.incomingId ? `${empName(event.incomingId)} ${event.placement === 'extra' ? '추가 교대' : 'NC 투입'}` : '';
       const repairable = event.legacy?.ambiguous && event.from > fmt(stripTime(new Date()));
       return `<div class="staff-event-row"><b>${from}</b> ${escapeAttribute([label, incoming].filter(Boolean).join(' → '))}
-        ${repairable ? '<span class="wt-warn">이전 순서 이력이 겹칩니다. 복구할 내용을 확인할 수 있어요.</span>' : problem ? `<span class="wt-warn">${escapeAttribute(problem)}</span>` : ''}
+        ${repairable ? '<span class="wt-warn">순서 이력 겹침 · 복구 필요</span>' : problem ? `<span class="wt-warn">${escapeAttribute(problem)}</span>` : ''}
         ${!problem || repairable ? `<button type="button" class="btn secondary" data-staff-event="${id}" data-event-action="edit">${repairable ? '복구 후 수정' : '수정'}</button> <button type="button" class="btn ghost" data-staff-event="${id}" data-event-action="cancel">${repairable ? '복구·취소' : '취소'}</button>` : ''}</div>`;
     }).join('') + (unknown ? '<p class="wt-warn">연결 정보를 확인할 수 없는 이전 예정 변경입니다. 과거 기록 보호를 위해 자동 수정·취소할 수 없습니다.</p>' : '');
   }
@@ -4275,6 +4299,10 @@
       if (Array.isArray(e.workTypeChanges)) next.workTypeChanges = e.workTypeChanges.filter(c => legacy
         ? !c || c.eventId || !legacy.changes.some(m => m.empId === e.id && m.from === c.from && m.at === c.at && m.workType === c.workType)
         : !c || c.eventId !== event.id);
+      if (Array.isArray(e.rotationRoleChanges) && !legacy) {
+        next.rotationRoleChanges = e.rotationRoleChanges.filter(c => c.eventId !== event.id);
+        if (!next.rotationRoleChanges.length) delete next.rotationRoleChanges;
+      }
       if (e.soloDeployment?.eventId === event.id) {
         delete next.soloDeployment;
         if (event.incomingOnboardingBefore === false) { delete next.onboarding; delete next.onboardingFrom; }
@@ -4325,6 +4353,7 @@
   }
   function staffNeedsOnboarding(emp, dateKey){
     if (!emp || workTypeAt(emp, dateKey) !== 'NC' || isDispatchedDayWorker(emp)) return false;
+    if (rotationRoleAt(emp, dateKey) === 'extra') return false;
     if (emp.soloDeployment) return dateKey < emp.soloDeployment.from;
     if (emp.onboarding && (!emp.onboardingFrom || emp.onboardingFrom <= dateKey)) return true;
     return !wtRoutineIds(EMPLOYEES, wtOrderFor(dateKey), dateKey).includes(emp.id) && !staffEventsFor(emp.id).some(e => e.incomingId === emp.id && e.from <= dateKey);
@@ -4359,15 +4388,18 @@
     const order = wtOrderFor(from);
     const before = wtRoutineIds(EMPLOYEES, order, from);
     const currentType = workTypeOf(emp, fromDate);
+    const currentlyExtra = rotationRoleAt(emp, from) === 'extra' && currentType === 'NC';
+    // 기존 TC에서 새 자리를 선택하던 이전 호출 방식(빈 partnerId)도 추가 교대로 해석한다.
+    const extraPlacement = !leaving && (partnerId === '__extra__' || (!partnerId && currentType === 'TC'));
     const involvedIds = [outgoing?.id, incoming?.id].filter(Boolean);
     const at = new Date().toISOString();
     const error = !from || from < today ? '오늘 이후의 날짜를 선택해 주세요.'
       : !emp || !isEmployeeActiveOnDate(emp, fromDate) ? '선택한 직원의 재직 기간 안의 날짜를 선택해 주세요.'
       : leaving && currentType !== 'NC' ? '그 날 NC 교대근무 중인 직원만 전환/전출할 수 있습니다.'
-      : !leaving && currentType === 'NC' && !staffNeedsOnboarding(emp, from) ? '이미 단독 투입된 직원입니다.'
-      : !leaving && staffNeedsOnboarding(emp, from) && !outgoing ? '단독 투입은 기존 NC 교대근무자의 자리와 연결해야 합니다.'
-      : !leaving && !outgoing && before.length >= ROUTINE_HEADCOUNT ? '이미 자동대근 4명이 배정되어 있습니다. 기존 NC 자리를 선택해 주세요.'
-      : partnerId && !partner ? '대체 직원을 다시 선택해 주세요.'
+      : !leaving && currentlyExtra && !outgoing ? '이미 추가 교대근무 중입니다. 자동대근 자리로 변경하려면 기존 NC 직원을 선택해 주세요.'
+      : !leaving && currentType === 'NC' && !currentlyExtra && !staffNeedsOnboarding(emp, from) ? '이미 단독 투입된 직원입니다.'
+      : !leaving && staffNeedsOnboarding(emp, from) && !outgoing && !extraPlacement ? '기존 NC 자리 또는 새 교대 자리(추가)를 선택해 주세요.'
+      : partnerId && !partner && !extraPlacement ? '대체 직원을 다시 선택해 주세요.'
       : partner && (partner.id === emp.id || isDispatchedDayWorker(partner) || !isEmployeeActiveOnDate(partner, fromDate)) ? '인계할 직원의 재직 기간을 확인해 주세요.'
       : outgoing && incoming && !before.includes(outgoing.id) ? '기존 자동대근 NC 교대근무자의 자리만 이어받을 수 있습니다.'
       : incoming && before.includes(incoming.id) ? '이미 교대 자리가 배정된 직원에게 중복 인계할 수 없습니다.'
@@ -4390,11 +4422,13 @@
       startShift: outgoing ? rotationShift(outgoing, fromDate) : (startShift || '일'), at, eventId, inheritFrom: outgoing?.id || null });
     const event = { id: eventId, from, at, primaryId: emp.id, target, partnerId: partner?.id || null,
       outgoingId: outgoing?.id || null, incomingId: incoming?.id || null, outgoingAction: action,
+      placement: incoming ? (extraPlacement ? 'extra' : 'routine') : null,
       previousEndDate: outgoing?.endDate || null, incomingOnboardingBefore: !!incoming?.onboarding, freshId: fresh?.id || null, startShift: anchors[0]?.startShift || startShift };
     const people = EMPLOYEES.concat(fresh ? [fresh] : []).map(e => {
       const mine = changes.filter(c => c.empId === e.id).map(({ empId, ...rest }) => rest);
       let next = mine.length ? { ...e, workTypeChanges: [...workTypeChangesOf(e), ...mine] } : { ...e };
       if (e.id === outgoing?.id && action === 'transfer') next.endDate = fmt(addDays(fromDate, -1));
+      if (e.id === incoming?.id) next.rotationRoleChanges = [...(e.rotationRoleChanges || []), { from, role: event.placement, eventId }];
       if (e.id === incoming?.id && (!e.soloDeployment || e.soloDeployment.from > from) && (e.onboarding || workTypeAt(e, from) === 'NC')) {
         // 이전에 가입한 적응 NC도 이 이벤트를 단독 투입일로 쓴다.
         if (!e.onboarding) { next.onboarding = true; next.onboardingFrom = today; }
@@ -4480,9 +4514,10 @@
     const refKey = fromDefault || today;
     const onboarding = withStaffEventRemoved(previous, () => staffNeedsOnboarding(emp, refKey));
     const currentType = withStaffEventRemoved(previous, () => workTypeOf(emp, new Date(refKey + 'T00:00:00')));
+    const isExtra = currentType === 'NC' && rotationRoleAt(emp, refKey) === 'extra';
     const newId = uid();
-    const ui = { target: previous?.target || (options.onboarding || onboarding || currentType === 'TC' ? 'NC' : 'TC'),
-      from: fromDefault, partner: previous?.partnerId || options.partnerId || '', outgoingAction: previous?.outgoingAction || 'TC',
+    const ui = { target: previous?.target || (options.onboarding || onboarding || currentType === 'TC' || isExtra ? 'NC' : 'TC'),
+      from: fromDefault, partner: previous?.target === 'NC' && !previous.outgoingId ? '__extra__' : previous?.partnerId || options.partnerId || (currentType === 'TC' ? '__extra__' : ''), outgoingAction: previous?.outgoingAction || 'TC',
       startShift: previous?.startShift || '일', fresh: { id: newId, name: '', email: '', startDate: '' } };
     const dialog = document.createElement('dialog');
     dialog.className = 'modal wt-dialog';
@@ -4490,7 +4525,7 @@
       <div class="wt-head"><div><div class="quota" style="margin:0;">${previous ? '예정된 인계 수정' : '근무 형태 변경 · 단독 투입'}</div><h3 class="wt-title">${escapeAttribute(emp.name)}</h3></div>
         <button type="button" class="btn ghost" data-act="close" aria-label="닫기">✕</button></div>
       <div class="wt-step"><b>1. 변경할 근무 형태</b><div class="wt-types"></div></div>
-      <div class="wt-step"><b>2. 적용일 / 단독 투입일</b><label class="wt-date"><input type="date" name="from" required min="${today}"${emp.endDate ? ` max="${escapeAttribute(emp.endDate)}"` : ''} value="${escapeAttribute(ui.from)}"><span class="quota">그 전날까지 기존 근무 유지</span></label></div>
+      <div class="wt-step"><b>2. 적용일</b><label class="wt-date"><input type="date" name="from" required min="${today}"${emp.endDate ? ` max="${escapeAttribute(emp.endDate)}"` : ''} value="${escapeAttribute(ui.from)}"></label></div>
       <div class="wt-step wt-partner-step"><b class="wt-partner-title"></b><div class="wt-partner"></div></div>
       <div class="wt-step"><b>4. 근무 미리보기</b><div class="wt-preview"></div></div>
       <div class="wt-impact"></div><p class="wt-error" role="alert" hidden></p>
@@ -4508,7 +4543,7 @@
       const staff = getActiveStaff(month.getFullYear(), month.getMonth(), month)
         .filter(e => e.id !== primaryId && !isDispatchedDayWorker(e) && isEmployeeActiveOnDate(e, month));
       return (ui.target === 'NC' ? staff.filter(e => routine.includes(e.id)) : routine.includes(primaryId) ? staff.filter(e => !routine.includes(e.id)) : [])
-        .map(e => ({ id: e.id, name: e.name, note: ui.target === 'NC' ? '기존 교대 자리 인계' : workTypeOf(e, month) === 'TC' ? 'TC 상일근' : '적응·추가 NC' }));
+        .map(e => ({ id: e.id, name: e.name, note: ui.target === 'NC' ? '' : workTypeOf(e, month) === 'TC' ? 'TC 상일근' : '적응·추가 NC' }));
     });
     const renderPreview = () => {
       const box = $d('.wt-preview'), impact = $d('.wt-impact'), error = $d('.wt-error');
@@ -4517,30 +4552,36 @@
       error.textContent = p.error || ''; error.hidden = !p.error; $d('[data-act=save]').disabled = !!p.error;
       const head = p.rows[0]?.cells.map(cell => `<span class="wt-d${cell.key === ui.from ? ' wt-from' : ''}">${wtLabel(cell.key)}</span>`).join('') || '';
       box.innerHTML = `<div class="wt-strip"><span></span>${head}${p.rows.map(row => `<span class="wt-n">${escapeAttribute(row.name)}</span>${row.cells.map(c => `<span class="wt-c${c.before !== c.after ? ' wt-diff' : ''}" title="이전 ${escapeAttribute(c.before)} → 이후 ${escapeAttribute(c.after)}">${escapeAttribute(c.after || '—')}</span>`).join('')}`).join('')}</div>`;
-      const items = [`<li><b>자동대근</b> ${escapeAttribute(p.routineBefore.join(' · '))} → ${escapeAttribute(p.routineAfter.join(' · ') || '없음')}${p.routineAfter.length < ROUTINE_HEADCOUNT ? ' <strong class="wt-warn">⚠ 4명 미만: 공백 발생</strong>' : ''}</li>`];
-      if (p.covers.length) items.push(`<li class="wt-warn">기존 휴가·대근 ${p.covers.length}건은 변경하지 않습니다. ${escapeAttribute(p.covers.slice(0, 4).join(' / '))}</li>`);
-      if (p.manual) items.push(`<li class="wt-warn">기존 수동·기간 기록 ${p.manual}건은 변경하지 않습니다.</li>`);
-      if (p.confirmed.length) items.push(`<li class="wt-warn">확정 월 ${escapeAttribute(p.confirmed.join(', '))}: 기존 확정본 보존, 변경된 월은 재확정 필요.</li>`);
-      if (ui.target === 'transfer' || ui.outgoingAction === 'transfer') items.push('<li>전출하는 직원은 적용 전날까지 재직으로 기록합니다.</li>');
-      impact.innerHTML = `<b>함께 바뀌는 내용</b><ul>${items.join('')}</ul>`;
+      const sameRoutine = p.routineBefore.join() === p.routineAfter.join();
+      const routineText = sameRoutine ? `${p.routineAfter.length}명 유지` : `${escapeAttribute(p.routineBefore.join(' · '))} → ${escapeAttribute(p.routineAfter.join(' · ') || '없음')}`;
+      const items = [`<li><b>자동대근</b> ${routineText}${p.routineAfter.length < ROUTINE_HEADCOUNT ? ' <strong class="wt-warn">⚠ 4명 미만</strong>' : ''}</li>`];
+      if (p.event.placement === 'extra') items.push('<li>추가 교대 · 자동대근 제외</li>');
+      if (p.covers.length) items.push(`<li class="wt-warn">기존 휴가·대근 ${p.covers.length}건 보존: ${escapeAttribute(p.covers.slice(0, 4).join(' / '))}</li>`);
+      if (p.manual) items.push(`<li class="wt-warn">수동 기록 ${p.manual}건 보존</li>`);
+      if (p.confirmed.length) items.push(`<li class="wt-warn">재확정 필요: ${escapeAttribute(p.confirmed.join(', '))}</li>`);
+      if ((ui.target === 'transfer' || ui.outgoingAction === 'transfer') && p.event.outgoingId) items.push('<li>전출 직원은 적용 전날까지 재직</li>');
+      impact.innerHTML = `<ul>${items.join('')}</ul>`;
     };
     const render = () => {
       const current = context(() => workTypeOf(EMPLOYEES.find(e => e.id === primaryId), new Date((ui.from || today) + 'T00:00:00')));
       const adapting = context(() => staffNeedsOnboarding(EMPLOYEES.find(e => e.id === primaryId), ui.from || today));
-      const targets = current === 'TC' || options.onboarding ? ['NC'] : adapting ? ['NC', 'TC', 'transfer'] : ['TC', 'transfer'];
+      const extra = current === 'NC' && context(() => rotationRoleAt(EMPLOYEES.find(e => e.id === primaryId), ui.from || today) === 'extra');
+      const targets = current === 'TC' || options.onboarding ? ['NC'] : adapting || extra ? ['NC', 'TC', 'transfer'] : ['TC', 'transfer'];
       if (!targets.includes(ui.target)) { ui.target = targets[0]; ui.partner = ''; }
-      $d('.wt-types').innerHTML = targets.map(type => `<button type="button" class="wt-type${ui.target === type ? ' on' : ''}" data-type="${type}" aria-pressed="${ui.target === type}"><strong>${type === 'transfer' ? '전출·퇴사' : type === 'NC' && adapting ? '단독 투입' : WORK_TYPE_LABEL[type]}</strong></button>`).join('');
+      $d('.wt-types').innerHTML = targets.map(type => `<button type="button" class="wt-type${ui.target === type ? ' on' : ''}" data-type="${type}" aria-pressed="${ui.target === type}"><strong>${type === 'transfer' ? '전출·퇴사' : type === 'NC' && adapting ? '단독 투입' : type === 'NC' && extra ? '기존 NC 자리 인계' : WORK_TYPE_LABEL[type]}</strong></button>`).join('');
       const list = candidates();
-      if (ui.partner && ui.partner !== '__new__' && !list.some(c => c.id === ui.partner)) ui.partner = '';
+      if (ui.partner && !['__new__', '__extra__'].includes(ui.partner) && !list.some(c => c.id === ui.partner)) ui.partner = '';
       if (ui.target === 'NC' && ui.partner === '__new__') ui.partner = '';
-      $d('.wt-partner-title').textContent = ui.target === 'NC' ? '3. 이어받을 기존 NC 직원' : '3. 대체 직원 선택';
-      const pick = c => `<button type="button" class="wt-cand${ui.partner === c.id ? ' on' : ''}" data-partner="${escapeAttribute(c.id)}" aria-pressed="${ui.partner === c.id}"><strong>${escapeAttribute(c.name)}</strong><span>${escapeAttribute(c.note)}</span></button>`;
+      if ((ui.target !== 'NC' || extra) && ui.partner === '__extra__') ui.partner = '';
+      if (ui.target === 'NC' && current === 'TC' && !ui.partner) ui.partner = '__extra__';
+      $d('.wt-partner-title').textContent = ui.target === 'NC' ? '3. 교대 자리 선택' : '3. 대체 직원 선택';
+      const pick = c => `<button type="button" class="wt-cand${ui.partner === c.id ? ' on' : ''}" data-partner="${escapeAttribute(c.id)}" aria-pressed="${ui.partner === c.id}"><strong>${escapeAttribute(c.name)}</strong>${c.note ? `<span>${escapeAttribute(c.note)}</span>` : ''}</button>`;
       $d('.wt-partner').innerHTML = !ui.from ? '<p>적용일을 선택하면 후보가 나옵니다.</p>' : `<div class="wt-cands">${list.map(pick).join('')}
         ${ui.target !== 'NC' && !adapting ? `<button type="button" class="wt-cand${ui.partner === '__new__' ? ' on' : ''}" data-partner="__new__"><strong>+ 새 사람</strong><span>신규 등록과 자리 인계</span></button>` : ''}
-        ${ui.target !== 'NC' || !adapting ? pick({ id:'', name: ui.target === 'NC' ? '새 교대 자리' : '대체자 없음', note: '자동대근 공백/중복 검토 필요' }) : ''}</div>
+        ${ui.target === 'NC' && !extra ? pick({ id:'__extra__', name:'새 교대 자리(추가)', note:'추가 교대근무 · 자동대근 제외' }) : ui.target !== 'NC' ? pick({ id:'', name:'대체자 없음', note:'자동대근 공백/중복 검토 필요' }) : ''}</div>
         ${ui.partner === '__new__' ? `<div class="wt-newform"><label>이름<input name="newName" maxlength="20" value="${escapeAttribute(ui.fresh.name)}"></label><label>사내메일<input name="newEmail" type="email" value="${escapeAttribute(ui.fresh.email)}"></label><label>근무 시작일 (선택)<input type="date" name="newStartDate" min="${today}" max="${ui.from}" value="${escapeAttribute(ui.fresh.startDate)}"></label><p class="quota">미지정 시 단독 투입일부터 근무. 그 전 적응기간은 평일 일·휴일 O.</p></div>` : ''}
-        ${ui.target === 'NC' && ui.partner ? `<label class="wt-date">기존 직원 처리<select name="outgoingAction"><option value="TC"${ui.outgoingAction === 'TC' ? ' selected' : ''}>TC 상일근 전환</option><option value="transfer"${ui.outgoingAction === 'transfer' ? ' selected' : ''}>전출·퇴사</option></select></label>` : ''}
-        ${ui.target === 'NC' && !ui.partner && !adapting ? `<div class="wt-start">시작 근무 ${CYCLE.map(sh => `<button type="button" class="wt-chip${ui.startShift === sh ? ' on' : ''}" data-start="${sh}">${sh}</button>`).join('')}</div>` : ''}`;
+        ${ui.target === 'NC' && ui.partner && ui.partner !== '__extra__' ? `<label class="wt-date">기존 직원 처리<select name="outgoingAction"><option value="TC"${ui.outgoingAction === 'TC' ? ' selected' : ''}>TC 상일근 전환</option><option value="transfer"${ui.outgoingAction === 'transfer' ? ' selected' : ''}>전출·퇴사</option></select></label>` : ''}
+        ${ui.target === 'NC' && ui.partner === '__extra__' ? `<div class="wt-start">시작 근무 ${CYCLE.map(sh => `<button type="button" class="wt-chip${ui.startShift === sh ? ' on' : ''}" data-start="${sh}">${sh}</button>`).join('')}</div>` : ''}`;
       renderPreview();
     };
     dialog.addEventListener('click', e => {
@@ -4564,7 +4605,7 @@
       if (previous && staffEventUndoError(previous)) { alert(staffEventUndoError(previous)); return; }
       if (!wtApply(p, previous)) return;
       close(); populateEmpSelects(); renderManualEmployeeOptions(); settingsEmployeeEditor.open(); renderAll(); renderScheduleEditor();
-      showToast(`${p.event.from} 직원 인계를 반영했습니다. 변경 내용 확인 후 저장을 눌러 주세요.`, 'ok');
+      showToast(`${p.event.from} ${p.event.placement === 'extra' ? '추가 교대' : '직원 인계'} 반영 · 최종 저장 필요`, 'ok', 'staff-edit');
     });
     dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
     document.body.append(dialog); render(); dialog.showModal(); $d('input[name=from]').focus();
@@ -4602,16 +4643,28 @@
     // NC 교대근무 중 위 4명(오늘 기준 종료되지 않은 사람)이 자동대근 대상이다.
     function autoSubstituteIds(){
       return new Set(draft.filter(row => (row.startDate || '2026-01-01') <= viewDate && (!row.endDate || row.endDate >= viewDate)
-        && typeOf(row) === 'NC' && (!row.onboarding || (row.onboardingFrom && viewDate < row.onboardingFrom) || (row.soloDeployment?.from && row.soloDeployment.from <= viewDate)))
+        && typeOf(row) === 'NC' && rotationRoleAt(row, viewDate) !== 'extra' && (!row.onboarding || (row.onboardingFrom && viewDate < row.onboardingFrom) || (row.soloDeployment?.from && row.soloDeployment.from <= viewDate)))
         .slice(0, ROUTINE_HEADCOUNT).map(row => row.id));
     }
     function workTypeNote(row, auto){
       const type = typeOf(row);
       if (type === 'NC') return auto.has(row.id)
         ? '<span class="tag ok">자동대근</span>'
+        : rotationRoleAt(row, viewDate) === 'extra' ? '<span class="tag muted">추가 교대 · 대근 없음</span>'
         : '<span class="tag muted">적응·추가 (대근 없음)</span>';
       if (type === 'TC') return '<span class="tag muted">상일근 · 대근 없음</span>';
       return '<span class="tag muted">평일 일·휴일 O · 대근 없음</span>';
+    }
+    // 자주 쓰는 직원 설정에는 섞지 않고 기존 교대 직원의 보조 메뉴로 둔다.
+    function rotationCorrectionCell(row){
+      const today = fmt(stripTime(new Date()));
+      if (viewDate < today || typeOf(row) !== 'NC' || !EMPLOYEES.some(e => e.id === row.id) || staffNeedsOnboarding(row, viewDate)) return '';
+      const pending = (STATE.rotationAnchors || []).filter(a => a.empId === row.id && a.startDate >= today && !isRotationAnchorLinked(a));
+      return `<details class="sp-rotation-sub" id="staffRotationTools"><summary>교대 루틴 보정</summary>
+        <div class="sp-row2"><label>기준일<input id="staffRotationDate" type="date" min="${today}" value="${escapeAttribute(viewDate)}"></label>
+          <label>시작 근무<select id="staffRotationShift">${CYCLE.map(shift => `<option value="${shift}">${shift}</option>`).join('')}</select></label></div>
+        <div class="sp-line" style="margin-top:8px"><span id="staffRotationCycle">일 → 야 → 조 → O</span><button class="btn secondary" type="button" id="staffRotationApply">적용</button></div>
+        ${pending.map(a => `<div class="staff-event-row">${escapeAttribute(a.startDate)} · ${escapeAttribute(a.startShift)} 시작 <button type="button" class="btn ghost" data-staff-rotation-remove="${escapeAttribute(a.id)}">취소</button></div>`).join('')}</details>`;
     }
     // 저장된 직원의 근무 형태는 [근무 형태 바꾸기](날짜부터)로만 바꾼다. 고르는 칸은 지난 달까지 통째로 바꿔 버리므로
     // 아직 저장 안 된 새 직원에게만 보여 준다 (2026-11-27).
@@ -4650,7 +4703,7 @@
       button.addEventListener('click', () => showPanelTab(button.dataset.spTab));
     });
     const ADD_LABEL = { NC: '+ NC 교대근무 직원 추가', TC: '+ TC 상일근 직원 추가', dispatch: '+ 파견사원 추가' };
-    const GROUP_HINT = { NC: '위 4명 자동대근 · ▲▼로 직급 순서', TC: '평일 일 · 휴일 O · 대근 없음', dispatch: '근무표 일근 칸 · PDF 제외' };
+    const GROUP_HINT = { NC: '자동대근 자리 4명', TC: '평일 일 · 휴일 O', dispatch: 'PDF 제외' };
     const dot = value => value ? value.replace(/-/g, '.') : '';
     function nextChangeTag(row){
       const today = fmt(stripTime(new Date()));
@@ -4732,7 +4785,7 @@
       const head = document.getElementById('staffPanelHead');
       if (head) head.innerHTML = !row ? '<div class="sp-sec"><p class="edit-hint" style="margin:0;">왼쪽에서 직원을 고르세요</p></div>' : `
           <div class="sp-head"><span class="sp-ava" aria-hidden="true">${escapeAttribute((row.name.trim() || '새').slice(0, 1))}</span>
-            <div><strong class="sp-name">${escapeAttribute(row.name.trim() || '새 직원')}</strong><span>${escapeAttribute(WORK_TYPE_LABEL[typeOf(row)] || '')}${auto.has(row.id) ? ' · 자동대근' : ''}</span></div></div>`;
+            <div><strong class="sp-name">${escapeAttribute(row.name.trim() || '새 직원')}</strong><span>${escapeAttribute(WORK_TYPE_LABEL[typeOf(row)] || '')}${auto.has(row.id) ? ' · 자동대근' : typeOf(row) === 'NC' && rotationRoleAt(row, viewDate) === 'extra' ? ' · 추가 교대(대근 없음)' : ''}</span></div></div>`;
       const tabs = document.getElementById('staffPanelTabs');
       if (tabs) tabs.hidden = !row;
       if (panel) {
@@ -4745,7 +4798,6 @@
               <label>근무 시작<input type="date" data-field="startDate" value="${escapeAttribute(row.startDate || '')}"></label>
               <label>퇴사·전출일<input type="date" data-field="endDate" value="${escapeAttribute(row.endDate || '')}"></label>
             </div>
-            <p class="sp-note">팀을 떠나는 날만 넣어요. 근무 형태만 바뀌면 여기 말고 아래 <b>근무 형태 바꾸기</b>를 눌러요</p>
           </div>
           <div class="sp-sec">
             <div class="sp-title">근무 형태</div>
@@ -4756,11 +4808,13 @@
             <div class="sp-line"><span>${row.pinConfigured ? 'PIN 있음 · 처음은 0000' : 'PIN 없음 · 저장하면 0000 으로 시작'}</span>
               <button class="btn secondary" type="button" data-security-action="employee-pin" data-id="${escapeAttribute(row.id)}">${row.pinConfigured ? 'PIN 다시 정하기' : 'PIN 등록'}</button></div>
           </div>
-          <div class="sp-foot"><button class="btn ghost remove-employee-row" type="button" data-index="${index}">직원 삭제</button><span class="edit-hint">삭제하면 다음 달부터 빠져요</span></div>`;
+          ${rotationCorrectionCell(row)}
+          <div class="sp-foot"><button class="btn ghost remove-employee-row" type="button" data-index="${index}">직원 삭제</button></div>`;
       }
       const eventList = $('#staffEventsList');
       const events = staffEventList().filter(event => event.from > fmt(stripTime(new Date())));
       if (eventList) eventList.innerHTML = staffEventControls(events) || '예정된 인계가 없습니다.';
+      if ($('#staffEventsCount')) $('#staffEventsCount').textContent = `${events.length}건`;
       syncOnboarding(row);
       if (row) showPanelTab(panelTab);
       else { const onboard = document.getElementById('onboardingEditorView'); if (onboard) onboard.hidden = true; }
@@ -4775,6 +4829,23 @@
         button.addEventListener('click', () => { selectedId = button.dataset.select; render(); });
       });
       const root = panel || body;
+      root.querySelector('#staffRotationShift')?.addEventListener('change', event => {
+        const index = CYCLE.indexOf(event.target.value);
+        root.querySelector('#staffRotationCycle').textContent = [...CYCLE.slice(index), ...CYCLE.slice(0, index)].join(' → ');
+      });
+      root.querySelector('#staffRotationApply')?.addEventListener('click', () => {
+        const values = { empId: row.id, startDate: root.querySelector('#staffRotationDate').value, startShift: root.querySelector('#staffRotationShift').value };
+        if (isDirty() && !apply()) return;
+        if (setStandaloneRotationAnchor(values, { staffOnly: true, replace: true })) {
+          render(); $('#staffRotationTools')?.setAttribute('open', '');
+        }
+      });
+      root.querySelectorAll('[data-staff-rotation-remove]').forEach(button => button.addEventListener('click', () => {
+        if (isDirty() && !apply()) return;
+        if (confirm('예정된 교대 루틴 보정을 취소할까요?') && removeRotationAnchor(button.dataset.staffRotationRemove, { staffOnly: true })) {
+          render(); $('#staffRotationTools')?.setAttribute('open', '');
+        }
+      }));
       root.querySelectorAll('input[data-field]').forEach(input => {
         const updateDraft = () => {
           if (!row) return;
@@ -4998,7 +5069,7 @@
       renderManualEmployeeOptions();
       open();
       renderAll();
-      showToast('직원 구성을 표에 반영했습니다. 맨 아래 [변경 내용 확인 후 저장]을 눌러야 저장됩니다.');
+      showToast('직원 구성 반영 · 최종 저장 필요', 'ok', 'staff-edit');
       return true;
     }
 
@@ -5172,10 +5243,10 @@
     select.innerHTML = '<option value="">기존 직원 선택</option>' + routine.filter(id => id !== selected).map(id => `<option value="${escapeAttribute(id)}">${escapeAttribute(empName(id))}</option>`).join('');
     if (routine.includes(old) && old !== selected) select.value = old;
     const refEmpId = select.value;
+    $('#anchorStartShift').disabled = true;
     if (!refEmpId || !startDate) return;
     // 이어받기: 기준 직원이 그 날 맡았을 근무를 그대로 시작값으로 가져온다.
     const inherited = rotationShift(EMPLOYEES.find(e => e.id === refEmpId), new Date(startDate + 'T00:00:00'));
-    $('#anchorStartShift').disabled = true;
     if (CYCLE.includes(inherited)) $('#anchorStartShift').value = inherited;
   }
 
@@ -5186,7 +5257,7 @@
     const startDate = $('#anchorStartDate').value;
     const startShift = $('#anchorStartShift').value;
     if (!empId || !startDate || !$('#anchorRefEmp').value || !CYCLE.includes(startShift)) {
-      box.innerHTML = '직원 · 시작일 · 시작 근무를 선택하면 이후 14일 미리보기가 표시됩니다.';
+      box.innerHTML = '';
       return;
     }
     const startIdx = CYCLE.indexOf(startShift);
@@ -5230,7 +5301,6 @@
     const selected = EMPLOYEES.find(e => e.id === empId);
     if (!selected || !startDate || !staffNeedsOnboarding(selected, startDate)) { alert('신규·적응 직원의 단독 투입일을 선택해 주세요.'); return; }
     const ref = $('#anchorRefEmp').value;
-    if (!ref) { alert('이어받을 기존 NC 직원을 선택해 주세요.'); return; }
     if (settingsEmployeeEditor.isDirty() && !settingsEmployeeEditor.apply()) return;
     openWorkTypeDialog(empId, { onboarding: true, from: startDate, partnerId: ref });
   }
@@ -5248,47 +5318,62 @@
       + (clash ? ' · ⚠ 다른 교대 직원과 같은 시작 근무입니다.' : '');
   }
   function applyManualRotationAnchor(){
-    const { empId, startDate, startShift } = manualAnchorValues();
-    if (!empId || !startDate || !CYCLE.includes(startShift)) { alert('직원, 시작일, 시작 근무를 모두 선택해주세요.'); return; }
+    return setStandaloneRotationAnchor(manualAnchorValues());
+  }
+  function isRotationAnchorLinked(anchor){
+    return !!anchor.eventId || staffEventList().some(e => (e.legacy?.anchors || []).some(a => a.id === anchor.id));
+  }
+  function setStandaloneRotationAnchor({ empId, startDate, startShift }, { staffOnly = false, replace = false } = {}){
+    if (!empId || !startDate || !CYCLE.includes(startShift)) { alert('직원, 시작일, 시작 근무를 모두 선택해주세요.'); return false; }
     const emp = EMPLOYEES.find(e => e.id === empId);
-    if (!emp || !isEmployeeActiveOnDate(emp, new Date(startDate + 'T00:00:00'))) {
+    const date = new Date(startDate + 'T00:00:00'), today = fmt(stripTime(new Date()));
+    if (!emp || !isEmployeeActiveOnDate(emp, date)) {
       alert('시작일이 해당 직원의 적용 기간(적용 시작일~종료일) 안에 있어야 합니다.');
-      return;
+      return false;
     }
-    if (staffNeedsOnboarding(emp, startDate)) { alert('신규·적응 직원의 단독 투입은 직원 구성의 인계에서 설정해 주세요.'); return; }
-    if (staffEventsFor(empId).some(e => e.from >= fmt(stripTime(new Date())))) { alert('예정된 인계 기록에서 수정해 주세요.'); return; }
-    if ((STATE.rotationAnchors || []).some(anchor => anchor.empId === empId && anchor.startDate === startDate)) {
+    if (staffOnly && (startDate < today || workTypeOf(emp, date) !== 'NC')) { alert('오늘 이후의 재직 NC 교대근무 날짜만 선택해 주세요.'); return false; }
+    if (staffNeedsOnboarding(emp, startDate)) { alert('신규·적응 직원의 단독 투입은 직원 구성의 인계에서 설정해 주세요.'); return false; }
+    if (staffEventsFor(empId).some(e => e.from >= today)) { alert('예정된 교대 인계가 있습니다. 인계 기록에서 수정해 주세요.'); return false; }
+    const existing = (STATE.rotationAnchors || []).filter(anchor => anchor.empId === empId && anchor.startDate === startDate);
+    if (existing.length && (!replace || existing.some(isRotationAnchorLinked))) {
       alert('같은 직원의 같은 날짜에 이미 시작점이 있습니다. 먼저 해제한 뒤 다시 지정해주세요.');
-      return;
+      return false;
     }
-    if (!requireScheduleEditor('로테이션 시작점 지정')) return;
-    const date = new Date(startDate + 'T00:00:00');
-    if (EMPLOYEES.some(e => e.id !== empId && isRoutineWorker(e, date) && rotationShift(e, date) === startShift)
-      && !confirm('다른 교대 직원과 같은 근무가 배정될 수 있습니다. 보정을 계속할까요?')) return;
+    if (!requireScheduleEditor('로테이션 시작점 지정')) return false;
+    if (existing.length && !confirm('같은 날짜의 기존 루틴 보정을 변경할까요?')) return false;
+    if (isRoutineWorker(emp, date) && EMPLOYEES.some(e => e.id !== empId && isRoutineWorker(e, date) && rotationShift(e, date) === startShift)
+      && !confirm('다른 자동대근 직원과 교대 근무가 겹칠 수 있습니다. 계속할까요?')) return false;
+    const impact = staffImpact([empId], startDate);
+    if ((impact.covers.length || impact.manual || impact.confirmed.length) && !confirm(`기존 휴가·대근 ${impact.covers.length}건, 수동 ${impact.manual}건, 확정 월 ${impact.confirmed.join(', ') || '없음'}을 보존하고 보정할까요?`)) return false;
     snapshotHistoricalSchedule(); // 이미 지난 날짜를 고정해 과거 근무표가 다시 계산되지 않게 한다
     const anchor = { id: uid(), empId, startDate, startShift, at: new Date().toISOString() };
+    if (existing.length) STATE.rotationAnchors = STATE.rotationAnchors.filter(a => !existing.some(old => old.id === a.id));
     STATE.rotationAnchors.push(anchor);
-    addAuditLog('로테이션 시작점 지정', { ...anchor, mode: 'manual', refEmpId: null });
-    saveEditorChange(`로테이션 시작점 지정: ${empName(empId)} ${startDate}부터 "${startShift}"`, monthKeysFrom(startDate));
+    addAuditLog('로테이션 시작점 지정', { ...anchor, mode: 'manual', refEmpId: null, replaced: existing });
+    saveEditorChange(`교대 루틴 보정: ${empName(empId)} ${startDate}부터 "${startShift}" 시작`, staffAffectedMonths(startDate));
     renderAll();
     renderRotationAnchorList();
     renderManualRotationPreview();
-    showToast(`${empName(empId)}님의 근무가 ${startDate}부터 "${startShift}"로 시작해 ${CYCLE.join('→')} 순서로 자동 반복되도록 표에 반영했습니다. 맨 아래 [변경 내용 확인 후 저장]을 눌러야 저장됩니다.`);
+    showToast(`${empName(empId)} ${startDate} ${startShift} 시작 반영 · 최종 저장 필요`, 'ok', 'staff-edit');
+    return true;
   }
 
-  function removeRotationAnchor(anchorId){
+  function removeRotationAnchor(anchorId, { staffOnly = false } = {}){
     const index = (STATE.rotationAnchors || []).findIndex(anchor => anchor.id === anchorId);
-    if (index < 0) return;
-    if (STATE.rotationAnchors[index].eventId || staffEventList().some(e => (e.legacy?.anchors || []).some(a => a.id === anchorId))) { alert('연결된 인계 기록에서 수정·취소해 주세요.'); return; }
-    if (!requireScheduleEditor('로테이션 시작점 해제')) return;
+    if (index < 0) return false;
+    const anchor = STATE.rotationAnchors[index], today = fmt(stripTime(new Date()));
+    if (isRotationAnchorLinked(anchor)) { alert('연결된 인계 기록에서 수정·취소해 주세요.'); return false; }
+    if (staffOnly && (anchor.startDate < today || staffEventsFor(anchor.empId).some(e => e.from >= today))) { alert('지난 보정이나 예정된 인계에 연결된 보정은 취소할 수 없습니다.'); return false; }
+    if (!requireScheduleEditor('로테이션 시작점 해제')) return false;
     snapshotHistoricalSchedule();
     const [removed] = STATE.rotationAnchors.splice(index, 1);
     addAuditLog('로테이션 시작점 해제', removed);
-    saveEditorChange(`로테이션 시작점 해제: ${empName(removed.empId)} ${removed.startDate}부터 "${removed.startShift}"`, monthKeysFrom(removed.startDate));
+    saveEditorChange(`로테이션 시작점 해제: ${empName(removed.empId)} ${removed.startDate}부터 "${removed.startShift}"`, staffAffectedMonths(removed.startDate));
     renderAll();
     renderRotationAnchorList();
     renderRotationAnchorPreview();
     renderManualRotationPreview();
+    return true;
   }
 
   function addBulkFill(){
