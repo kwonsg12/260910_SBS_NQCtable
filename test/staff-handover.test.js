@@ -18,7 +18,7 @@ const functions = ['fmt', 'stripTime', 'addDays', 'dateInRange', 'dayIndex', 'wo
   'isDispatchedDayWorker', 'dispatchedNameKey', 'dayWorkerName', 'rotationRoleAt', 'isRoutineWorker', 'workTypeOf', 'staffOrderDate', 'getOrderedEmployeeIds', 'getActiveStaff',
   'isEmployeeActiveOnDate', 'getRotationAnchorFor', 'rotationShift', 'getHolidayInfo', 'isWeekendOrHoliday', 'baseShift', 'shiftKey', 'isPastDate',
   'getScheduleRange', 'findChainAssignment', 'calculatedShift', 'getShiftForDate', 'effectiveShift', 'snapshotHistoricalSchedule', 'bulkFillValueFor',
-  'wtOrderFor', 'wtRoutineIds', 'wtRoutineNames', 'staffEventIds', 'staffEventList', 'staffEventsFor', 'laterStaffEvent', 'staffChangeLinked', 'staffEventUndoError', 'legacyAnchorMatches',
+  'wtOrderFor', 'wtRoutineIds', 'wtRoutineNames', 'wtHandoverCandidates', 'staffEventIds', 'staffEventList', 'staffEventsFor', 'laterStaffEvent', 'staffChangeLinked', 'staffEventUndoError', 'legacyAnchorMatches',
   'legacyRepairOptions', 'prepareLegacyRepair', 'removeStaffEventData',
   'withStaffEventRemoved', 'staffAdaptationPeriods', 'staffNeedsOnboarding', 'staffImpact', 'staffAffectedMonths', 'wtPlan', 'wtApply', 'cancelStaffEvent',
   'isRotationAnchorLinked', 'regularOverridesForRotationCorrection', 'rotationAppliedPreview', 'setStandaloneRotationAnchor', 'removeRotationAnchor', 'wtLabel',
@@ -270,6 +270,26 @@ test('반대 진입 경로에서도 미래 추가 교대 직원이 나중의 기
   assert.equal(c.rotationRoleAt(emp('tc'),'2026-12-10'),'extra');
   assert.equal(shift('tc','2026-12-10'),'야');
   assert.deepEqual(routine('2027-01-01'),['tc','b','c','d']);
+});
+
+test('기존 NC 전환은 대체자 선택을 요구하며 추가 교대 직원을 우선 표시하고 루틴을 그대로 인계한다', () => {
+  const {c,state,emp,plan,routine,shift,date}=fixture();
+  state.employees.push({id:'tc2',name:'다른 상일근',workType:'TC',phase:1,startDate:'2026-01-01'});
+  const first='2026-12-10', second='2027-01-10';
+  c.wtApply(plan('tc','NC',first,'__extra__'));
+  const candidates=key=>json(c.wtHandoverCandidates('a','TC',key));
+  assert.equal(candidates('2026-12-09').list.find(e=>e.id==='tc').note,'TC 상일근');
+  assert.deepEqual(candidates(second).list.map(e=>e.id),['tc','new','tc2']);
+  assert.equal(candidates(second).list[0].note,'추가 교대 · 기존 자리·루틴 인계');
+  assert.match(plan('a','TC',second,null).error,/대체 직원 또는 대체자 없음/);
+  assert.equal(plan('a','TC',second,'').error,'');
+  assert.deepEqual(json(c.wtHandoverCandidates('tc','transfer',second)),{list:[],replacesRoutine:false});
+  const days=Array.from({length:8},(_,i)=>c.fmt(c.addDays(date(second),i)));
+  const expected=days.map(key=>shift('a',key));
+  const p=plan('a','TC',second,'tc');assert.equal(p.error,'');c.wtApply(p);
+  assert.deepEqual(days.map(key=>shift('tc',key)),expected);
+  assert.deepEqual(routine(second),['tc','b','c','d']);
+  assert.equal(c.rotationRoleAt(emp('tc'),'2027-01-09'),'extra');
 });
 
 test('일근↔교대 반복 예정 변경 세 건과 자리 인계도 날짜별로 구분한다', () => {

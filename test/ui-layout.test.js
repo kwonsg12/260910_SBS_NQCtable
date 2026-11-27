@@ -305,7 +305,9 @@ test('근무 형태 바꾸기와 퇴사·전출일이 겹치지 않는다: 저�
   assert.ok(!/먼저 \[직원 구성 반영\]을 눌러 주세요/.test(script));
   // 대신 들어올 사람 후보는 바꾸는 날에 근무 중인 사람만.
   const dialog = script.slice(script.indexOf('function openWorkTypeDialog'), script.indexOf('function createEmployeeEditor'));
-  assert.match(dialog, /isEmployeeActiveOnDate\(e, month\)/);
+  const candidates = script.slice(script.indexOf('function wtHandoverCandidates'), script.indexOf('function staffEventIds'));
+  assert.match(dialog, /wtHandoverCandidates\(primaryId, ui.target, ui.from\)/);
+  assert.match(candidates, /isEmployeeActiveOnDate\(e, date\)/);
   // 퇴사·전출일이 있으면 그 날까지만 고를 수 있다.
   assert.match(dialog, /max="\$\{escapeAttribute\(emp\.endDate\)\}"/);
 });
