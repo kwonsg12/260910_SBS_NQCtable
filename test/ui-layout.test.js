@@ -268,3 +268,21 @@ test('근무 형태 바꾸기 창: 파견사원은 고를 수 없고, 날짜는 
   assert.match(script, /새 사람의 이름을 입력해 주세요/);
   assert.ok(!/on[a-z]+="/.test(script.slice(script.indexOf('function openWorkTypeDialog'), script.indexOf('function createEmployeeEditor'))));
 });
+
+test('근무표 수동 편집: 편집할 달은 위에 하나, 근무표 칸·직원 구성·신규 투입 탭으로 한 도구씩 보인다', () => {
+  const panel = html.slice(html.indexOf('id="scheduleEditPanel"'), html.indexOf('id="editSessionBar"'));
+  assert.match(panel, /data-view="cells"/);
+  for (const view of ['cells', 'staff', 'onboarding']) assert.match(panel, new RegExp(`data-edit-view="${view}"`));
+  // 편집할 달은 탭 위(세 도구 공통)에 있다.
+  assert.ok(panel.indexOf('id="scheduleEditYear"') < panel.indexOf('class="edit-tabs"'));
+  // 기존 id 는 그대로 있다.
+  for (const id of ['scheduleEditTable', 'rangeEditEmp', 'addScheduleRangeBtn', 'employeeEditTableBody', 'applyEmployeeEditorBtn',
+    'bulkFillEmp', 'addBulkFillBtn', 'anchorEmp', 'applyRotationAnchorBtn', 'endedStaffList', 'deletedStaffTrashList']) {
+    assert.match(panel, new RegExp(`id="${id}"`), id);
+  }
+  // 탭은 hidden 속성이 아니라 data-view 로 숨긴다(직원 구성 화면의 hidden 은 권한이 쓴다).
+  assert.match(html, /\.schedule-edit-panel\[data-view="cells"\] #employeeEditorView/);
+  assert.match(script, /function setEditView\(view\)/);
+  // 바꾼 칸 표시
+  assert.match(script, /classList\.toggle\('is-edited'/);
+});

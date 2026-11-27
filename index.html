@@ -297,36 +297,101 @@
   .export-hidden{display:none !important;}
   .export-invisible{visibility:hidden !important;}
   .schedule-grid-export{width:100%;border-collapse:collapse;}
-  .schedule-edit-panel{margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:16px;background:var(--bg);}
+  /* ── 근무표 수동 편집 (2026-11-27 다시 꾸밈: 편집할 달 공통 · 탭 3개 · 한 줄 폼 · 바꾼 칸 표시) ── */
+  .edit-intro{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 16px;}
+  .edit-intro h2{margin:0 0 4px;}
+  .schedule-edit-panel{margin-top:20px;padding:0;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;}
   .schedule-edit-panel[hidden]{display:none;}
-  .edit-session-note{margin:0 0 12px;padding:10px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--line);font-size:13px;line-height:1.6;color:var(--muted);}
+  .edit-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 16px;padding:20px 0 16px;}
+  .edit-month{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+  .edit-month-label{font-size:13px;color:var(--muted);font-weight:600;margin-right:4px;}
+  .edit-month select{min-height:40px;padding:8px 12px;border-radius:10px;font-weight:600;}
+  .edit-month .btn{min-height:40px;padding:0 14px;border-radius:10px;}
+  .edit-session-note{margin:0;font-size:13px;color:var(--faint);line-height:1.5;}
+  .edit-session-note b{color:var(--muted);font-weight:600;}
+  .edit-tabs{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--sunk);width:max-content;max-width:100%;overflow-x:auto;margin-bottom:20px;}
+  .edit-tab{min-height:36px;padding:0 16px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:14px;font-weight:600;white-space:nowrap;cursor:pointer;transition:background-color .15s cubic-bezier(.22,1,.36,1),color .15s cubic-bezier(.22,1,.36,1);}
+  .edit-tab:hover{color:var(--text);}
+  .edit-tab.active{background:#fff;color:var(--text);box-shadow:0 1px 2px rgba(36,25,15,.08);}
+  .edit-tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  .schedule-edit-panel[data-view="cells"] #employeeEditorView,
+  .schedule-edit-panel[data-view="cells"] #onboardingEditorView,
+  .schedule-edit-panel[data-view="staff"] #scheduleEditorView,
+  .schedule-edit-panel[data-view="staff"] #onboardingEditorView,
+  .schedule-edit-panel[data-view="onboarding"] #scheduleEditorView,
+  .schedule-edit-panel[data-view="onboarding"] #employeeEditorView{display:none;}
+  .edit-section-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 16px;margin-bottom:12px;}
+  .edit-section-head h3{margin:0;font-size:17px;font-weight:700;letter-spacing:-0.01em;}
+  .edit-hint{font-size:13px;color:var(--faint);line-height:1.5;}
+  .edit-legend{display:inline-flex;align-items:center;gap:6px;}
+  .dot-edited{display:inline-block;width:12px;height:12px;border-radius:4px;border:2px solid var(--accent);background:var(--accent-soft);}
+  .edit-grid{border:1px solid var(--line);border-radius:12px;}
+  .edit-card{margin-top:16px;padding:16px 20px 20px;border:1px solid var(--line);border-radius:14px;background:var(--panel);}
+  .edit-card-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-bottom:12px;}
+  .edit-card-head h4{margin:0;font-size:15px;font-weight:700;}
+  /* 폼은 한 줄에 들어가면 한 줄, 좁으면 저절로 다음 줄로 (칸 너비가 고르게 유지된다) */
+  .edit-form{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;}
+  .edit-form > label{flex:1 1 140px;min-width:0;}
+  .edit-form > label:first-child{flex:1 1 120px;}
+  .edit-form label{display:flex;flex-direction:column;gap:4px;margin:0;font-size:13px;font-weight:600;color:var(--muted);}
+  .edit-form select,.edit-form input[type="date"],.edit-form input[type="text"]{min-height:40px;padding:8px 12px;border-radius:10px;font-size:14px;}
+  .edit-form .btn{min-height:40px;padding:0 16px;border-radius:10px;white-space:nowrap;flex:0 0 auto;}
+  .edit-form .edit-check{flex:0 0 auto;flex-direction:row;align-items:center;gap:8px;min-height:40px;font-weight:500;color:var(--text);white-space:nowrap;}
+  .edit-form #anchorRefEmpWrap[style*="none"]{display:none !important;}
+  .edit-help{margin:0 0 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);}
+  .edit-help summary{cursor:pointer;padding:10px 14px;font-size:13px;font-weight:600;color:var(--muted);}
+  .edit-help ul{margin:0;padding:0 16px 12px 32px;font-size:13px;line-height:1.7;color:var(--muted);}
+  .edit-help b{color:var(--text);font-weight:600;}
+  .edit-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;}
+  .edit-actions-gap{flex:1;}
+  .edit-actions .btn{min-height:40px;border-radius:10px;}
+  .edit-apply{color:var(--accent-text) !important;border-color:var(--accent) !important;}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
   /* 편집 세션 바: 스크롤해도 패널 아래쪽에 붙어 있어 언제든 저장·취소할 수 있다. */
-  .edit-session-bar{position:sticky;bottom:0;z-index:5;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 12px;margin-top:12px;padding:12px 14px;border:1px solid var(--line2);border-radius:14px;background:var(--panel);box-shadow:0 -6px 18px rgba(36,25,15,.08);}
+  .edit-session-bar{position:sticky;bottom:12px;z-index:5;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 12px;margin-top:24px;padding:12px 12px 12px 20px;border:1px solid var(--line2);border-radius:14px;background:var(--panel);box-shadow:0 8px 24px rgba(36,25,15,.10);}
+  .edit-session-bar .btn{min-height:40px;border-radius:10px;}
   .edit-session-bar #editSessionStatus{font-size:13px;color:var(--muted);}
   .edit-session-bar.dirty{border-color:var(--accent);}
   .edit-session-bar.dirty #editSessionStatus{color:var(--accent-text);font-weight:700;}
   .edit-review h3{margin:0 0 8px;}
   .edit-review ul{margin:6px 0 12px;padding-left:20px;max-height:40vh;overflow:auto;font-size:13px;line-height:1.6;}
   .edit-review .warn{padding:8px 10px;border-radius:10px;background:var(--amber-bg);color:var(--amber);font-size:13px;margin:8px 0;}
-  .schedule-edit-table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:1240px;background:#fff;}
-  .schedule-edit-table th,.schedule-edit-table td{border:1px solid var(--line);height:48px;padding:3px;text-align:center;vertical-align:middle;}
-  .schedule-edit-table th{background:var(--sunk);font-size:12px;color:var(--muted);}
-  .schedule-edit-table th:first-child{width:150px;}
-  .schedule-edit-table td.name{font-size:14px;font-weight:700;white-space:nowrap;background:#fff;}
-  .schedule-edit-table input{width:100%;max-width:100%;min-width:0;height:38px;padding:2px 1px;border:1px solid var(--line2);border-radius:8px;text-align:center;font-size:13px;font-weight:700;}
-  .schedule-edit-table input:focus{outline:2px solid var(--accent-soft);border-color:var(--accent);}
+  .schedule-edit-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;min-width:1240px;background:#fff;}
+  .schedule-edit-table th,.schedule-edit-table td{border:0;border-bottom:1px solid var(--line);height:48px;padding:4px 2px;text-align:center;vertical-align:middle;}
+  .schedule-edit-table th{background:var(--sunk);font-size:12px;font-weight:600;color:var(--muted);height:44px;}
+  .schedule-edit-table th:first-child{width:120px;}
+  .schedule-edit-table th:first-child,.schedule-edit-table td.name{position:sticky;left:0;z-index:1;text-align:left;padding-left:16px;box-shadow:1px 0 0 var(--line);}
+  .schedule-edit-table td.name{font-size:14px;font-weight:600;white-space:nowrap;background:#fff;}
+  .schedule-edit-table tbody tr:last-child td{border-bottom:0;}
+  .schedule-edit-table input{width:100%;max-width:100%;min-width:0;height:36px;padding:2px 1px;border:1px solid transparent;border-radius:8px;background:var(--bg);text-align:center;font-size:13px;font-weight:700;transition:background-color .15s cubic-bezier(.22,1,.36,1),border-color .15s cubic-bezier(.22,1,.36,1);}
+  .schedule-edit-table input:hover:not(:disabled){border-color:var(--line2);background:#fff;}
+  .schedule-edit-table input:focus{outline:2px solid var(--accent-soft);border-color:var(--accent);background:#fff;}
+  .schedule-edit-table input.is-edited{border:2px solid var(--accent);background:var(--accent-soft);color:var(--accent-text);}
   .schedule-edit-table input:disabled{background:var(--sunk);border-color:var(--line);color:var(--faint);}
   .schedule-edit-table .edit-inactive{background:var(--bg);}
   .schedule-edit-table .edit-covered input{background:var(--amber-bg);border-color:#e9d48d;}
   /* routine: 4조 교대 자동 대근 로테이션에 속한 정식 루틴 근무자 행 표시 */
   .schedule-edit-table .routine-row td.name{border-left:4px solid var(--accent);}
   .schedule-editor-view[hidden]{display:none;}
-  .schedule-editor-view+.schedule-editor-view{margin-top:22px;padding-top:18px;border-top:1px solid var(--line);}
-  .employee-edit-table{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff;}
-  .employee-edit-table th,.employee-edit-table td{border:1px solid var(--line);padding:7px;text-align:center;}
-  .employee-edit-table th{background:var(--sunk);font-size:13px;color:var(--muted);}
-  .employee-edit-table input{width:100%;padding:7px;border:1px solid var(--line2);border-radius:8px;text-align:center;}
-  .ended-staff-panel{margin-top:18px;padding-top:14px;border-top:1px dashed var(--line2);}
+  .employee-edit-table{width:100%;min-width:1060px;border-collapse:separate;border-spacing:0;table-layout:fixed;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .employee-edit-table col.c-name{width:120px;} .employee-edit-table col.c-mail{width:auto;}
+  .employee-edit-table col.c-date{width:150px;} .employee-edit-table col.c-type{width:190px;}
+  .employee-edit-table col.c-pin{width:104px;} .employee-edit-table col.c-order{width:84px;} .employee-edit-table col.c-del{width:64px;}
+  .employee-edit-table th,.employee-edit-table td{border:0;border-bottom:1px solid var(--line);padding:8px;text-align:left;vertical-align:middle;}
+  .employee-edit-table tbody tr:last-child td{border-bottom:0;}
+  .employee-edit-table th{position:relative;background:var(--sunk);font-size:12px;font-weight:600;color:var(--muted);height:40px;}
+  .employee-edit-table td{white-space:normal !important;}
+  .employee-edit-table input{width:100%;min-height:38px;padding:6px 10px;border:1px solid var(--line2);border-radius:8px;text-align:left;font-size:14px;}
+  .employee-edit-table input[type="date"]{padding:6px 8px;}
+  .employee-edit-table select{width:100%;min-height:38px;padding:6px 8px;border-radius:8px;font-size:13px;margin:0 0 4px !important;}
+  .employee-edit-table td:nth-child(5) > div{margin-top:4px;}
+  .employee-edit-table .wt-open{padding:0;min-height:0;font-size:12.5px;text-align:left;}
+  .employee-edit-table td:nth-child(6) .meta{margin:0 0 2px !important;font-size:12px;}
+  .employee-edit-table td:nth-child(6) .btn{padding:0;min-height:0;font-size:12.5px;}
+  .employee-edit-table td:nth-child(7){text-align:center;white-space:nowrap !important;}
+  .employee-edit-table .move-employee-row{min-width:32px;min-height:32px;padding:0;border-radius:8px;}
+  .employee-edit-table .remove-employee-row{color:var(--red);padding:4px 8px;min-height:32px;}
+  .ended-staff-panel{margin-top:24px;padding-top:20px;border-top:1px solid var(--line);}
   .ended-staff-panel .list-item{margin-bottom:8px;}
   .ended-staff-panel .list-item .meta{margin-top:2px;}
   /* ── 탭 공통 레이아웃: 본문 + 오른쪽 패널 ── */
@@ -403,6 +468,12 @@
   #rotationAnchorPreview span,#rotationAnchorList span,#pendingBulkFillsList span{display:inline-block;margin:2px 8px 2px 0;}
   #rotationAnchorPreview .clash{color:var(--red);font-weight:700;}
   .onboarding-step{font-size:13px;font-weight:700;color:var(--text);margin-top:4px;}
+  @media(max-width:900px){
+    .edit-form > label{flex-basis:calc(50% - 6px);}
+    .edit-form .btn{flex:1 1 100%;}
+    .edit-tabs{width:100%;}
+    .edit-tab{flex:1;padding:0 8px;}
+  }
 
   @media print {
     body{background:#fff;}
@@ -915,101 +986,124 @@
       </div>
     </div>
     <div class="panel" data-settings-pane="editor">
-      <h2>근무표 수동 편집</h2>
-      <p class="quota">현재 선택된 월의 표를 직접 수정합니다. 일·야·조·O 또는 경조휴가·교육 같은 특수 근무값을 입력할 수 있습니다.</p>
-      <div class="row" style="margin-top:10px;">
+      <div class="edit-intro">
+        <div>
+          <h2>근무표 수동 편집</h2>
+          <p class="quota" style="margin:0;">근무 칸, 직원 구성, 신규 투입을 고치고 한 번에 저장해요</p>
+        </div>
         <button class="btn" id="openScheduleEditorBtn">근무표 편집</button>
       </div>
-      <div class="schedule-edit-panel" id="scheduleEditPanel" hidden>
-        <p class="edit-session-note">이 화면에서 바꾼 내용(근무 칸·병합·채우기·직원 구성·시작점·완전 삭제·복구)은 <b>바로 저장되지 않습니다.</b> 맨 아래 <b>[변경 내용 확인 후 저장]</b>을 눌러 바뀐 내용을 확인한 뒤 한 번에 저장하세요. [모두 취소]를 누르면 편집을 시작하기 전으로 돌아갑니다.</p>
-        <div class="schedule-editor-view" id="scheduleEditorView">
-          <div class="row" style="justify-content:space-between;margin-bottom:10px;">
-            <strong id="scheduleEditTitle">2026년 9월 근무표 편집</strong>
-            <span class="quota">셀을 직접 입력한 뒤 적용하세요. 최대 4글자 권장</span>
+      <div class="schedule-edit-panel" id="scheduleEditPanel" data-view="cells" hidden>
+        <!-- 2026-11-27 다시 꾸밈: 편집할 달은 세 탭이 같이 쓴다(칸 편집과 직원 순서 적용 달). -->
+        <div class="edit-head">
+          <div class="edit-month" role="group" aria-label="편집할 달">
+            <span class="edit-month-label">편집할 달</span>
+            <select id="scheduleEditYear" aria-label="편집 연도"></select>
+            <select id="scheduleEditMonth" aria-label="편집 월"></select>
+            <button class="btn secondary" id="loadScheduleEditMonthBtn" type="button">불러오기</button>
           </div>
-          <div class="row" style="margin-bottom:10px;">
-            <div><label>편집 연도</label><select id="scheduleEditYear"></select></div>
-            <div><label>편집 월</label><select id="scheduleEditMonth"></select></div>
-            <button class="btn secondary" id="loadScheduleEditMonthBtn" type="button">월 불러오기</button>
-          </div>
-          <div class="gridwrap"><table class="schedule-edit-table" id="scheduleEditTable"></table></div>
-          <div class="row" style="margin-top:12px;">
-            <div><label>병합 직원</label><select id="rangeEditEmp"></select></div>
-            <div><label>시작일</label><input type="date" id="rangeEditStart"></div>
-            <div><label>종료일</label><input type="date" id="rangeEditEnd"></div>
-            <div><label>병합 표시값</label><input type="text" id="rangeEditValue" maxlength="12" placeholder="경조휴가"></div>
-            <button class="btn secondary" id="addScheduleRangeBtn" type="button">범위 병합</button>
-          </div>
-          <div id="pendingScheduleRangesList" class="quota"></div>
+          <p class="edit-session-note">바꾼 내용은 맨 아래 <b>변경 내용 확인 후 저장</b>을 눌러야 저장돼요</p>
         </div>
-        <div class="schedule-editor-view" id="employeeEditorView">
-          <div class="row" style="justify-content:space-between;margin-bottom:10px;">
-            <strong>직원 구성 편집</strong>
-            <span class="quota">이름 수정, 직원 추가·삭제, 적용 기간을 관리합니다. (삭제 시 이번 달까지는 기록이 유지되고 다음 달부터 제외됩니다)</span>
+        <div class="edit-tabs" role="tablist" aria-label="편집 도구">
+          <button type="button" role="tab" class="edit-tab active" aria-selected="true" data-edit-view="cells">근무표 칸</button>
+          <button type="button" role="tab" class="edit-tab" aria-selected="false" data-edit-view="staff">직원 구성</button>
+          <button type="button" role="tab" class="edit-tab" aria-selected="false" data-edit-view="onboarding">신규 투입·로테이션</button>
+        </div>
+
+        <div class="schedule-editor-view" id="scheduleEditorView">
+          <div class="edit-section-head">
+            <h3 id="scheduleEditTitle">2026년 9월 근무표 편집</h3>
+            <span class="edit-hint">칸을 눌러 바로 고쳐요 · 4글자까지 · <span class="edit-legend"><i class="dot-edited" aria-hidden="true"></i>바꾼 칸</span></span>
           </div>
-          <p class="quota" style="margin:0 0 8px;"><b>근무 형태</b>를 고르면 같은 형태끼리 자동으로 묶여 정렬됩니다(NC 교대근무 → TC 상일근 → 파견사원). 묶음 안의 직급 순서는 ▲▼로 맞추세요.</p>
-          <p class="quota" style="margin:0 0 8px;"><b>NC 교대근무</b>는 묶음의 <b>위 4줄</b>이 <b>자동대근</b> 대상입니다(휴가 신청 시 이 4명 중에서만 대근이 배정됩니다). 적응기간 인원은 NC로 넣어 아래쪽에 두었다가, 단독 투입되면 ▲로 위 4줄 안으로 올리세요. <b>TC 상일근</b>·<b>파견사원</b>은 대근을 서지 않고, 휴가는 대근자 없이 기록용으로만 들어갑니다. 파견사원(지금은 이주형)은 근무표 <b>일근</b> 칸에 따로 나오며 평일 일·토·일·공휴일 O가 자동으로 들어갑니다.</p>
-          <p class="quota" style="margin:0 0 8px;">▲▼로 표에 표시될 <b>직급 순서</b>를 조절하세요. 위 "편집 연도/편집 월"에 놓인 달부터 적용되며, 그 이전 달의 근무표 순서는 바뀌지 않습니다.</p>
-          <p class="quota" style="margin:0 0 8px;"><b>사내메일</b>을 등록하면 그 직원에게 배정된 대근과 본인 휴가·비번 보장 신청의 처리 결과(반려 사유 포함)가 매일 요약 메일로 발송됩니다. 비워두면 메일을 받지 않습니다.</p>
-          <p class="quota" style="margin:0 0 8px;"><b>로그인 PIN</b>을 설정하면 해당 직원이 상단 로그인 위젯에서 이름과 이 PIN으로 로그인해 휴가·비번 보장 신청을 내고 본인 신청을 취소할 수 있습니다. PIN 설정 전에는 로그인할 수 없습니다.</p>
-          <div class="gridwrap"><table class="employee-edit-table"><thead><tr><th>이름</th><th style="width:24%;">사내메일</th><th>적용 시작일</th><th>종료일</th><th>근무 형태</th><th>로그인 PIN</th><th>순서</th><th>행</th></tr></thead><tbody id="employeeEditTableBody"></tbody></table></div>
-          <div class="row" style="margin-top:10px;">
-            <button class="btn secondary" id="addEmployeeRowBtn" type="button">직원 추가</button>
-            <button class="btn secondary" id="addDayWorkerRowBtn" type="button" hidden>파견사원 추가</button>
-            <button class="btn" id="applyEmployeeEditorBtn" type="button">직원 구성 표에 반영</button>
+          <div class="gridwrap edit-grid"><table class="schedule-edit-table" id="scheduleEditTable"></table></div>
+          <div class="edit-card">
+            <div class="edit-card-head"><h4>여러 날 묶어 쓰기</h4><span class="edit-hint">경조휴가·교육처럼 며칠을 한 칸으로 합쳐 보여 줘요</span></div>
+            <div class="edit-form edit-form-range">
+              <label>직원<select id="rangeEditEmp"></select></label>
+              <label>시작일<input type="date" id="rangeEditStart"></label>
+              <label>종료일<input type="date" id="rangeEditEnd"></label>
+              <label>표시할 글자<input type="text" id="rangeEditValue" maxlength="12" placeholder="경조휴가"></label>
+              <button class="btn secondary" id="addScheduleRangeBtn" type="button">묶기</button>
+            </div>
+            <div id="pendingScheduleRangesList" class="quota"></div>
+          </div>
+        </div>
+
+        <div class="schedule-editor-view" id="employeeEditorView">
+          <div class="edit-section-head">
+            <h3>직원 구성</h3>
+            <span class="edit-hint">위에서 고른 달부터 순서가 적용돼요 · 삭제하면 다음 달부터 빠져요</span>
+          </div>
+          <details class="edit-help">
+            <summary>근무 형태·순서·메일·PIN 도움말</summary>
+            <ul>
+              <li><b>근무 형태</b>끼리 자동으로 묶여요(NC 교대근무 → TC 상일근 → 파견사원). 묶음 안의 직급 순서는 ▲▼로 맞춰요</li>
+              <li><b>NC 교대근무</b>의 위 4줄이 <b>자동대근</b> 대상이에요. 적응기간 인원은 NC 아래쪽에 두었다가, 단독 투입되면 ▲로 올려요</li>
+              <li><b>TC 상일근</b>·<b>파견사원</b>은 대근을 서지 않고, 휴가는 대근자 없이 기록만 남아요. 파견사원은 근무표 일근 칸에 따로 나와요</li>
+              <li>근무 형태를 날짜부터 바꾸려면 그 줄의 <b>근무 형태 바꾸기</b>를 눌러요(지난 달은 그대로)</li>
+              <li><b>사내메일</b>을 넣으면 대근·신청 결과가 매일 요약 메일로 가요. <b>PIN</b>이 있어야 근무자가 로그인할 수 있어요(처음 0000)</li>
+            </ul>
+          </details>
+          <div class="gridwrap"><table class="employee-edit-table">
+            <colgroup><col class="c-name"><col class="c-mail"><col class="c-date"><col class="c-date"><col class="c-type"><col class="c-pin"><col class="c-order"><col class="c-del"></colgroup>
+            <thead><tr><th>이름</th><th>사내메일</th><th>적용 시작일</th><th>종료일</th><th>근무 형태</th><th>로그인 PIN</th><th>순서</th><th><span class="sr-only">삭제</span></th></tr></thead>
+            <tbody id="employeeEditTableBody"></tbody></table></div>
+          <div class="edit-actions">
+            <button class="btn secondary" id="addEmployeeRowBtn" type="button">+ 직원 추가</button>
+            <button class="btn secondary" id="addDayWorkerRowBtn" type="button" hidden>+ 파견사원 추가</button>
+            <span class="edit-actions-gap"></span>
+            <button class="btn secondary edit-apply" id="applyEmployeeEditorBtn" type="button">직원 구성 표에 반영</button>
           </div>
           <div class="ended-staff-panel" id="endedStaffPanel">
-            <div class="row" style="justify-content:space-between;margin-bottom:8px;">
-              <strong>종료된 직원 (완전 삭제)</strong>
-              <span class="quota">종료일이 지정된 직원만 표시됩니다. 완전 삭제는 근무표 기록에서도 사라지며, 아래 "최근 완전 삭제 내역"에서 되돌릴 수 있습니다.</span>
-            </div>
+            <div class="edit-card-head"><h4>종료된 직원</h4><span class="edit-hint">완전 삭제하면 근무표 기록에서도 사라져요 · 아래 내역에서 되돌릴 수 있어요</span></div>
             <div id="endedStaffList"><p class="empty">종료된 직원이 없습니다.</p></div>
-            <div class="row" style="justify-content:space-between;margin:16px 0 8px;">
-              <strong>최근 완전 삭제 내역</strong>
-            </div>
+            <div class="edit-card-head" style="margin-top:16px;"><h4>최근 완전 삭제 내역</h4></div>
             <div id="deletedStaffTrashList"><p class="empty">완전 삭제 내역이 없습니다.</p></div>
           </div>
         </div>
+
         <div class="schedule-editor-view" id="onboardingEditorView">
-          <div class="row" style="justify-content:space-between;margin-bottom:10px;">
-            <strong>신규 투입 · 로테이션 시작점</strong>
-            <span class="quota">적응기간은 ①로 자유롭게 채우고, 단독근무 투입은 ②로 시작점만 지정하면 이후가 자동 반복됩니다.</span>
+          <div class="edit-section-head">
+            <h3>신규 투입 · 로테이션</h3>
+            <span class="edit-hint">적응기간은 칸을 채우고, 단독 투입부터는 시작점만 정하면 교대가 이어져요</span>
           </div>
-
-          <div class="onboarding-step">① 적응기간 일괄 채우기 — 하루 한 칸씩 채워지며(토·일·공휴일 O 선택 가능), 채운 뒤 위 표에서 개별 수정도 가능합니다</div>
-          <div class="row" style="margin:8px 0 6px;">
-            <div><label>직원</label><select id="bulkFillEmp"></select></div>
-            <div><label>시작일</label><input type="date" id="bulkFillStart"></div>
-            <div><label>종료일</label><input type="date" id="bulkFillEnd"></div>
-            <div><label>반복 값</label><input type="text" id="bulkFillPattern" maxlength="40" placeholder="일   또는   야,조"></div>
-            <label style="display:flex;align-items:center;gap:4px;align-self:flex-end;margin-bottom:8px;"><input type="checkbox" id="bulkFillHolidayOff" checked> 토·일·공휴일은 O</label>
-            <button class="btn secondary" id="addBulkFillBtn" type="button">표에 채우기</button>
-          </div>
-          <div id="pendingBulkFillsList" class="quota"></div>
-
-          <div class="onboarding-step" style="margin-top:16px;">② 로테이션 시작점 — 이 날짜부터 일→야→조→O 4일 주기로 자동 반복됩니다</div>
-          <div class="row" style="margin:8px 0 6px;">
-            <div><label>직원</label><select id="anchorEmp"></select></div>
-            <div><label>시작일 (단독근무 투입일)</label><input type="date" id="anchorStartDate"></div>
-            <div><label>지정 방식</label>
-              <select id="anchorMode">
-                <option value="manual">직접 선택</option>
-                <option value="inherit">기존 직원 자리 이어받기</option>
-              </select>
+          <div class="edit-card">
+            <div class="edit-card-head"><h4>적응기간 채우기</h4><span class="edit-hint">기간 동안 같은 값(또는 반복 값)을 하루씩 넣어요 · 넣은 뒤 근무표 칸 탭에서 고칠 수 있어요</span></div>
+            <div class="edit-form edit-form-fill">
+              <label>직원<select id="bulkFillEmp"></select></label>
+              <label>시작일<input type="date" id="bulkFillStart"></label>
+              <label>종료일<input type="date" id="bulkFillEnd"></label>
+              <label>반복 값<input type="text" id="bulkFillPattern" maxlength="40" placeholder="일  또는  야,조"></label>
+              <label class="edit-check"><input type="checkbox" id="bulkFillHolidayOff" checked> 토·일·공휴일은 O</label>
+              <button class="btn secondary" id="addBulkFillBtn" type="button">표에 채우기</button>
             </div>
-            <div id="anchorRefEmpWrap" style="display:none;"><label>기준 직원</label><select id="anchorRefEmp"></select></div>
-            <div><label>시작 근무</label>
-              <select id="anchorStartShift">
-                <option value="일">일</option>
-                <option value="야">야</option>
-                <option value="조">조</option>
-                <option value="O">O</option>
-              </select>
-            </div>
-            <button class="btn" id="applyRotationAnchorBtn" type="button">시작점 지정</button>
+            <div id="pendingBulkFillsList" class="quota"></div>
           </div>
-          <div id="rotationAnchorPreview" class="quota"></div>
-          <div id="rotationAnchorList" class="quota" style="margin-top:6px;"></div>
+          <div class="edit-card">
+            <div class="edit-card-head"><h4>로테이션 시작점</h4><span class="edit-hint">이 날짜부터 일 → 야 → 조 → O 순서로 4일마다 반복돼요</span></div>
+            <div class="edit-form edit-form-anchor">
+              <label>직원<select id="anchorEmp"></select></label>
+              <label>시작일<input type="date" id="anchorStartDate"></label>
+              <label>정하는 방법
+                <select id="anchorMode">
+                  <option value="manual">직접 선택</option>
+                  <option value="inherit">기존 직원 자리 이어받기</option>
+                </select>
+              </label>
+              <label id="anchorRefEmpWrap" style="display:none;">기준 직원<select id="anchorRefEmp"></select></label>
+              <label>시작 근무
+                <select id="anchorStartShift">
+                  <option value="일">일</option>
+                  <option value="야">야</option>
+                  <option value="조">조</option>
+                  <option value="O">O</option>
+                </select>
+              </label>
+              <button class="btn secondary" id="applyRotationAnchorBtn" type="button">시작점 지정</button>
+            </div>
+            <div id="rotationAnchorPreview" class="quota"></div>
+            <div id="rotationAnchorList" class="quota" style="margin-top:4px;"></div>
+          </div>
         </div>
         <!-- 편집 세션: 위에서 바꾼 내용은 바로 저장되지 않고 여기서 확인한 뒤 한 번에 저장한다. -->
         <div class="edit-session-bar" id="editSessionBar">
@@ -1437,6 +1531,12 @@
     }
     const employeeView = $('#employeeEditorView');
     if (employeeView) employeeView.hidden = !adminLoggedIn;
+    // 편집 탭: 직원 구성 탭은 시스템 관리자에게만 보인다(화면 노출은 예전과 같다).
+    const staffTab = $('#scheduleEditPanel [data-edit-view="staff"]');
+    if (staffTab) {
+      staffTab.hidden = !adminLoggedIn;
+      if (!adminLoggedIn && $('#scheduleEditPanel').dataset.view === 'staff') setEditView('cells');
+    }
     if (!settingsAllowed && settingsButton.classList.contains('active')) {
       settingsButton.classList.remove('active');
       $('#tabbar button[data-tab="schedule"]').classList.add('active');
@@ -4722,8 +4822,12 @@
     table.querySelectorAll('input[data-emp-id]').forEach(input => {
       if (input.disabled) return;
       const key = `${input.dataset.date}::${input.dataset.empId}`;
+      const original = input.value;
       if (Object.prototype.hasOwnProperty.call(scheduleEditorEdits, key)) input.value = scheduleEditorEdits[key];
-      const record = () => { scheduleEditorEdits[key] = input.value; renderEditSessionBar(); };
+      // 바꾼 칸은 테두리로 표시한다(저장 바의 "바뀐 내용"과 같은 뜻).
+      const mark = () => input.classList.toggle('is-edited', input.value.trim() !== '' && input.value.trim() !== original.trim());
+      mark();
+      const record = () => { scheduleEditorEdits[key] = input.value; mark(); renderEditSessionBar(); };
       input.addEventListener('input', record);
       input.addEventListener('change', record);
     });
@@ -5175,6 +5279,19 @@
     renderNotifTab();
   }
 
+  // 근무표 수동 편집의 탭(근무표 칸 · 직원 구성 · 신규 투입·로테이션). 한 번에 한 도구만 보인다.
+  function setEditView(view){
+    const panel = $('#scheduleEditPanel');
+    if (!panel) return;
+    panel.dataset.view = view;
+    panel.querySelectorAll('[data-edit-view]').forEach(tab => {
+      const on = tab.dataset.editView === view;
+      tab.classList.toggle('active', on);
+      tab.setAttribute('aria-selected', String(on));
+    });
+    if (view === 'cells') renderScheduleEditor();
+  }
+
   function initTabs(){
     $$('#tabbar button').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -5330,6 +5447,10 @@
       renderEndedStaffList();
     });
     $('#openScheduleEditorBtn').addEventListener('click', openScheduleEditor);
+    $('#scheduleEditPanel').querySelector('.edit-tabs').addEventListener('click', event => {
+      const tab = event.target.closest('[data-edit-view]');
+      if (tab && !tab.hidden) setEditView(tab.dataset.editView);
+    });
     $('#loadScheduleEditMonthBtn').addEventListener('click', renderScheduleEditor);
     $('#addScheduleRangeBtn').addEventListener('click', addScheduleRange);
     $('#reviewEditSessionBtn').addEventListener('click', reviewEditSession);
