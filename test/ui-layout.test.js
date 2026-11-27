@@ -286,6 +286,14 @@ test('설정: 왼쪽 메뉴에서 근무표 편집 · 직원 구성을 고르고
   // 투입 일정은 직원 구성 화면(사람 패널 옆) 안에 있다.
   const staff = panel.slice(panel.indexOf('id="employeeEditorView"'));
   assert.ok(staff.includes('id="onboardingEditorView"'));
+  // 투입 일정은 고른 직원 패널의 탭(정보 · 투입 일정)으로 들어가고, 처음엔 정보 탭이 보인다.
+  assert.match(staff, /data-sp-tab="info"[^>]*>정보</);
+  assert.match(staff, /data-sp-tab="onboard"[^>]*>투입 일정</);
+  assert.match(staff, /id="onboardingEditorView"[^>]*hidden/);
+  assert.match(script, /function showPanelTab\(tab\)/);
+  // 직원 추가는 위 머리줄이 아니라 목록의 근무 형태 묶음 맨 아래에서 한다.
+  assert.ok(!/id="addEmployeeRowBtn"/.test(panel),'직원 추가 버튼은 목록과 함께 그린다');
+  assert.match(script, /class="sl-add" type="button" data-add-type=/);
   // 탭을 바꿀 때 main 안의 section 을 모두 숨기므로, 설정 탭 안에는 section 이 없어야 한다.
   const settings = html.slice(html.indexOf('<section id="tab-settings"'), html.indexOf('</section>', html.indexOf('<section id="tab-settings"')) + 10);
   assert.equal((settings.match(/<section/g) || []).length, 1, '설정 탭 안에 section 이 있으면 탭을 바꿀 때 숨는다');
