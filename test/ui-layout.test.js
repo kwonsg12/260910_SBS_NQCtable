@@ -200,6 +200,30 @@ test('일근(파견사원) 기본 근무: 평일 일, 토·일·공휴일 O, NC 
   assert.equal(emps.slice(1).every(e => context.isRoutineWorker(e)), true);
 });
 
+test('TC 상일근은 처음부터 TC 인 사람도 평일 일, 토·일·공휴일 O (교대로 돌지 않는다)', () => {
+  const pick = name => { const s = script.indexOf('  function ' + name + '('); return script.slice(s, script.indexOf('\n  function ', s + 1)); };
+  const emps = [{ id: 'hwang', name: '황', workType: 'TC', phase: 0 }, { id: 'nc', name: 'nc', workType: 'NC', phase: 0 },
+    { id: 'kim', name: 'kim', workType: 'TC', phase: 0, workTypeChanges: [{ from: '2026-12-10', workType: 'NC', at: '1' }] }];
+  const context = vm.createContext({
+    EMPLOYEES: emps, STATE: { settings: {}, rotationAnchors: [{ id: 'x', empId: 'kim', startDate: '2026-12-10', startShift: '조', at: '1' }] },
+    DEFAULT_DAY_WORKER_NAME: '이주형', WORK_TYPES: ['NC', 'TC', 'dispatch'], ROUTINE_HEADCOUNT: 4, CYCLE: ['일', '야', '조', 'O'], dayIndex: d => d.getDate(),
+    getHolidayInfo: d => d.getDate() === 25 && d.getMonth() === 11 ? { name: '성탄절' } : null, getActiveStaff: () => emps, getToday: () => new Date(2026, 11, 1)
+  });
+  vm.runInContext(['stripTime', 'fmt', 'getRotationAnchorFor', 'baseShift', 'rotationShift', 'isWeekendOrHoliday', 'dispatchedNameKey', 'dayWorkerName',
+    'isDispatchedDayWorker', 'workTypeChangesOf', 'activeWorkTypeChange', 'workTypeAt'].map(pick).join('\n'), context);
+  const shift = (id, day) => context.baseShift(id, new Date(2026, 11, day));
+  // 12/1 화 ~ 12/7 월: 평일 일, 토·일 O. 성탄절(12/25 금)도 O.
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map(d => shift('hwang', d)), ['일', '일', '일', '일', 'O', 'O', '일']);
+  assert.equal(shift('hwang', 25), 'O');
+  assert.equal(shift('hwang', 24), '일');
+  // NC 는 그대로 교대로 돈다.
+  assert.notDeepEqual([1, 2, 3, 4].map(d => shift('nc', d)), ['일', '일', '일', '일']);
+  // 처음엔 TC 였다가 12/10 부터 NC 가 된 사람: 9일까지는 상일근(12/5 토 O, 12/8 화 일), 10일부터 교대.
+  assert.equal(shift('kim', 5), 'O');
+  assert.equal(shift('kim', 8), '일');
+  assert.deepEqual([10, 11, 12, 13].map(d => shift('kim', d)), ['조', 'O', '일', '야']);
+});
+
 test('직원 편집의 [근무 형태]가 이름보다 우선하고, NC 교대근무 위 4명만 자동대근 대상이다', () => {
   const pick = name => { const s = script.indexOf('  function ' + name + '('); return script.slice(s, script.indexOf('\n  function ', s + 1)); };
   const staff = [

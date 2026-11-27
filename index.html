@@ -1757,8 +1757,8 @@
     if (!emp) return '';
     // 일근 묶음(파견사원)은 교대 없이 평일 일근, 토·일·공휴일은 O.
     if (isDispatchedDayWorker(emp)) return isWeekendOrHoliday(stripTime(date)) ? 'O' : '일';
-    // [근무 형태 바꾸기]로 TC 상일근이 된 기간은 평일 일·토·일·공휴일 O.
-    if (activeWorkTypeChange(emp, date)?.workType === 'TC') return isWeekendOrHoliday(stripTime(date)) ? 'O' : '일';
+    // TC 상일근은 평일 일, 토·일·공휴일 O. 처음부터 TC 인 사람도, [근무 형태 바꾸기]로 TC 가 된 기간도 같다 (2026-11-27).
+    if (workTypeAt(emp, date) === 'TC') return isWeekendOrHoliday(stripTime(date)) ? 'O' : '일';
     return rotationShift(emp, date);
   }
   // 교대(일→야→조→O) 계산만. 로테이션 시작점이 있으면 그것을, 없으면 phase 를 따른다.
