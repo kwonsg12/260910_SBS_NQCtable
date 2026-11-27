@@ -4151,6 +4151,23 @@
   function wtRoutineNames(people, order, dateKey){
     return wtRoutineIds(people, order, dateKey).map(id => people.find(e => e.id === id).name);
   }
+  function wtHandoverCandidates(primaryId, target, dateKey){
+    if (!dateKey) return { list: [], replacesRoutine: false };
+    const date = new Date(dateKey + 'T00:00:00');
+    const routine = wtRoutineIds(EMPLOYEES, wtOrderFor(dateKey), dateKey);
+    const replacesRoutine = target !== 'NC' && routine.includes(primaryId);
+    const staff = getActiveStaff(date.getFullYear(), date.getMonth(), date)
+      .filter(e => e.id !== primaryId && !isDispatchedDayWorker(e) && isEmployeeActiveOnDate(e, date));
+    const list = (target === 'NC' ? staff.filter(e => routine.includes(e.id)) : replacesRoutine ? staff.filter(e => !routine.includes(e.id)) : [])
+      .map(e => {
+        if (target === 'NC') return { id: e.id, name: e.name, note: '' };
+        const type = workTypeOf(e, date);
+        const extra = type === 'NC' && !staffNeedsOnboarding(e, dateKey);
+        return { id: e.id, name: e.name, extra, note: extra ? '추가 교대 · 기존 자리·루틴 인계' : type === 'TC' ? 'TC 상일근' : '적응 직원' };
+      });
+    if (replacesRoutine) list.sort((a, b) => Number(b.extra) - Number(a.extra));
+    return { list, replacesRoutine };
+  }
   function staffEventIds(event){ return [...new Set([event.primaryId, event.partnerId, event.outgoingId, event.incomingId].filter(Boolean))]; }
   function staffEventList(){
     const saved = STATE.staffHandoverEvents || [];
@@ -4410,6 +4427,7 @@
       : !emp || !isEmployeeActiveOnDate(emp, fromDate) ? '선택한 직원의 재직 기간 안의 날짜를 선택해 주세요.'
       : conflictingEvent ? (conflictingEvent.from === from ? '해당 직원에게 같은 날짜의 다른 인계가 있습니다.' : `해당 직원에게 ${conflictingEvent.from} 예정된 다른 인계가 있습니다. 뒤 일정부터 수정하거나 날짜 순서대로 등록해 주세요.`)
       : leaving && currentType !== 'NC' ? '그 날 NC 교대근무 중인 직원만 전환/전출할 수 있습니다.'
+      : leaving && before.includes(emp.id) && partnerId == null ? '대체 직원 또는 대체자 없음을 선택해 주세요.'
       : !leaving && currentlyExtra && !outgoing ? '이미 추가 교대근무 중입니다. 자동대근 자리로 변경하려면 기존 NC 직원을 선택해 주세요.'
       : !leaving && currentType === 'NC' && !currentlyExtra && !staffNeedsOnboarding(emp, from) ? '이미 단독 투입된 직원입니다.'
       : !leaving && staffNeedsOnboarding(emp, from) && !outgoing && !extraPlacement ? '기존 NC 자리 또는 새 교대 자리(추가)를 선택해 주세요.'
@@ -4530,7 +4548,7 @@
     const isExtra = currentType === 'NC' && rotationRoleAt(emp, refKey) === 'extra';
     const newId = uid();
     const ui = { target: previous?.target || (options.onboarding || onboarding || currentType === 'TC' || isExtra ? 'NC' : 'TC'),
-      from: fromDefault, partner: previous?.target === 'NC' && !previous.outgoingId ? '__extra__' : previous?.partnerId || options.partnerId || (currentType === 'TC' ? '__extra__' : ''), outgoingAction: previous?.outgoingAction || 'TC',
+      from: fromDefault, partner: previous ? (previous.target === 'NC' && !previous.outgoingId ? '__extra__' : previous.partnerId || '') : options.partnerId || (currentType === 'TC' ? '__extra__' : null), outgoingAction: previous?.outgoingAction || 'TC',
       startShift: previous?.startShift || '일', fresh: { id: newId, name: '', email: '', startDate: '' } };
     const dialog = document.createElement('dialog');
     dialog.className = 'modal wt-dialog';
@@ -4547,28 +4565,26 @@
     const $d = sel => dialog.querySelector(sel);
     const close = () => { dialog.close(); dialog.remove(); };
     const context = fn => withStaffEventRemoved(previous, fn);
-    const plan = () => context(() => wtPlan(EMPLOYEES.find(e => e.id === primaryId), ui.target, ui.from,
-      ui.partner, ui.startShift, ui.fresh, ui.target === 'transfer' ? 'transfer' : ui.outgoingAction));
-    const candidates = () => context(() => {
-      if (!ui.from) return [];
-      const month = new Date(ui.from + 'T00:00:00');
-      const routine = wtRoutineIds(EMPLOYEES, wtOrderFor(ui.from), ui.from);
-      const staff = getActiveStaff(month.getFullYear(), month.getMonth(), month)
-        .filter(e => e.id !== primaryId && !isDispatchedDayWorker(e) && isEmployeeActiveOnDate(e, month));
-      return (ui.target === 'NC' ? staff.filter(e => routine.includes(e.id)) : routine.includes(primaryId) ? staff.filter(e => !routine.includes(e.id)) : [])
-        .map(e => ({ id: e.id, name: e.name, note: ui.target === 'NC' ? '' : workTypeOf(e, month) === 'TC' ? 'TC 상일근' : rotationRoleAt(e, ui.from) === 'extra' ? '추가 교대' : '적응·추가 NC' }));
-    });
+    const candidates = () => context(() => wtHandoverCandidates(primaryId, ui.target, ui.from));
+    const selectedPartner = () => ui.partner == null && ui.target !== 'NC' && !candidates().replacesRoutine ? '' : ui.partner;
+    const plan = () => {
+      const partner = selectedPartner();
+      return context(() => wtPlan(EMPLOYEES.find(e => e.id === primaryId), ui.target, ui.from,
+        partner, ui.startShift, ui.fresh, ui.target === 'transfer' ? 'transfer' : ui.outgoingAction));
+    };
     const renderPreview = () => {
       const box = $d('.wt-preview'), impact = $d('.wt-impact'), error = $d('.wt-error');
       if (!ui.from) { box.textContent = '날짜를 먼저 선택해 주세요.'; impact.innerHTML = ''; error.hidden = true; $d('[data-act=save]').disabled = true; return; }
+      if (ui.target !== 'NC' && selectedPartner() == null) { box.textContent = '대체 직원을 선택해 주세요.'; impact.innerHTML = ''; error.hidden = true; $d('[data-act=save]').disabled = true; return; }
       const p = plan();
       error.textContent = p.error || ''; error.hidden = !p.error; $d('[data-act=save]').disabled = !!p.error;
       const head = p.rows[0]?.cells.map(cell => `<span class="wt-d${cell.key === ui.from ? ' wt-from' : ''}">${wtLabel(cell.key)}</span>`).join('') || '';
       box.innerHTML = `<div class="wt-strip"><span></span>${head}${p.rows.map(row => `<span class="wt-n">${escapeAttribute(row.name)}</span>${row.cells.map(c => `<span class="wt-c${c.before !== c.after ? ' wt-diff' : ''}" title="이전 ${escapeAttribute(c.before)} → 이후 ${escapeAttribute(c.after)}">${escapeAttribute(c.after || '—')}</span>`).join('')}`).join('')}</div>`;
       const sameRoutine = p.routineBefore.join() === p.routineAfter.join();
-      const routineText = sameRoutine ? `${p.routineAfter.length}명 유지` : `${escapeAttribute(p.routineBefore.join(' · '))} → ${escapeAttribute(p.routineAfter.join(' · ') || '없음')}`;
+      const routineText = sameRoutine ? `${p.routineAfter.length}명 유지` : `${p.routineAfter.length}명 · ${escapeAttribute(p.routineBefore.join(' · '))} → ${escapeAttribute(p.routineAfter.join(' · ') || '없음')}`;
       const items = [`<li><b>자동대근</b> ${routineText}${p.routineAfter.length < ROUTINE_HEADCOUNT ? ' <strong class="wt-warn">⚠ 4명 미만</strong>' : ''}</li>`];
       if (p.event.placement === 'extra') items.push('<li>추가 교대 · 자동대근 제외</li>');
+      if (!p.error && p.event.outgoingId && p.event.incomingId) items.push(`<li>기존 교대 루틴 인계 · ${escapeAttribute(p.event.startShift)}부터 시작</li>`);
       if (p.covers.length) items.push(`<li class="wt-warn">기존 휴가·대근 ${p.covers.length}건 보존: ${escapeAttribute(p.covers.slice(0, 4).join(' / '))}</li>`);
       if (p.manual) items.push(`<li class="wt-warn">수동 기록 ${p.manual}건 보존</li>`);
       if (p.confirmed.length) items.push(`<li class="wt-warn">재확정 필요: ${escapeAttribute(p.confirmed.join(', '))}</li>`);
@@ -4580,18 +4596,19 @@
       const adapting = context(() => staffNeedsOnboarding(EMPLOYEES.find(e => e.id === primaryId), ui.from || today));
       const extra = current === 'NC' && context(() => rotationRoleAt(EMPLOYEES.find(e => e.id === primaryId), ui.from || today) === 'extra');
       const targets = current === 'TC' || options.onboarding ? ['NC'] : adapting || extra ? ['NC', 'TC', 'transfer'] : ['TC', 'transfer'];
-      if (!targets.includes(ui.target)) { ui.target = targets[0]; ui.partner = ''; }
+      if (!targets.includes(ui.target)) { ui.target = targets[0]; ui.partner = null; }
       $d('.wt-types').innerHTML = targets.map(type => `<button type="button" class="wt-type${ui.target === type ? ' on' : ''}" data-type="${type}" aria-pressed="${ui.target === type}"><strong>${type === 'transfer' ? '전출·퇴사' : type === 'NC' && adapting ? '단독 투입' : type === 'NC' && extra ? '기존 NC 자리 인계' : WORK_TYPE_LABEL[type]}</strong></button>`).join('');
-      const list = candidates();
-      if (ui.partner && !['__new__', '__extra__'].includes(ui.partner) && !list.some(c => c.id === ui.partner)) ui.partner = '';
-      if (ui.target === 'NC' && ui.partner === '__new__') ui.partner = '';
-      if ((ui.target !== 'NC' || extra) && ui.partner === '__extra__') ui.partner = '';
+      const { list, replacesRoutine } = candidates();
+      if (ui.partner && !['__new__', '__extra__'].includes(ui.partner) && !list.some(c => c.id === ui.partner)) ui.partner = null;
+      if ((!replacesRoutine || adapting) && ui.partner === '__new__') ui.partner = null;
+      if ((ui.target !== 'NC' || extra) && ui.partner === '__extra__') ui.partner = null;
       if (ui.target === 'NC' && current === 'TC' && !ui.partner) ui.partner = '__extra__';
       $d('.wt-partner-title').textContent = ui.target === 'NC' ? '3. 교대 자리 선택' : '3. 대체 직원 선택';
-      const pick = c => `<button type="button" class="wt-cand${ui.partner === c.id ? ' on' : ''}" data-partner="${escapeAttribute(c.id)}" aria-pressed="${ui.partner === c.id}"><strong>${escapeAttribute(c.name)}</strong>${c.note ? `<span>${escapeAttribute(c.note)}</span>` : ''}</button>`;
+      const chosen = selectedPartner();
+      const pick = c => `<button type="button" class="wt-cand${chosen === c.id ? ' on' : ''}" data-partner="${escapeAttribute(c.id)}" aria-pressed="${chosen === c.id}"><strong>${escapeAttribute(c.name)}</strong>${c.note ? `<span>${escapeAttribute(c.note)}</span>` : ''}</button>`;
       $d('.wt-partner').innerHTML = !ui.from ? '<p>적용일을 선택하면 후보가 나옵니다.</p>' : `<div class="wt-cands">${list.map(pick).join('')}
-        ${ui.target !== 'NC' && !adapting ? `<button type="button" class="wt-cand${ui.partner === '__new__' ? ' on' : ''}" data-partner="__new__"><strong>+ 새 사람</strong><span>신규 등록과 자리 인계</span></button>` : ''}
-        ${ui.target === 'NC' && !extra ? pick({ id:'__extra__', name:'새 교대 자리(추가)', note:'추가 교대근무 · 자동대근 제외' }) : ui.target !== 'NC' ? pick({ id:'', name:'대체자 없음', note:'자동대근 공백/중복 검토 필요' }) : ''}</div>
+        ${replacesRoutine && !adapting ? `<button type="button" class="wt-cand${ui.partner === '__new__' ? ' on' : ''}" data-partner="__new__"><strong>+ 새 사람</strong><span>신규 등록과 자리 인계</span></button>` : ''}
+        ${ui.target === 'NC' && !extra ? pick({ id:'__extra__', name:'새 교대 자리(추가)', note:'추가 교대근무 · 자동대근 제외' }) : ui.target !== 'NC' ? pick({ id:'', name:'대체자 없음', note:replacesRoutine ? '자동대근 자리 공백 발생 가능' : '자동대근 자리 변동 없음' }) : ''}</div>
         ${ui.partner === '__new__' ? `<div class="wt-newform"><label>이름<input name="newName" maxlength="20" value="${escapeAttribute(ui.fresh.name)}"></label><label>사내메일<input name="newEmail" type="email" value="${escapeAttribute(ui.fresh.email)}"></label><label>근무 시작일 (선택)<input type="date" name="newStartDate" min="${today}" max="${ui.from}" value="${escapeAttribute(ui.fresh.startDate)}"></label><p class="quota">미지정 시 단독 투입일부터 근무. 그 전 적응기간은 평일 일·휴일 O.</p></div>` : ''}
         ${ui.target === 'NC' && ui.partner && ui.partner !== '__extra__' ? `<label class="wt-date">기존 직원 처리<select name="outgoingAction"><option value="TC"${ui.outgoingAction === 'TC' ? ' selected' : ''}>TC 상일근 전환</option><option value="transfer"${ui.outgoingAction === 'transfer' ? ' selected' : ''}>전출·퇴사</option></select></label>` : ''}
         ${ui.target === 'NC' && ui.partner === '__extra__' ? `<div class="wt-start">시작 근무 ${CYCLE.map(sh => `<button type="button" class="wt-chip${ui.startShift === sh ? ' on' : ''}" data-start="${sh}">${sh}</button>`).join('')}</div>` : ''}`;
@@ -4600,7 +4617,7 @@
     dialog.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.act === 'close') { close(); return; }
-      if (b.dataset.type) { ui.target = b.dataset.type; ui.partner = ''; ui.outgoingAction = 'TC'; render(); }
+      if (b.dataset.type) { ui.target = b.dataset.type; ui.partner = null; ui.outgoingAction = 'TC'; render(); }
       if (b.hasAttribute('data-partner')) { ui.partner = b.dataset.partner; render(); }
       if (b.dataset.start) { ui.startShift = b.dataset.start; render(); }
     });
