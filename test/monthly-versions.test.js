@@ -22,7 +22,8 @@ function source(name){
 const names = ['monthKeyOf', 'monthlySnapshot', 'monthlySnapshotDiff', 'approvedMonthlyVersion',
   'monthlyApprovalError', 'recordMonthlyVersionChanges', 'currentMonthlyStamp',
   'requestMonthlyApproval', 'decideApproval', 'saveState',
-  'renderMonthlyApprovalStatus', 'renderMonthlyVersions', 'renderApprovalBlock', 'escapeAttribute', 'buildExportName', 'saveNotesSection'];
+  'renderMonthlyApprovalStatus', 'renderMonthlyVersions', 'renderApprovalBlock', 'escapeAttribute', 'buildExportName', 'saveNotesSection',
+  'legacyNotesMonth', 'notesFor'];
 function setup(){
   let count = 0, saves = 0;
   const fields = {
@@ -43,7 +44,7 @@ function setup(){
     getApprovalLines: () => [{ title: '담당', name: '' }, { title: '팀장', name: '' }],
     uid: () => 'id' + ++count, $: sel => fields[sel],
     getApprovers: () => [c.actor], approverById: () => c.actor,
-    requireAdmin: () => true,
+    requireAdmin: () => true, canEditNotes: () => true, scheduleEditorName: () => '시스템 관리자',
     createApproval: value => {
       const approval = { ...value, id: 'request' + ++count, status: 'pending', approverIds: [c.actor.id] };
       c.STATE.approvals.push(approval); return approval;
@@ -184,7 +185,7 @@ test('snapshot covers leap months, inactive days, employee additions/removals an
   assert.equal(snapshot.employees[0].shifts.length, 29);
   assert.equal(snapshot.employees[0].shifts[15], null);
   f.c.staff = [{ id: 'b', name: '새 직원' }];
-  f.c.STATE.settings.notes = '변경';
+  f.c.STATE.monthNotes = { '2104-02': '변경' };
   const diff = f.c.monthlySnapshotDiff(snapshot, f.c.monthlySnapshot('2104-02'));
   assert.ok(diff.some(v => v.label === '비고'));
   assert.equal(diff.filter(v => v.label.startsWith('직원 구성')).length, 2);
@@ -206,7 +207,7 @@ test('PDF filename reflects actual approval rather than the calendar deadline', 
 });
 test('saving notes refreshes status and removes the current-table approval stamp immediately', async () => {
   const f = setup(); await f.approve();
-  f.fields['#scheduleNotesInput'] = { value: '변경된 비고' };
+  f.fields['#scheduleNotesInput'] = { value: '변경된 비고', dataset: { monthKey: '2099-01' } };
   f.c.saveNotesSection();
   assert.match(f.fields['#monthlyApprovalStatus'].textContent, /재확정 필요/);
   assert.match(f.fields['#approvalBlock'].innerHTML, /재확정 필요/);

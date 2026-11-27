@@ -53,6 +53,17 @@ test('day leave still assigns a routine off-duty substitute', () => {
   const { c, shifts } = setup(); shifts.a = ['일', 'O'];
   assert.equal(c.buildChain('a', 'day', date(d0)).chain[1].empId, 'b');
 });
+test('상일근(교대 4명이 아닌 사람)의 일근 휴가는 대근자 없이 휴가만 들어간다', () => {
+  const { c, shifts } = setup(); shifts.a = ['일', 'O'];
+  c.EMPLOYEES.find(e => e.id === 'a').routine = false;
+  const result = c.buildChain('a', 'day', date(d0));
+  assert.equal(result.error, undefined);
+  assert.equal(result.chain.length, 1);
+  assert.equal(result.chain[0].empId, 'a');
+  assert.equal(result.chain[0].shift, '휴가');
+  // 일근이 아닌 날은 상일근이어도 일근 휴가를 낼 수 없다.
+  assert.match(c.buildChain('a', 'day', date(d1)).error, /일근인 날짜/);
+});
 test('next-day protection, employment end and occupied shifts exclude a night substitute', () => {
   for (const change of [
     f => f.c.STATE.protects.push({ empId: 'b', date: d1, status: 'pending' }),

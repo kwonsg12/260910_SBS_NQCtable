@@ -323,10 +323,17 @@ test('승인함: 근무자는 내 신청만, 담당자 화면에서만 다른 �
   const escape = script.slice(script.indexOf('  function escapeAttribute'), script.indexOf('  function isStandardShift'));
   const own = script.slice(script.indexOf('  function renderOwnApprovalInbox'), script.indexOf('  function renderApprovalInbox'));
   const render = script.slice(script.indexOf('  function renderApprovalInbox'), script.indexOf('  function renderApprovalHistory'));
+  const cancelHelpers = script.slice(script.indexOf('  function pendingLeaveCancel'), script.indexOf('  function createApproval'));
+  const fmt = d => d.toISOString().slice(0, 10);
   function run(employee, locked = '') {
     const nodes = { '#approvalActorSelect': { value: '', dataset: locked ? { lockedApprover: locked } : {} }, '#approvalActorPick': { hidden: true }, '#approvalList': {}, '#activityApprovalCount': {}, '#approveTitle': {}, '#approveSubtitle': {} };
-    const context = vm.createContext({ $: selector => nodes[selector], STATE: { approvals, requests: [{ id: 'r1', empId: 'e1', startDate: '2099-01-01', status: 'pending', submittedAt: 'x' }], protects: [] }, getApprovers: () => [{ id: 'a', name: '팀장' }, { id: 'b', name: '부장' }, { id: 'c', name: '무관' }], activityViewer: () => ({ admin: false, employee }), approverName: id => id, APPROVAL_TYPE_LABEL: { leave: '휴가' } });
-    vm.runInContext(escape + own + render + '\nrenderApprovalInbox();', context);
+    const requests = [
+      { id: 'r1', empId: 'e1', startDate: '2099-01-01', status: 'pending', submittedAt: 'x' },
+      { id: 'r2', empId: 'e1', startDate: '2099-02-01', status: 'confirmed', submittedAt: 'w' },
+      { id: 'r3', empId: 'e1', startDate: '2000-01-01', status: 'confirmed', submittedAt: 'v' }
+    ];
+    const context = vm.createContext({ $: selector => nodes[selector], STATE: { approvals, requests, protects: [] }, getApprovers: () => [{ id: 'a', name: '팀장' }, { id: 'b', name: '부장' }, { id: 'c', name: '무관' }], activityViewer: () => ({ admin: false, employee }), approverName: id => id, APPROVAL_TYPE_LABEL: { leave: '휴가' }, fmt, getToday: () => new Date('2026-11-27T00:00:00Z') });
+    vm.runInContext(escape + cancelHelpers + own + render + '\nrenderApprovalInbox();', context);
     return nodes;
   }
   // 근무자로 로그인: 다른 사람 신청은 보이지 않고 내 신청만 보인다.
@@ -334,6 +341,9 @@ test('승인함: 근무자는 내 신청만, 담당자 화면에서만 다른 �
   assert.equal(nodes['#approvalActorPick'].hidden, true);
   assert.doesNotMatch(nodes['#approvalList'].innerHTML, /다른 사람 휴가|B 담당 휴가/);
   assert.match(nodes['#approvalList'].innerHTML, /data-id="r1"/);
+  // 확정 휴가: 앞으로의 날짜만 [취소 신청] 버튼이 있다.
+  assert.match(nodes['#approvalList'].innerHTML, /data-id="r2">취소 신청</);
+  assert.doesNotMatch(nodes['#approvalList'].innerHTML, /data-id="r3"/);
   assert.equal(nodes['#approveTitle'].textContent, '내 신청');
   // 담당자 화면(직원 로그인 없음): 전체 승인 대기 건과 담당자 선택칸이 보인다.
   nodes = run('');
@@ -365,7 +375,7 @@ test('editing lock keeps admin and employee from editing at the same time', asyn
   await f.login();
   const acquired = await f.api('/api/lock/acquire', {}, true);
   assert.equal(acquired.status, 200);
-  assert.equal(acquired.data.holderName, '관리자');
+  assert.equal(acquired.data.holderName, '시스템 관리자');
   assert.equal((await f.api('/api/lock')).data.locked, true);
 
   // 관리자 인증으로 직원 PIN을 등록해야 직원 로그인을 테스트할 수 있다.

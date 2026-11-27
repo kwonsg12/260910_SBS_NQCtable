@@ -70,7 +70,7 @@ test('로그인 유형: 승인 담당자는 담당자 이름과 PIN, 근무자�
   const start = script.indexOf('  function updateLoginRoleFields()');
   const fn = script.slice(start, script.indexOf('\n  }\n', start) + 4);
   const node = () => ({ hidden: false, required: true });
-  const nodes = { '#loginRole': { value: 'approver' }, '#loginNameLabel': node(), '#employeeLoginSelect': node(), '#loginApproverLabel': node(), '#loginApproverSelect': node(), '#loginPinHint': node(), '#loginApproverNote': node() };
+  const nodes = { '#loginRole': { value: 'approver' }, '#loginNameLabel': node(), '#employeeLoginSelect': node(), '#loginApproverLabel': node(), '#loginApproverSelect': node(), '#loginPinHint': node(), '#loginApproverNote': node(), '#loginAdminNote': node() };
   const context = vm.createContext({ $: selector => nodes[selector] });
   vm.runInContext(fn + '\nupdateLoginRoleFields();', context);
   assert.equal(nodes['#employeeLoginSelect'].hidden, true);
@@ -82,11 +82,12 @@ test('로그인 유형: 승인 담당자는 담당자 이름과 PIN, 근무자�
   assert.equal(nodes['#employeeLoginSelect'].hidden, false);
   assert.equal(nodes['#loginApproverSelect'].hidden, true);
   assert.equal(nodes['#loginPinHint'].hidden, false);
-  assert.match(html, /<option value="approver">승인 담당자<\/option>/);
+  // 로그인 목록 순서: 근무자 → 승인 담당자 → 시스템 관리자
+  assert.match(html, /<option value="employee">근무자<\/option><option value="approver">승인 담당자<\/option><option value="admin">시스템 관리자<\/option>/);
   assert.match(html, /처음 로그인할 때 PIN은 0000이에요/);
 });
 
-test('엑셀 양식 근무표: 묶음은 엑셀 내보내기와 같은 NC/TC 기준, TC 가 없으면 생략, 파견사원은 PDF 제외 묶음', () => {
+test('엑셀 양식 근무표: 묶음은 엑셀 내보내기와 같은 NC/TC 기준, TC 가 없으면 생략, 일근(파견사원)은 TC 아래 PDF 제외 묶음', () => {
   const start = script.indexOf('  function scheduleGroups(');
   const fn = script.slice(start, script.indexOf('\n  }\n', start) + 4);
   const staff = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }, { id: 'edu' }, { id: 'seo' }];
@@ -97,7 +98,7 @@ test('엑셀 양식 근무표: 묶음은 엑셀 내보내기와 같은 NC/TC 기
   vm.runInContext(fn + '\nthis.groups = scheduleGroups;', context);
   const groups = context.groups(staff, 2026, 11);
   assert.deepEqual(JSON.parse(JSON.stringify(groups.map(g => [g.label, g.staff.map(e => e.id).join(','), g.pdfIgnore]))),
-    [['NC', 'a,b,c,d', false], ['TC', 'edu', false], ['파견', 'seo', true]]);
+    [['NC', 'a,b,c,d', false], ['TC', 'edu', false], ['일근', 'seo', true]]);
   assert.equal(context.groups(staff.slice(0, 4), 2026, 11).map(g => g.label).join(','), 'NC', 'TC 가 없으면 TC 묶음은 없다');
   // 엑셀 내보내기도 같은 함수(isRoutineWorker·isDispatchedDayWorker)로 나눈다.
   assert.match(script, /const tcStaff = exportableStaff\.filter\(emp => !isRoutineWorker\(emp, month\)\)/);
@@ -173,4 +174,25 @@ test('표 위 안내: 근무자로 로그인해 누를 칸이 있을 때만 강�
   context.render(5);
   assert.equal(nodes['#sheetHint'].hidden, true);
   assert.match(script, /\$\('#sheetHintClose'\)\?\.addEventListener\('click'/);
+});
+
+test('일근(파견사원) 기본 근무: 평일 일, 토·일·공휴일 O, NC 4명 자리에 세지 않는다', () => {
+  const pick = name => { const s = script.indexOf('  function ' + name + '('); return script.slice(s, script.indexOf('\n  function ', s + 1)); };
+  const emps = [{ id: 'lee', name: '이주형' }, { id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'c', name: 'c' }, { id: 'd', name: 'd' }];
+  const context = vm.createContext({
+    EMPLOYEES: emps, STATE: { settings: { dayWorkerName: '이주형' }, rotationAnchors: [] }, DEFAULT_DAY_WORKER_NAME: '이주형',
+    ROUTINE_HEADCOUNT: 4, CYCLE: ['일', '야', '조', 'O'], dayIndex: () => 0,
+    getHolidayInfo: d => d.getDate() === 25 && d.getMonth() === 11 ? { name: '성탄절' } : null,
+    getActiveStaff: () => emps, getToday: () => new Date(2026, 11, 1)
+  });
+  vm.runInContext(['stripTime', 'fmt', 'getRotationAnchorFor', 'baseShift', 'isWeekendOrHoliday', 'dispatchedNameKey', 'dayWorkerName', 'isDispatchedDayWorker', 'isRoutineWorker'].map(pick).join('\n'), context);
+  const shift = day => context.baseShift('lee', new Date(2026, 11, day));
+  assert.equal(shift(1), '일');   // 화
+  assert.equal(shift(5), 'O');    // 토
+  assert.equal(shift(6), 'O');    // 일
+  assert.equal(shift(25), 'O');   // 성탄절(금)
+  assert.equal(shift(24), '일');  // 목
+  // 순서상 맨 위에 있어도 NC 는 나머지 4명이다.
+  assert.equal(context.isRoutineWorker(emps[0]), false);
+  assert.equal(emps.slice(1).every(e => context.isRoutineWorker(e)), true);
 });

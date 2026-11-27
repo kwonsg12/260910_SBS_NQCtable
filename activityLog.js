@@ -41,7 +41,7 @@ function logNewSubmissions(oldState, newState) {
   const added = (oldArr, newArr) => { const ids = idsOf(oldArr); return (newArr || []).filter(x => !ids.has(x.id)); };
   const lines = [];
   for (const r of added(oldState?.requests, newState.requests)) {
-    lines.push(`휴가 신청 — ${empName(newState, r.empId)} / ${r.startDate} (${r.type === 'day' ? '일근' : '야+조'}) / ${leaveStatusLabel(r)}`);
+    lines.push(`휴가 신청${r.enteredBy === 'admin' ? '(관리자 입력)' : ''} — ${empName(newState, r.empId)} / ${r.startDate} (${r.type === 'day' ? '일근' : '야+조'}) / ${leaveStatusLabel(r)}`);
   }
   for (const p of added(oldState?.protects, newState.protects)) {
     lines.push(`비번 보장 신청 — ${empName(newState, p.empId)} / ${p.date} / ${protectStatusLabel(p)}`);
@@ -54,7 +54,7 @@ function logNewSubmissions(oldState, newState) {
 
 // decide()에서 승인/반려가 확정된 직후 호출한다.
 function logDecision(state, approval, approved, actorName, reason) {
-  const typeLabel = { leave: '휴가 신청', protect: '비번 보장 신청', monthly: '월간 근무표 확정' }[approval.type] || approval.type;
+  const typeLabel = { leave: '휴가 신청', 'leave-cancel': '휴가 취소 신청', protect: '비번 보장 신청', monthly: '월간 근무표 확정' }[approval.type] || approval.type;
   const target = approval.type === 'monthly' ? approval.refId : empName(state, approval.requestedBy);
   appendLines([`${typeLabel} ${approved ? '승인' : '반려'} — 대상: ${target} / 처리자: ${actorName}${reason ? ` / 사유: ${reason}` : ''}`]);
 }
@@ -65,4 +65,9 @@ function logSelfCancel(state, kind, item) {
   appendLines([`${typeLabel} 본인 취소 — ${empName(state, item.empId)} / ${kind === 'request' ? item.startDate : item.date}`]);
 }
 
-module.exports = { LOG_DIR, todayFile, appendLines, logNewSubmissions, logDecision, logSelfCancel };
+// cancelOwn()에서 확정 휴가의 취소 신청(승인 대기)이 올라간 직후 호출한다.
+function logCancelRequest(state, item) {
+  appendLines([`휴가 취소 신청 — ${empName(state, item.empId)} / ${item.startDate} / 승인 대기`]);
+}
+
+module.exports = { LOG_DIR, todayFile, appendLines, logNewSubmissions, logDecision, logSelfCancel, logCancelRequest };

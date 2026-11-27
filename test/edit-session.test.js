@@ -25,7 +25,7 @@ function block(startText, endText) {
 
 const names = ['saveState', 'cloneValue', 'beginEditSession', 'editSessionDirty', 'saveEditorChange', 'isEditDraftLog',
   'stateWithoutEditDraft', 'withEditBaseline', 'monthKeysBetween', 'monthKeysFrom', 'editSessionSummary',
-  'commitEditSession', 'discardEditSession', 'addAuditLog', 'monthlySnapshot', 'monthlySnapshotDiff'];
+  'commitEditSession', 'discardEditSession', 'addAuditLog', 'monthlySnapshot', 'monthlySnapshotDiff', 'monthKeyOf', 'legacyNotesMonth', 'notesFor'];
 
 function setup() {
   const enqueued = [];
@@ -46,7 +46,9 @@ function setup() {
     uid: () => 'log' + ++ids, $: () => ({ hidden: true }),
     renderEditSessionBar() {}, renderAll() {}, showToast() {}, populateEmpSelects() {}, renderManualEmployeeOptions() {},
     settingsEmployeeEditor: { open() {} }, renderEndedStaffList() {}, renderDeletedStaffTrash() {}, renderScheduleEditor() {},
-    pendingScheduleRanges: [], pendingBulkFills: [], scheduleEditorEdits: {}
+    pendingScheduleRanges: [], pendingBulkFills: [], scheduleEditorEdits: {},
+    // 직접 입력 휴가 → 신청 전환 규칙은 test/manual-leave.test.js 에서 따로 검증한다.
+    convertManualLeaves: () => 0, scheduleEditorName: () => '시스템 관리자'
   });
   c.EMPLOYEES = c.STATE.employees;
   vm.runInContext(block('  const EDIT_SESSION_KEYS', 'let editSessionExpiryWarned = false;') + '\n' + names.map(source).join('\n'), c);
