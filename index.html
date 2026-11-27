@@ -391,7 +391,6 @@
   .sp-rotation-sub .sp-row2{margin-top:12px;}
   .sp-rotation-sub .sp-row2 label{display:flex;flex-direction:column;gap:5px;min-width:0;}
   .sp-rotation-sub .sp-row2 input,.sp-rotation-sub .sp-row2 select{width:100%;min-width:0;box-sizing:border-box;}
-  .sp-rotation-sub .staff-event-row{padding:4px 0;}
   .sp-step{border:1px solid var(--line);border-radius:12px;padding:12px;}
   .sp-step > summary{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;cursor:pointer;list-style:none;font-size:14px;}
   .sp-step > summary::-webkit-details-marker{display:none;}
@@ -551,7 +550,7 @@
   .settings-main{flex:999 1 640px;min-width:0;}
   #settingsGateNote.is-admin{color:var(--green);font-weight:600;}
 
-  #rotationAnchorPreview span,#rotationAnchorList span,#pendingBulkFillsList span{display:inline-block;margin:2px 8px 2px 0;}
+  #rotationAnchorPreview span,#pendingBulkFillsList span{display:inline-block;margin:2px 8px 2px 0;}
   #rotationAnchorPreview .clash{color:var(--red);font-weight:700;}
   .onboarding-step{font-size:13px;font-weight:700;color:var(--text);margin-top:4px;}
   @media(max-width:900px){
@@ -1137,7 +1136,6 @@
               <button type="button" class="btn secondary" id="manualAnchorApply">시작점 지정</button>
             </div>
             <p id="manualAnchorPreview" class="quota"></p>
-            <div id="manualRotationAnchorList" class="quota"></div>
           </details>
         </div>
 
@@ -1192,7 +1190,6 @@
                       <button class="btn secondary" id="applyRotationAnchorBtn" type="button">교대 자리 설정</button>
                     </div>
                     <div id="rotationAnchorPreview" class="quota"></div>
-                    <div id="rotationAnchorList" class="quota" style="margin-top:4px;"></div>
                   </details>
                 </div>
               </div>
@@ -4659,13 +4656,11 @@
     function rotationCorrectionCell(row){
       const today = fmt(stripTime(new Date()));
       if (viewDate < today || typeOf(row) !== 'NC' || !EMPLOYEES.some(e => e.id === row.id) || staffNeedsOnboarding(row, viewDate)) return '';
-      const pending = (STATE.rotationAnchors || []).filter(a => a.empId === row.id && a.startDate >= today && !isRotationAnchorLinked(a));
       return `<details class="sp-rotation-sub" id="staffRotationTools"><summary>교대 루틴 보정</summary>
         <div class="sp-row2"><label>기준일<input id="staffRotationDate" type="date" min="${today}" value="${escapeAttribute(viewDate)}"></label>
           <label>시작 근무<select id="staffRotationShift">${CYCLE.map(shift => `<option value="${shift}">${shift}</option>`).join('')}</select></label></div>
         <div class="sp-line" style="margin-top:8px"><span id="staffRotationCycle">일 → 야 → 조 → O</span><button class="btn secondary" type="button" id="staffRotationApply">적용</button></div>
-        <p id="staffRotationActual" class="quota" aria-live="polite" hidden></p>
-        ${pending.map(a => `<div class="staff-event-row">${escapeAttribute(a.startDate)} · ${escapeAttribute(a.startShift)} 시작</div>`).join('')}</details>`;
+        <p id="staffRotationActual" class="quota" aria-live="polite" hidden></p></details>`;
     }
     // 저장된 직원의 근무 형태는 [근무 형태 바꾸기](날짜부터)로만 바꾼다. 고르는 칸은 지난 달까지 통째로 바꿔 버리므로
     // 아직 저장 안 된 새 직원에게만 보여 준다 (2026-11-27).
@@ -5291,17 +5286,6 @@
     box.innerHTML = `미리보기(14일): ${days}${notice}${clashNote}`;
   }
 
-  function renderRotationAnchorList(){
-    const all = [...(STATE.rotationAnchors || [])].sort((a, b) => b.startDate.localeCompare(a.startDate));
-    const legacyIds = new Set(staffEventList().flatMap(e => (e.legacy?.anchors || []).map(a => a.id)));
-    ['#rotationAnchorList', '#manualRotationAnchorList'].forEach(selector => {
-      const list = $(selector); if (!list) return;
-      const anchors = selector === '#rotationAnchorList' ? all.filter(a => a.empId === $('#anchorEmp').value) : all;
-      list.innerHTML = anchors.length ? anchors.map(anchor =>
-        `<div class="staff-event-row">${escapeAttribute(empName(anchor.empId))} ${escapeAttribute(anchor.startDate)}부터 "${escapeAttribute(anchor.startShift)}" 시작 ${anchor.eventId || legacyIds.has(anchor.id) ? '<span class="quota">인계 기록에서 수정·취소</span>' : ''}</div>`).join('') : '지정된 시작점이 없습니다.';
-    });
-  }
-
   function applyRotationAnchor(){
     const empId = $('#anchorEmp').value;
     const startDate = $('#anchorStartDate').value;
@@ -5395,7 +5379,6 @@
     if (impact.covers.length || impact.manual > reset.length) notes.push('기존 휴가·대근·특수 입력 보존');
     saveEditorChange(notes.join(' · '), [...new Set([...staffAffectedMonths(startDate), ...reset.map(item => item.key.slice(0, 7))])]);
     renderAll();
-    renderRotationAnchorList();
     renderManualRotationPreview();
     showToast(`${empName(empId)} ${startDate} ${startShift} 시작 반영 · 최종 저장 필요`, 'ok', 'staff-edit');
     return true;
@@ -5413,7 +5396,6 @@
     addAuditLog('로테이션 시작점 해제', removed);
     saveEditorChange(`로테이션 시작점 해제: ${empName(removed.empId)} ${removed.startDate}부터 "${removed.startShift}"`, staffAffectedMonths(removed.startDate));
     renderAll();
-    renderRotationAnchorList();
     renderRotationAnchorPreview();
     renderManualRotationPreview();
     return true;
@@ -5550,7 +5532,6 @@
     }
     renderScheduleRangeList();
     renderPendingBulkFillsList();
-    renderRotationAnchorList();
     renderEditSessionBar();
   }
 
