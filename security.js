@@ -59,8 +59,20 @@ function validateStaffHistory(old, next) {
     }
   }
   // 확정/과거 근무의 출처인 이미 시작된 인계 자체는 덮어쓰거나 제거하지 않는다.
+  const participants = event => [event.outgoingId, event.incomingId].filter(Boolean);
+  const sharesStaff = (a, b) => participants(a).some(id => participants(b).includes(id));
+  const unchanged = event => events.some(e => e.id === event.id && equal(event, e));
   for (const event of before) {
     if (event.from <= today && !equal(event, events.find(e => e.id === event.id))) fail(409, '이미 시작된 직원 인계는 변경할 수 없습니다.');
+    if (event.from > today && !unchanged(event) && before.some(later => later.from > event.from && sharesStaff(event, later) && unchanged(later))) {
+      fail(409, '후속 인계가 있습니다. 뒤 일정부터 수정·취소해주세요.');
+    }
+  }
+  // 날짜순으로 이어지는 인계는 허용하되, 이미 저장된 후속 인계를 남기고 앞에 새 일정을 끼워 넣지 않는다.
+  for (const event of events) {
+    if (!before.some(e => e.id === event.id) && before.some(later => later.from > event.from && sharesStaff(event, later) && unchanged(later))) {
+      fail(409, '후속 인계가 있습니다. 날짜 순서대로 등록해주세요.');
+    }
   }
   const ids = new Set(), employees = list(next, 'employees'), anchors = next.rotationAnchors || [];
   for (const event of events) {
@@ -75,9 +87,19 @@ function validateStaffHistory(old, next) {
     if (event.placement != null && (!incoming || !['extra', 'routine'].includes(event.placement)
       || (event.placement === 'extra' ? !!outgoing || event.target !== 'NC' : !outgoing))) fail(409, '추가 교대 자리와 기존 교대 자리 인계를 확인해주세요.');
     for (const emp of [outgoing, incoming].filter(Boolean)) {
-      if (ids.has(emp.id)) fail(409, '한 직원에게 예정된 인계가 중복됩니다.');
-      ids.add(emp.id);
+      const daySlot = `${emp.id}::${event.from}`;
+      if (ids.has(daySlot)) fail(409, '한 직원에게 같은 날짜의 예정 인계가 중복됩니다.');
+      ids.add(daySlot);
       if ((emp.startDate || '2026-01-01') > event.from || (emp.adaptationPeriods || []).some(p => p.endDate >= event.from)) fail(409, '적응기간 또는 재직 기간과 인계가 겹칩니다.');
+    }
+    if (outgoing) {
+      const latestBefore = changes => [...(changes || [])].filter(c => c && c.from < event.from)
+        .sort((a, b) => a.from.localeCompare(b.from) || String(a.at || '').localeCompare(String(b.at || ''))).at(-1);
+      const formerType = latestBefore(outgoing.workTypeChanges)?.workType || outgoing.workType;
+      const formerRole = latestBefore(outgoing.rotationRoleChanges)?.role;
+      if (['TC', 'dispatch'].includes(formerType) || (incoming && formerRole === 'extra')) {
+        fail(409, '인계 전 날짜의 교대 근무 형태·역할이 일치하지 않습니다.');
+      }
     }
     if (outgoing && event.outgoingAction === 'transfer') {
       const previousDay = new Date(Date.parse(event.from) - 86400000).toISOString().slice(0, 10);
