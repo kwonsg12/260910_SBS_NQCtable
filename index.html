@@ -384,8 +384,9 @@
   .employee-edit-table input{width:100%;min-height:38px;padding:6px 10px;border:1px solid var(--line2);border-radius:8px;text-align:left;font-size:14px;}
   .employee-edit-table input[type="date"]{padding:6px 8px;}
   .employee-edit-table select{width:100%;min-height:38px;padding:6px 8px;border-radius:8px;font-size:13px;margin:0 0 4px !important;}
-  .employee-edit-table td:nth-child(5) > div{margin-top:4px;}
-  .employee-edit-table .wt-open{padding:0;min-height:0;font-size:12.5px;text-align:left;}
+  /* 근무 형태 칸: [근무 형태 바꾸기]와 자동대근 표시를 한 줄에 둬서 줄 높이를 줄인다 */
+  .employee-edit-table td:nth-child(5) > div:last-child{display:inline-block;margin:4px 0 0 6px;vertical-align:middle;}
+  .employee-edit-table button.btn.wt-open{display:inline-block;padding:0;min-height:0;font-size:12.5px;text-align:left;vertical-align:middle;margin-top:4px;}
   .employee-edit-table td:nth-child(6) .meta{margin:0 0 2px !important;font-size:12px;}
   .employee-edit-table td:nth-child(6) .btn{padding:0;min-height:0;font-size:12.5px;}
   .employee-edit-table td:nth-child(7){text-align:center;white-space:nowrap !important;}
