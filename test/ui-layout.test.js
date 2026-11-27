@@ -268,3 +268,31 @@ test('근무 형태 바꾸기 창: 파견사원은 고를 수 없고, 날짜는 
   assert.match(script, /새 사람의 이름을 입력해 주세요/);
   assert.ok(!/on[a-z]+="/.test(script.slice(script.indexOf('function openWorkTypeDialog'), script.indexOf('function createEmployeeEditor'))));
 });
+
+test('설정: 왼쪽 메뉴에서 근무표 편집 · 직원 구성을 고르고, 직원 구성은 근무 형태별 목록 + 고른 사람 패널(투입 일정 포함)', () => {
+  const nav = html.slice(html.indexOf('id="settingsNav"'), html.indexOf('</nav>', html.indexOf('id="settingsNav"')));
+  assert.match(nav, /data-settings-pane="editor" data-edit-view="cells">근무표 편집/);
+  assert.match(nav, /data-settings-pane="editor" data-edit-view="staff">직원 구성/);
+  assert.match(nav, />직원<\/span>/);
+  assert.match(nav, />승인 담당자</);
+  assert.ok(!/edit-tabs/.test(html), '편집 창 안 탭은 없앴다');
+  const panel = html.slice(html.indexOf('id="scheduleEditPanel"'), html.indexOf('id="editSessionBar"'));
+  // 편집할 달은 두 화면 공통(위)에 있고, 기존 id 는 그대로 있다.
+  assert.ok(panel.indexOf('id="scheduleEditYear"') < panel.indexOf('id="scheduleEditorView"'));
+  for (const id of ['scheduleEditTable', 'rangeEditEmp', 'addScheduleRangeBtn', 'employeeEditTableBody', 'staffPanel', 'applyEmployeeEditorBtn',
+    'bulkFillEmp', 'addBulkFillBtn', 'anchorEmp', 'applyRotationAnchorBtn', 'endedStaffList', 'deletedStaffTrashList', 'onboardingEditorView']) {
+    assert.match(panel, new RegExp(`id="${id}"`), id);
+  }
+  // 투입 일정은 직원 구성 화면(사람 패널 옆) 안에 있다.
+  const staff = panel.slice(panel.indexOf('id="employeeEditorView"'));
+  assert.ok(staff.includes('id="onboardingEditorView"'));
+  // 탭을 바꿀 때 main 안의 section 을 모두 숨기므로, 설정 탭 안에는 section 이 없어야 한다.
+  const settings = html.slice(html.indexOf('<section id="tab-settings"'), html.indexOf('</section>', html.indexOf('<section id="tab-settings"')) + 10);
+  assert.equal((settings.match(/<section/g) || []).length, 1, '설정 탭 안에 section 이 있으면 탭을 바꿀 때 숨는다');
+  assert.match(html, /\.schedule-edit-panel\[data-view="cells"\] #employeeEditorView/);
+  assert.match(script, /function setEditView\(view\)/);
+  assert.match(script, /function openEditorIfClosed\(\)/);
+  // 바꾼 칸 표시와 근무 색
+  assert.match(script, /classList\.toggle\('is-edited'/);
+  assert.match(script, /function editToneClass\(value\)/);
+});
