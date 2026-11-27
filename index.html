@@ -309,17 +309,83 @@
   .edit-month .btn{min-height:40px;padding:0 14px;border-radius:10px;}
   .edit-session-note{margin:0;font-size:13px;color:var(--faint);line-height:1.5;}
   .edit-session-note b{color:var(--muted);font-weight:600;}
-  .edit-tabs{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--sunk);width:max-content;max-width:100%;overflow-x:auto;margin-bottom:20px;}
-  .edit-tab{min-height:36px;padding:0 16px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:14px;font-weight:600;white-space:nowrap;cursor:pointer;transition:background-color .15s cubic-bezier(.22,1,.36,1),color .15s cubic-bezier(.22,1,.36,1);}
-  .edit-tab:hover{color:var(--text);}
-  .edit-tab.active{background:#fff;color:var(--text);box-shadow:0 1px 2px rgba(36,25,15,.08);}
-  .edit-tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
   .schedule-edit-panel[data-view="cells"] #employeeEditorView,
-  .schedule-edit-panel[data-view="cells"] #onboardingEditorView,
   .schedule-edit-panel[data-view="staff"] #scheduleEditorView,
-  .schedule-edit-panel[data-view="staff"] #onboardingEditorView,
-  .schedule-edit-panel[data-view="onboarding"] #scheduleEditorView,
-  .schedule-edit-panel[data-view="onboarding"] #employeeEditorView{display:none;}
+  .schedule-edit-panel[data-view="cells"] [data-for-view="staff"],
+  .schedule-edit-panel[data-view="staff"] [data-for-view="cells"]{display:none;}
+  /* 편집 창이 열리면 카드 머리의 [근무표 편집] 안내는 숨긴다(설정 제목이 대신한다) */
+  .panel:has(> .schedule-edit-panel:not([hidden])) > .edit-intro{display:none;}
+  .panel:has(> .schedule-edit-panel:not([hidden])) > .schedule-edit-panel{margin-top:0;border-top:0;}
+  .side-item .side-count{margin-left:auto;font-size:12px;font-weight:500;color:var(--faint);}
+  .edit-step{width:40px;min-width:40px;padding:0 !important;font-size:17px;}
+  .edit-legend-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;}
+  .edit-legend{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--faint);}
+  .lg-chip{display:inline-flex;align-items:center;justify-content:center;width:24px;height:20px;border-radius:6px;font-style:normal;font-size:11px;font-weight:700;}
+  .lg-chip.tone-O{color:#a8998c;font-weight:500;border:1px solid var(--line2);}
+  .lg-edited{border:2px solid var(--accent);background:var(--accent-soft);color:var(--accent-text);}
+  .schedule-edit-table input.tone-일{background:var(--shift-일);}
+  .schedule-edit-table input.tone-야{background:var(--shift-야);color:#3b3e8f;}
+  .schedule-edit-table input.tone-조{background:var(--shift-조);color:#7a3f80;}
+  .schedule-edit-table input.tone-O{background:#fff;color:#a8998c;font-weight:500;}
+  .schedule-edit-table input.tone-x{background:#ece6df;font-size:11.5px;}
+  .lg-chip.tone-일{background:var(--shift-일);} .lg-chip.tone-야{background:var(--shift-야);color:#3b3e8f;} .lg-chip.tone-조{background:var(--shift-조);color:#7a3f80;}
+  .edit-fold > summary{cursor:pointer;list-style:none;margin:0;}
+  .edit-fold > summary::-webkit-details-marker{display:none;}
+  .edit-fold > summary::after{content:'펼치기';margin-left:auto;font-size:12.5px;font-weight:600;color:var(--accent-text);}
+  .edit-fold[open] > summary{margin-bottom:12px;}
+  .edit-fold[open] > summary::after{content:'접기';}
+  .edit-actions-inline{display:flex;gap:8px;}
+  .edit-actions-inline .btn{min-height:40px;border-radius:10px;}
+  .staff-summary{margin-left:8px;font-size:13px;font-weight:500;color:var(--faint);}
+  /* 직원 구성: 근무 형태별 목록 + 고른 사람 패널 */
+  .staff-layout{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;}
+  .staff-list{flex:999 1 420px;min-width:0;border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden;}
+  .staff-side{flex:1 1 340px;max-width:420px;display:flex;flex-direction:column;gap:16px;}
+  .staff-panel{border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden;}
+  .sl-head{display:flex;align-items:baseline;gap:8px;padding:16px 20px 8px;font-size:13px;font-weight:700;color:var(--muted);}
+  .sl-head span{font-size:12.5px;font-weight:500;color:var(--faint);}
+  .sl-row{display:flex;align-items:center;gap:12px;padding:8px 16px 8px 12px;border-top:1px solid var(--line);transition:background-color .15s cubic-bezier(.22,1,.36,1);}
+  .sl-row:hover{background:#fdfaf6;}
+  .sl-row.sel{background:#fdf6f0;box-shadow:inset 3px 0 0 var(--accent);}
+  .sl-grip{display:inline-flex;flex-direction:column;gap:2px;}
+  .sl-grip .btn{width:24px;min-width:24px;height:18px;min-height:18px;padding:0;border:1px solid var(--line2);border-radius:5px;background:#fff;color:var(--faint);font-size:9px;line-height:1;}
+  .sl-grip .btn:disabled{opacity:.35;}
+  .sl-main{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:4px 0;border:0;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer;}
+  .sl-ava,.sp-ava{width:36px;height:36px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent-text);font-weight:700;font-size:14px;}
+  .sl-text{min-width:0;display:flex;flex-direction:column;gap:2px;}
+  .sl-text b{font-size:15px;font-weight:600;}
+  .sl-text small{font-size:12.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sl-tags{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;}
+  .sl-tags .tag{margin:0;}
+  .tag.t-next{background:var(--amber-bg);color:var(--amber);}
+  .sl-empty{padding:16px 20px;font-size:13px;color:var(--faint);border-top:1px solid var(--line);}
+  .sp-head{display:flex;align-items:center;gap:12px;padding:20px 20px 16px;}
+  .sp-ava{width:48px;height:48px;font-size:18px;}
+  .sp-head strong{display:block;font-size:18px;}
+  .sp-head span{font-size:13px;color:var(--faint);}
+  .sp-sec{display:flex;flex-direction:column;gap:12px;padding:16px 20px;border-top:1px solid var(--line);}
+  .staff-onboarding .sp-sec{border-top:0;}
+  .sp-title{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px;font-weight:700;}
+  .sp-sec label{display:flex;flex-direction:column;gap:4px;margin:0;font-size:12.5px;font-weight:600;color:var(--muted);}
+  .sp-sec input[type="text"],.sp-sec input[type="date"],.sp-sec input[type="email"],.sp-sec select{min-height:40px;padding:8px 12px;border-radius:10px;font-size:14px;width:100%;}
+  .sp-row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;}
+  .sp-line{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13.5px;color:var(--muted);}
+  .sp-line .btn{min-height:32px;padding:0 12px;border-radius:8px;font-size:13px;}
+  .sp-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:#fdfbf8;}
+  .sp-foot .remove-employee-row{color:var(--red);padding:0;min-height:0;}
+  .sp-step{border:1px solid var(--line);border-radius:12px;padding:12px;}
+  .sp-step > summary{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;cursor:pointer;list-style:none;font-size:14px;}
+  .sp-step > summary::-webkit-details-marker{display:none;}
+  .sp-step > summary .edit-hint{flex-basis:100%;padding-left:30px;font-size:12.5px;}
+  .sp-step[open] > summary{margin-bottom:12px;}
+  .sp-dot{width:22px;height:22px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--accent-soft);color:var(--accent-text);}
+  .sp-dot-on{background:var(--accent);color:#fff;}
+  .sp-hidden{display:none !important;}
+  .staff-onboarding.is-locked .sp-step{opacity:.45;pointer-events:none;}
+  .onboarding-locked{margin:0;padding:10px 12px;border-radius:10px;background:var(--amber-bg);color:var(--amber);font-size:13px;font-weight:600;}
+  .staff-onboarding .edit-form > label{flex:1 1 130px;}
+  .ended-staff-panel > summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--muted);padding:4px 0;}
+  .ended-staff-panel[open] > summary{margin-bottom:12px;}
   .edit-section-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 16px;margin-bottom:12px;}
   .edit-section-head h3{margin:0;font-size:17px;font-weight:700;letter-spacing:-0.01em;}
   .edit-hint{font-size:13px;color:var(--faint);line-height:1.5;}
@@ -392,7 +458,7 @@
   .employee-edit-table td:nth-child(7){text-align:center;white-space:nowrap !important;}
   .employee-edit-table .move-employee-row{min-width:32px;min-height:32px;padding:0;border-radius:8px;}
   .employee-edit-table .remove-employee-row{color:var(--red);padding:4px 8px;min-height:32px;}
-  .ended-staff-panel{margin-top:24px;padding-top:20px;border-top:1px solid var(--line);}
+  .ended-staff-panel{margin-top:24px;padding-top:16px;border-top:1px solid var(--line);}
   .ended-staff-panel .list-item{margin-bottom:8px;}
   .ended-staff-panel .list-item .meta{margin-top:2px;}
   /* ── 탭 공통 레이아웃: 본문 + 오른쪽 패널 ── */
@@ -472,8 +538,6 @@
   @media(max-width:900px){
     .edit-form > label{flex-basis:calc(50% - 6px);}
     .edit-form .btn{flex:1 1 100%;}
-    .edit-tabs{width:100%;}
-    .edit-tab{flex:1;padding:0 8px;}
   }
 
   @media print {
@@ -869,10 +933,12 @@
     </div>
     <div class="settings-layout">
       <nav class="settings-nav" id="settingsNav" aria-label="설정 메뉴">
-        <span class="side-group" data-admin-only>사람·근무표</span>
-        <button type="button" class="side-item active" data-settings-pane="editor">근무표·직원 편집</button>
+        <span class="side-group">근무표</span>
+        <button type="button" class="side-item active" data-settings-pane="editor" data-edit-view="cells">근무표 편집</button>
+        <span class="side-group" data-admin-only>직원</span>
+        <button type="button" class="side-item" data-settings-pane="editor" data-edit-view="staff">직원 구성 <span class="side-count" id="staffNavCount"></span></button>
+        <button type="button" class="side-item" data-settings-pane="approvers">승인 담당자</button>
         <span class="side-group" data-admin-only>승인</span>
-        <button type="button" class="side-item" data-settings-pane="approvers">담당자</button>
         <button type="button" class="side-item" data-settings-pane="approvalLine">결재라인</button>
         <button type="button" class="side-item" data-settings-pane="quota">비번 보장 한도</button>
         <span class="side-group" data-admin-only>시스템</span>
@@ -998,27 +1064,29 @@
         <!-- 2026-11-27 다시 꾸밈: 편집할 달은 세 탭이 같이 쓴다(칸 편집과 직원 순서 적용 달). -->
         <div class="edit-head">
           <div class="edit-month" role="group" aria-label="편집할 달">
-            <span class="edit-month-label">편집할 달</span>
+            <span class="edit-month-label"><span data-for-view="cells">편집할 달</span><span data-for-view="staff">순서 적용 달</span></span>
+            <button class="btn secondary edit-step" id="editMonthPrevBtn" type="button" aria-label="이전 달">‹</button>
             <select id="scheduleEditYear" aria-label="편집 연도"></select>
             <select id="scheduleEditMonth" aria-label="편집 월"></select>
+            <button class="btn secondary edit-step" id="editMonthNextBtn" type="button" aria-label="다음 달">›</button>
             <button class="btn secondary" id="loadScheduleEditMonthBtn" type="button">불러오기</button>
           </div>
           <p class="edit-session-note">바꾼 내용은 맨 아래 <b>변경 내용 확인 후 저장</b>을 눌러야 저장돼요</p>
         </div>
-        <div class="edit-tabs" role="tablist" aria-label="편집 도구">
-          <button type="button" role="tab" class="edit-tab active" aria-selected="true" data-edit-view="cells">근무표 칸</button>
-          <button type="button" role="tab" class="edit-tab" aria-selected="false" data-edit-view="staff">직원 구성</button>
-          <button type="button" role="tab" class="edit-tab" aria-selected="false" data-edit-view="onboarding">신규 투입·로테이션</button>
-        </div>
-
         <div class="schedule-editor-view" id="scheduleEditorView">
           <div class="edit-section-head">
             <h3 id="scheduleEditTitle">2026년 9월 근무표 편집</h3>
-            <span class="edit-hint">칸을 눌러 바로 고쳐요 · 4글자까지 · <span class="edit-legend"><i class="dot-edited" aria-hidden="true"></i>바꾼 칸</span></span>
+            <span class="edit-legend-row">
+              <span class="edit-legend"><i class="lg-chip tone-일">일</i>09–18:30</span>
+              <span class="edit-legend"><i class="lg-chip tone-야">야</i><i class="lg-chip tone-조">조</i>18–09</span>
+              <span class="edit-legend"><i class="lg-chip tone-O">O</i>비번</span>
+              <span class="edit-legend"><i class="lg-chip lg-edited">일</i>바꾼 칸</span>
+              <span class="edit-hint">칸을 눌러 바로 고쳐요 · 4글자까지</span>
+            </span>
           </div>
           <div class="gridwrap edit-grid"><table class="schedule-edit-table" id="scheduleEditTable"></table></div>
-          <div class="edit-card">
-            <div class="edit-card-head"><h4>여러 날 묶어 쓰기</h4><span class="edit-hint">경조휴가·교육처럼 며칠을 한 칸으로 합쳐 보여 줘요</span></div>
+          <details class="edit-card edit-fold">
+            <summary class="edit-card-head"><h4>여러 날 묶어 쓰기</h4><span class="edit-hint">경조휴가·교육처럼 며칠을 한 칸으로 합쳐 보여 줘요</span></summary>
             <div class="edit-form edit-form-range">
               <label>직원<select id="rangeEditEmp"></select></label>
               <label>시작일<input type="date" id="rangeEditStart"></label>
@@ -1027,85 +1095,91 @@
               <button class="btn secondary" id="addScheduleRangeBtn" type="button">묶기</button>
             </div>
             <div id="pendingScheduleRangesList" class="quota"></div>
-          </div>
+          </details>
         </div>
 
         <div class="schedule-editor-view" id="employeeEditorView">
           <div class="edit-section-head">
-            <h3>직원 구성</h3>
-            <span class="edit-hint">위에서 고른 달부터 순서가 적용돼요 · 삭제하면 다음 달부터 빠져요</span>
+            <h3>직원 구성 <span class="staff-summary" id="staffSummary"></span></h3>
+            <div class="edit-actions-inline">
+              <button class="btn secondary" id="addEmployeeRowBtn" type="button">+ 직원 추가</button>
+              <button class="btn secondary" id="addDayWorkerRowBtn" type="button" hidden>+ 파견사원 추가</button>
+            </div>
           </div>
           <details class="edit-help">
             <summary>근무 형태·순서·메일·PIN 도움말</summary>
             <ul>
-              <li><b>근무 형태</b>끼리 자동으로 묶여요(NC 교대근무 → TC 상일근 → 파견사원). 묶음 안의 직급 순서는 ▲▼로 맞춰요</li>
-              <li><b>NC 교대근무</b>의 위 4줄이 <b>자동대근</b> 대상이에요. 적응기간 인원은 NC 아래쪽에 두었다가, 단독 투입되면 ▲로 올려요</li>
-              <li><b>TC 상일근</b>·<b>파견사원</b>은 대근을 서지 않고, 휴가는 대근자 없이 기록만 남아요. 파견사원은 근무표 일근 칸에 따로 나와요</li>
-              <li>근무 형태를 날짜부터 바꾸려면 그 줄의 <b>근무 형태 바꾸기</b>를 눌러요(지난 달은 그대로)</li>
-              <li><b>사내메일</b>을 넣으면 대근·신청 결과가 매일 요약 메일로 가요. <b>PIN</b>이 있어야 근무자가 로그인할 수 있어요(처음 0000)</li>
+              <li><b>근무 형태</b>끼리 묶여요(NC 교대근무 → TC 상일근 → 파견사원). 묶음 안의 직급 순서는 ▲▼로 맞추고, 위에서 고른 달부터 적용돼요</li>
+              <li><b>NC 교대근무</b>의 위 4명이 <b>자동대근</b> 대상이에요. 적응기간 인원은 NC 아래쪽에 두었다가, 단독 투입되면 ▲로 올려요</li>
+              <li><b>TC 상일근</b>·<b>파견사원</b>은 대근을 서지 않고, 휴가는 대근자 없이 기록만 남아요</li>
+              <li>근무 형태를 날짜부터 바꾸려면 오른쪽 패널의 <b>근무 형태 바꾸기</b>를 눌러요(지난 달은 그대로)</li>
+              <li><b>사내메일</b>을 넣으면 대근·신청 결과가 매일 요약 메일로 가요. 처음 로그인 PIN 은 0000 이에요</li>
             </ul>
           </details>
-          <div class="gridwrap"><table class="employee-edit-table">
-            <colgroup><col class="c-name"><col class="c-mail"><col class="c-date"><col class="c-date"><col class="c-type"><col class="c-pin"><col class="c-order"><col class="c-del"></colgroup>
-            <thead><tr><th>이름</th><th>사내메일</th><th>적용 시작일</th><th>종료일</th><th>근무 형태</th><th>로그인 PIN</th><th>순서</th><th><span class="sr-only">삭제</span></th></tr></thead>
-            <tbody id="employeeEditTableBody"></tbody></table></div>
-          <div class="edit-actions">
-            <button class="btn secondary" id="addEmployeeRowBtn" type="button">+ 직원 추가</button>
-            <button class="btn secondary" id="addDayWorkerRowBtn" type="button" hidden>+ 파견사원 추가</button>
-            <span class="edit-actions-gap"></span>
-            <button class="btn secondary edit-apply" id="applyEmployeeEditorBtn" type="button">직원 구성 표에 반영</button>
+          <div class="staff-layout">
+            <!-- section 이 아니라 div: 탭을 바꿀 때 main 안의 section 을 모두 숨긴다(initTabs). -->
+            <div class="staff-list" id="employeeEditTableBody" role="region" aria-label="직원 목록"></div>
+            <aside class="staff-side" aria-label="고른 직원">
+              <div class="staff-panel" id="staffPanel"></div>
+              <div class="staff-panel staff-onboarding" id="onboardingEditorView">
+                <div class="sp-sec">
+                  <div class="sp-title">투입 일정 <span class="edit-hint" id="onboardingFor"></span></div>
+                  <p class="onboarding-locked" id="onboardingLocked" hidden>새 직원은 [직원 구성 반영]을 누른 뒤에 투입 일정을 정할 수 있어요</p>
+                  <details class="sp-step" open>
+                    <summary><span class="sp-dot">1</span><b>적응기간 채우기</b><span class="edit-hint">기간 동안 하루씩 같은(반복) 값</span></summary>
+                    <div class="edit-form edit-form-fill">
+                      <label class="sp-hidden">직원<select id="bulkFillEmp"></select></label>
+                      <label>시작일<input type="date" id="bulkFillStart"></label>
+                      <label>종료일<input type="date" id="bulkFillEnd"></label>
+                      <label>반복 값<input type="text" id="bulkFillPattern" maxlength="40" placeholder="일  또는  야,조"></label>
+                      <label class="edit-check"><input type="checkbox" id="bulkFillHolidayOff" checked> 토·일·공휴일은 O</label>
+                      <button class="btn secondary" id="addBulkFillBtn" type="button">표에 채우기</button>
+                    </div>
+                    <div id="pendingBulkFillsList" class="quota"></div>
+                  </details>
+                  <details class="sp-step" open>
+                    <summary><span class="sp-dot sp-dot-on">2</span><b>단독 투입 · 로테이션 시작점</b><span class="edit-hint">이 날부터 일 → 야 → 조 → O</span></summary>
+                    <div class="edit-form edit-form-anchor">
+                      <label class="sp-hidden">직원<select id="anchorEmp"></select></label>
+                      <label>시작일<input type="date" id="anchorStartDate"></label>
+                      <label>정하는 방법
+                        <select id="anchorMode">
+                          <option value="manual">직접 선택</option>
+                          <option value="inherit">기존 직원 자리 이어받기</option>
+                        </select>
+                      </label>
+                      <label id="anchorRefEmpWrap" style="display:none;">기준 직원<select id="anchorRefEmp"></select></label>
+                      <label>시작 근무
+                        <select id="anchorStartShift">
+                          <option value="일">일</option>
+                          <option value="야">야</option>
+                          <option value="조">조</option>
+                          <option value="O">O</option>
+                        </select>
+                      </label>
+                      <button class="btn secondary" id="applyRotationAnchorBtn" type="button">시작점 지정</button>
+                    </div>
+                    <div id="rotationAnchorPreview" class="quota"></div>
+                    <div id="rotationAnchorList" class="quota" style="margin-top:4px;"></div>
+                  </details>
+                </div>
+              </div>
+            </aside>
           </div>
-          <div class="ended-staff-panel" id="endedStaffPanel">
+          <div class="edit-actions">
+            <span class="edit-hint">이름·메일·기간·순서 수정은 [직원 구성 반영] 또는 맨 아래 저장 때 함께 반영돼요</span>
+            <span class="edit-actions-gap"></span>
+            <button class="btn secondary edit-apply" id="applyEmployeeEditorBtn" type="button">직원 구성 반영</button>
+          </div>
+          <details class="ended-staff-panel" id="endedStaffPanel">
+            <summary>종료된 직원 · 완전 삭제 내역</summary>
             <div class="edit-card-head"><h4>종료된 직원</h4><span class="edit-hint">완전 삭제하면 근무표 기록에서도 사라져요 · 아래 내역에서 되돌릴 수 있어요</span></div>
             <div id="endedStaffList"><p class="empty">종료된 직원이 없습니다.</p></div>
             <div class="edit-card-head" style="margin-top:16px;"><h4>최근 완전 삭제 내역</h4></div>
             <div id="deletedStaffTrashList"><p class="empty">완전 삭제 내역이 없습니다.</p></div>
-          </div>
+          </details>
         </div>
 
-        <div class="schedule-editor-view" id="onboardingEditorView">
-          <div class="edit-section-head">
-            <h3>신규 투입 · 로테이션</h3>
-            <span class="edit-hint">적응기간은 칸을 채우고, 단독 투입부터는 시작점만 정하면 교대가 이어져요</span>
-          </div>
-          <div class="edit-card">
-            <div class="edit-card-head"><h4>적응기간 채우기</h4><span class="edit-hint">기간 동안 같은 값(또는 반복 값)을 하루씩 넣어요 · 넣은 뒤 근무표 칸 탭에서 고칠 수 있어요</span></div>
-            <div class="edit-form edit-form-fill">
-              <label>직원<select id="bulkFillEmp"></select></label>
-              <label>시작일<input type="date" id="bulkFillStart"></label>
-              <label>종료일<input type="date" id="bulkFillEnd"></label>
-              <label>반복 값<input type="text" id="bulkFillPattern" maxlength="40" placeholder="일  또는  야,조"></label>
-              <label class="edit-check"><input type="checkbox" id="bulkFillHolidayOff" checked> 토·일·공휴일은 O</label>
-              <button class="btn secondary" id="addBulkFillBtn" type="button">표에 채우기</button>
-            </div>
-            <div id="pendingBulkFillsList" class="quota"></div>
-          </div>
-          <div class="edit-card">
-            <div class="edit-card-head"><h4>로테이션 시작점</h4><span class="edit-hint">이 날짜부터 일 → 야 → 조 → O 순서로 4일마다 반복돼요</span></div>
-            <div class="edit-form edit-form-anchor">
-              <label>직원<select id="anchorEmp"></select></label>
-              <label>시작일<input type="date" id="anchorStartDate"></label>
-              <label>정하는 방법
-                <select id="anchorMode">
-                  <option value="manual">직접 선택</option>
-                  <option value="inherit">기존 직원 자리 이어받기</option>
-                </select>
-              </label>
-              <label id="anchorRefEmpWrap" style="display:none;">기준 직원<select id="anchorRefEmp"></select></label>
-              <label>시작 근무
-                <select id="anchorStartShift">
-                  <option value="일">일</option>
-                  <option value="야">야</option>
-                  <option value="조">조</option>
-                  <option value="O">O</option>
-                </select>
-              </label>
-              <button class="btn secondary" id="applyRotationAnchorBtn" type="button">시작점 지정</button>
-            </div>
-            <div id="rotationAnchorPreview" class="quota"></div>
-            <div id="rotationAnchorList" class="quota" style="margin-top:4px;"></div>
-          </div>
-        </div>
         <!-- 편집 세션: 위에서 바꾼 내용은 바로 저장되지 않고 여기서 확인한 뒤 한 번에 저장한다. -->
         <div class="edit-session-bar" id="editSessionBar">
           <span id="editSessionStatus">아직 바뀐 내용이 없습니다.</span>
@@ -1523,21 +1597,17 @@
     const settingsAllowed = adminLoggedIn || scheduleEditorOnly;
     $('#tabbar').classList.toggle('admin-session', settingsAllowed);
     $('#tab-settings').hidden = !settingsAllowed;
-    $$('#settingsNav [data-settings-pane]').forEach(item => { item.hidden = scheduleEditorOnly && item.dataset.settingsPane !== 'editor'; });
+    $$('#settingsNav [data-settings-pane]').forEach(item => { item.hidden = scheduleEditorOnly && (item.dataset.settingsPane !== 'editor' || item.dataset.editView === 'staff'); });
     $$('#settingsNav [data-admin-only]').forEach(item => { item.hidden = scheduleEditorOnly; });
     if (scheduleEditorOnly) {
       $$('.settings-main > [data-settings-pane]').forEach(panel => { panel.hidden = panel.dataset.settingsPane !== 'editor'; });
-      $$('#settingsNav [data-settings-pane]').forEach(item => item.classList.toggle('active', item.dataset.settingsPane === 'editor'));
+      $$('#settingsNav [data-settings-pane]').forEach(item => item.classList.toggle('active', item.dataset.settingsPane === 'editor' && item.dataset.editView !== 'staff'));
       $('#settingsTitle').textContent = '근무표 편집';
     }
     const employeeView = $('#employeeEditorView');
     if (employeeView) employeeView.hidden = !adminLoggedIn;
-    // 편집 탭: 직원 구성 탭은 시스템 관리자에게만 보인다(화면 노출은 예전과 같다).
-    const staffTab = $('#scheduleEditPanel [data-edit-view="staff"]');
-    if (staffTab) {
-      staffTab.hidden = !adminLoggedIn;
-      if (!adminLoggedIn && $('#scheduleEditPanel').dataset.view === 'staff') setEditView('cells');
-    }
+    // 직원 구성(왼쪽 메뉴)은 시스템 관리자에게만 보인다(화면 노출은 예전과 같다).
+    if (!adminLoggedIn && $('#scheduleEditPanel').dataset.view === 'staff') setEditView('cells');
     if (!settingsAllowed && settingsButton.classList.contains('active')) {
       settingsButton.classList.remove('active');
       $('#tabbar button[data-tab="schedule"]').classList.add('active');
@@ -4293,60 +4363,136 @@
       const button = saved && typeOf(row) !== 'dispatch'
         ? `<button class="btn ghost wt-open" type="button" data-work-type-change="${escapeAttribute(row.id)}">근무 형태 바꾸기</button>` : '';
       if (!changes.length) {
-        return `<select data-work-type style="margin-bottom:4px;">${WORK_TYPES.map(type => `<option value="${type}"${row.workType === type ? ' selected' : ''}>${WORK_TYPE_LABEL[type]}</option>`).join('')}</select>${button}`;
+        return `<select data-work-type aria-label="근무 형태" style="margin-bottom:4px;">${WORK_TYPES.map(type => `<option value="${type}"${row.workType === type ? ' selected' : ''}>${WORK_TYPE_LABEL[type]}</option>`).join('')}</select>${button}`;
       }
       const steps = [`<span>${escapeAttribute(WORK_TYPE_LABEL[row.workType] || 'NC 교대근무')}</span>`]
         .concat(changes.map(change => `<span>→ ${escapeAttribute(Number(change.from.slice(5, 7)) + '/' + Number(change.from.slice(8)))}부터 <b>${escapeAttribute(WORK_TYPE_LABEL[change.workType])}</b></span>`));
       return `<div class="wt-history">${steps.join(' ')}</div>${button}`;
     }
 
+    // 고른 사람(오른쪽 패널). 목록에서 줄을 누르면 바뀐다.
+    let selectedId = null;
+    const GROUP_HINT = { NC: '위 4명 자동대근 · ▲▼로 직급 순서', TC: '평일 일 · 휴일 O · 대근 없음', dispatch: '근무표 일근 칸 · PDF 제외' };
+    const dot = value => value ? value.replace(/-/g, '.') : '';
+    function nextChangeTag(row){
+      const today = fmt(stripTime(new Date()));
+      const next = workTypeChangesOf(row).find(change => change.from > today);
+      return next ? `<span class="tag t-next">${escapeAttribute(Number(next.from.slice(5, 7)) + '/' + Number(next.from.slice(8)))}부터 ${escapeAttribute(WORK_TYPE_LABEL[next.workType])}</span>` : '';
+    }
+    // 고른 사람에 맞춰 아래 투입 일정 폼의 직원을 맞춘다(새 직원은 반영 전이라 잠근다).
+    function syncOnboarding(row){
+      const box = document.getElementById('onboardingEditorView');
+      if (!box) return;
+      const saved = !!row && EMPLOYEES.some(employee => employee.id === row.id);
+      box.classList.toggle('is-locked', !saved);
+      const locked = document.getElementById('onboardingLocked');
+      if (locked) locked.hidden = saved || !row;
+      const who = document.getElementById('onboardingFor');
+      if (who) who.textContent = row ? (row.name || '새 직원') : '';
+      if (!saved) return;
+      ['bulkFillEmp', 'anchorEmp'].forEach(id => {
+        const select = document.getElementById(id);
+        if (select && select.value !== row.id && [...select.options].some(option => option.value === row.id)) {
+          select.value = row.id;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+    }
+
     function render(){
       const body = document.getElementById(tableBodyId);
+      const panel = document.getElementById('staffPanel');
       if (!body) return;
       const dayWorkerBtn = document.getElementById('addDayWorkerRowBtn');
       if (dayWorkerBtn) dayWorkerBtn.hidden = draft.some(employee => employee.workType === 'dispatch' && !employee.endDate);
       const auto = autoSubstituteIds();
-      body.innerHTML = draft.map((employee, index) => {
-        // ▲▼는 같은 근무 형태 안에서만 움직인다(형태가 다르면 [근무 형태]를 바꾼다).
-        const canUp = index > 0 && typeOf(draft[index - 1]) === typeOf(employee);
-        const canDown = index < draft.length - 1 && typeOf(draft[index + 1]) === typeOf(employee);
-        const firstOfGroup = index > 0 && typeOf(draft[index - 1]) !== typeOf(employee);
-        return `
-        <tr data-index="${index}"${firstOfGroup ? ' style="border-top:2px solid #cbd5e1;"' : ''}>
-          <td><input type="text" data-field="name" value="${escapeAttribute(employee.name)}" placeholder="이름"></td>
-          <td><input type="text" data-field="email" value="${escapeAttribute(employee.email || '')}" placeholder="hong@sbs.co.kr"></td>
-          <td><input type="date" data-field="startDate" value="${escapeAttribute(employee.startDate || '')}"></td>
-          <td><input type="date" data-field="endDate" value="${escapeAttribute(employee.endDate || '')}"></td>
-          <td style="white-space:nowrap;">
-            ${workTypeCell(employee)}
-            <div>${workTypeNote(employee, auto)}</div>
-          </td>
-          <td style="white-space:nowrap;">
-            <div class="meta" style="margin-bottom:4px;">${employee.pinConfigured ? '설정됨' : '없음'}</div>
-            <button class="btn ghost" type="button" data-security-action="employee-pin" data-id="${escapeAttribute(employee.id)}">${employee.pinConfigured ? 'PIN 변경' : 'PIN 등록'}</button>
-          </td>
-          <td style="white-space:nowrap;">
-            <button class="btn ghost move-employee-row" type="button" data-dir="up" data-index="${index}" title="위로" ${canUp ? '' : 'disabled'}>▲</button>
-            <button class="btn ghost move-employee-row" type="button" data-dir="down" data-index="${index}" title="아래로" ${canDown ? '' : 'disabled'}>▼</button>
-          </td>
-          <td><button class="btn ghost remove-employee-row" type="button" data-index="${index}">삭제</button></td>
-        </tr>`;
-      }).join('');
-      body.querySelectorAll('input[data-field]').forEach(input => {
+      if (!draft.some(row => row.id === selectedId)) selectedId = draft[0]?.id || null;
+      const count = document.getElementById('staffNavCount');
+      if (count) count.textContent = draft.length || '';
+      const summary = document.getElementById('staffSummary');
+      if (summary) summary.textContent = `${draft.length}명 · 자동대근 ${auto.size}명`;
+
+      // 왼쪽: 근무 형태별 목록
+      let html = '';
+      WORK_TYPES.forEach(type => {
+        const rows = draft.map((row, index) => ({ row, index })).filter(item => typeOf(item.row) === type);
+        if (!rows.length && type !== 'NC') return;
+        html += `<div class="sl-head">${escapeAttribute(WORK_TYPE_LABEL[type])} <span>${escapeAttribute(GROUP_HINT[type])}</span></div>`;
+        if (!rows.length) html += '<div class="sl-empty">아직 없어요</div>';
+        rows.forEach(({ row, index }) => {
+          // ▲▼는 같은 근무 형태 안에서만 움직인다(형태가 다르면 근무 형태를 바꾼다).
+          const canUp = index > 0 && typeOf(draft[index - 1]) === type;
+          const canDown = index < draft.length - 1 && typeOf(draft[index + 1]) === type;
+          const name = row.name.trim() || '새 직원';
+          const period = `${dot(row.startDate) || '시작일 없음'}부터${row.endDate ? ` · ${dot(row.endDate)}까지` : ''}`;
+          html += `<div class="sl-row${row.id === selectedId ? ' sel' : ''}" data-row-id="${escapeAttribute(row.id)}">
+            <span class="sl-grip">
+              <button class="btn ghost move-employee-row" type="button" data-dir="up" data-index="${index}" aria-label="${escapeAttribute(name)} 위로" ${canUp ? '' : 'disabled'}>▲</button>
+              <button class="btn ghost move-employee-row" type="button" data-dir="down" data-index="${index}" aria-label="${escapeAttribute(name)} 아래로" ${canDown ? '' : 'disabled'}>▼</button>
+            </span>
+            <button class="sl-main" type="button" data-select="${escapeAttribute(row.id)}" aria-pressed="${row.id === selectedId}">
+              <span class="sl-ava" aria-hidden="true">${escapeAttribute(name.slice(0, 1))}</span>
+              <span class="sl-text"><b class="sl-name">${escapeAttribute(name)}</b><small>${escapeAttribute(row.email || '메일 없음')} · ${escapeAttribute(period)}</small></span>
+            </button>
+            <span class="sl-tags">${nextChangeTag(row)}${workTypeNote(row, auto)}</span>
+          </div>`;
+        });
+      });
+      body.innerHTML = html;
+
+      // 오른쪽: 고른 사람 패널
+      const index = draft.findIndex(row => row.id === selectedId);
+      const row = draft[index];
+      if (panel) {
+        panel.innerHTML = !row ? '<div class="sp-sec"><p class="edit-hint" style="margin:0;">왼쪽에서 직원을 고르세요</p></div>' : `
+          <div class="sp-head"><span class="sp-ava" aria-hidden="true">${escapeAttribute((row.name.trim() || '새').slice(0, 1))}</span>
+            <div><strong class="sp-name">${escapeAttribute(row.name.trim() || '새 직원')}</strong><span>${escapeAttribute(WORK_TYPE_LABEL[typeOf(row)] || '')}${auto.has(row.id) ? ' · 자동대근' : ''}</span></div></div>
+          <div class="sp-sec">
+            <div class="sp-title">기본 정보</div>
+            <label>이름<input type="text" data-field="name" value="${escapeAttribute(row.name)}" placeholder="이름" autocomplete="off"></label>
+            <label>사내메일<input type="text" data-field="email" value="${escapeAttribute(row.email || '')}" placeholder="hong@sbs.co.kr" autocomplete="off"></label>
+            <div class="sp-row2">
+              <label>근무 시작<input type="date" data-field="startDate" value="${escapeAttribute(row.startDate || '')}"></label>
+              <label>근무 끝<input type="date" data-field="endDate" value="${escapeAttribute(row.endDate || '')}"></label>
+            </div>
+          </div>
+          <div class="sp-sec">
+            <div class="sp-title">근무 형태</div>
+            <div>${workTypeCell(row)}</div>
+          </div>
+          <div class="sp-sec">
+            <div class="sp-title">로그인</div>
+            <div class="sp-line"><span>${row.pinConfigured ? 'PIN 있음 · 처음은 0000' : 'PIN 없음 · 저장하면 0000 으로 시작'}</span>
+              <button class="btn secondary" type="button" data-security-action="employee-pin" data-id="${escapeAttribute(row.id)}">${row.pinConfigured ? 'PIN 다시 정하기' : 'PIN 등록'}</button></div>
+          </div>
+          <div class="sp-foot"><button class="btn ghost remove-employee-row" type="button" data-index="${index}">직원 삭제</button><span class="edit-hint">삭제하면 다음 달부터 빠져요</span></div>`;
+      }
+      syncOnboarding(row);
+
+      body.querySelectorAll('[data-select]').forEach(button => {
+        button.addEventListener('click', () => { selectedId = button.dataset.select; render(); });
+      });
+      const root = panel || body;
+      root.querySelectorAll('input[data-field]').forEach(input => {
         const updateDraft = () => {
-          const row = draft[Number(input.closest('tr').dataset.index)];
           if (!row) return;
           row[input.dataset.field] = input.value;
+          if (input.dataset.field === 'name') {
+            const label = row.name.trim() || '새 직원';
+            const listName = body.querySelector(`[data-row-id="${CSS.escape(row.id)}"] .sl-name`);
+            if (listName) listName.textContent = label;
+            const panelName = root.querySelector('.sp-name');
+            if (panelName) panelName.textContent = label;
+          }
           renderEditSessionBar();
         };
         input.addEventListener('input', updateDraft);
         input.addEventListener('change', updateDraft);
-        // 종료일을 바꾸면 자동대근 4명이 바뀔 수 있어 표시를 다시 그린다(입력 중에는 다시 그리지 않는다).
-        if (input.dataset.field === 'endDate') input.addEventListener('change', () => render());
+        // 날짜·메일을 바꾸면 목록 줄(기간·메일)과 자동대근 표시를 다시 그린다(입력 중에는 다시 그리지 않는다).
+        if (input.dataset.field !== 'name') input.addEventListener('change', () => render());
       });
-      body.querySelectorAll('select[data-work-type]').forEach(select => {
+      root.querySelectorAll('select[data-work-type]').forEach(select => {
         select.addEventListener('change', () => {
-          const row = draft[Number(select.closest('tr').dataset.index)];
           if (!row) return;
           // 형태를 바꾸면 그 형태 묶음의 맨 아래로 간다. 직급 순서는 ▲▼로 맞춘다.
           draft = draft.filter(other => other !== row);
@@ -4359,23 +4505,29 @@
       });
       body.querySelectorAll('.move-employee-row').forEach(button => {
         button.addEventListener('click', () => {
-          const index = Number(button.dataset.index);
-          const target = button.dataset.dir === 'up' ? index - 1 : index + 1;
-          if (target < 0 || target >= draft.length || typeOf(draft[target]) !== typeOf(draft[index])) return;
-          [draft[index], draft[target]] = [draft[target], draft[index]];
+          const from = Number(button.dataset.index);
+          const target = button.dataset.dir === 'up' ? from - 1 : from + 1;
+          if (target < 0 || target >= draft.length || typeOf(draft[target]) !== typeOf(draft[from])) return;
+          [draft[from], draft[target]] = [draft[target], draft[from]];
           render();
+          renderEditSessionBar();
         });
       });
-      body.querySelectorAll('[data-work-type-change]').forEach(button => {
+      root.querySelectorAll('[data-work-type-change]').forEach(button => {
         button.addEventListener('click', () => {
-          if (isDirty()) { showToast('표에 반영하지 않은 수정이 있어요. 먼저 [직원 구성 적용]을 눌러 주세요.', 'warn'); return; }
+          if (isDirty()) { showToast('반영하지 않은 수정이 있어요. 먼저 [직원 구성 반영]을 눌러 주세요.', 'warn'); return; }
           openWorkTypeDialog(button.dataset.workTypeChange);
         });
       });
-      body.querySelectorAll('.remove-employee-row').forEach(button => {
+      root.querySelectorAll('.remove-employee-row').forEach(button => {
         button.addEventListener('click', () => {
-          draft.splice(Number(button.dataset.index), 1);
+          const at = Number(button.dataset.index);
+          const removed = draft[at];
+          if (!removed || !confirm(`${removed.name.trim() || '새 직원'}님을 목록에서 뺄까요? 이번 달까지의 기록은 남고 다음 달부터 빠져요.`)) return;
+          draft.splice(at, 1);
+          selectedId = (draft[at] || draft[at - 1])?.id || null;
           render();
+          renderEditSessionBar();
         });
       });
     }
@@ -4404,8 +4556,10 @@
       const row = { id: uid(), name, phase: 0, startDate: fmt(stripTime(new Date())), endDate: null, workType };
       draft.push(row);
       draft = groupByWorkType(draft);
+      selectedId = row.id;
       render();
-      const input = document.querySelector(`#${tableBodyId} tr[data-index="${draft.indexOf(row)}"] input[data-field="name"]`);
+      renderEditSessionBar();
+      const input = document.querySelector('#staffPanel input[data-field="name"]');
       if (input) input.focus();
     }
 
@@ -4812,7 +4966,7 @@
         const pendingFill = active && !pendingRange ? getPendingBulkFill(emp.id, date) : null;
         const value = active ? scheduleEditorCellValue(emp.id, date) : '';
         const cellClass = !active ? 'edit-inactive' : ((pendingRange || pendingFill) ? 'edit-covered' : '');
-        row += `<td class="${escapeAttribute(cellClass)}"><input type="text" maxlength="4" value="${escapeAttribute(value)}" data-emp-id="${escapeAttribute(emp.id)}" data-date="${fmt(date)}" ${active ? '' : 'disabled'}></td>`;
+        row += `<td class="${escapeAttribute(cellClass)}"><input type="text" maxlength="4" class="${editToneClass(value)}" value="${escapeAttribute(value)}" data-emp-id="${escapeAttribute(emp.id)}" data-date="${fmt(date)}" ${active ? '' : 'disabled'}></td>`;
       }
       return row + '</tr>';
     }).join('');
@@ -4826,7 +4980,12 @@
       const original = input.value;
       if (Object.prototype.hasOwnProperty.call(scheduleEditorEdits, key)) input.value = scheduleEditorEdits[key];
       // 바꾼 칸은 테두리로 표시한다(저장 바의 "바뀐 내용"과 같은 뜻).
-      const mark = () => input.classList.toggle('is-edited', input.value.trim() !== '' && input.value.trim() !== original.trim());
+      const mark = () => {
+        input.classList.toggle('is-edited', input.value.trim() !== '' && input.value.trim() !== original.trim());
+        input.classList.remove('tone-일', 'tone-야', 'tone-조', 'tone-O', 'tone-x');
+        const tone = editToneClass(input.value);
+        if (tone) input.classList.add(tone);
+      };
       mark();
       const record = () => { scheduleEditorEdits[key] = input.value; mark(); renderEditSessionBar(); };
       input.addEventListener('input', record);
@@ -5280,7 +5439,13 @@
     renderNotifTab();
   }
 
-  // 근무표 수동 편집의 탭(근무표 칸 · 직원 구성 · 신규 투입·로테이션). 한 번에 한 도구만 보인다.
+  // 편집 표 칸 색: 근무표 화면과 같은 근무 색(일·야·조·O), 그 밖의 글자(교육·경조휴가)는 회색.
+  function editToneClass(value){
+    const text = String(value || '').trim();
+    if (!text) return '';
+    return ['일', '야', '조', 'O'].includes(text) ? 'tone-' + text : 'tone-x';
+  }
+  // 근무표 수동 편집의 두 화면(근무표 편집 · 직원 구성). 왼쪽 메뉴에서 고른다.
   function setEditView(view){
     const panel = $('#scheduleEditPanel');
     if (!panel) return;
@@ -5302,8 +5467,14 @@
         $$('main section').forEach(s => s.style.display = 'none');
         $('#tab-' + btn.dataset.tab).style.display = 'block';
         renderAll();
+        // 설정을 열면 왼쪽 메뉴에서 고른 편집 화면을 바로 연다.
+        if (btn.dataset.tab === 'settings' && $('#settingsNav .side-item.active')?.dataset.editView) openEditorIfClosed();
       });
     });
+  }
+  function openEditorIfClosed(){
+    const panel = $('#scheduleEditPanel');
+    if (panel && panel.hidden) openScheduleEditor();
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
@@ -5405,7 +5576,9 @@
       if (!item) return;
       $$('#settingsNav [data-settings-pane]').forEach(b => b.classList.toggle('active', b === item));
       $$('.settings-main > [data-settings-pane]').forEach(panel => { panel.hidden = panel.dataset.settingsPane !== item.dataset.settingsPane; });
-      $('#settingsTitle').textContent = item.textContent;
+      $('#settingsTitle').textContent = item.firstChild.textContent.trim();
+      // 근무표 편집 · 직원 구성은 같은 편집 창의 두 화면이다(바꾼 내용은 함께 저장된다). 고르면 바로 연다.
+      if (item.dataset.editView) { setEditView(item.dataset.editView); openEditorIfClosed(); }
       renderAll();
     });
     $('#modalCancel').addEventListener('click', closeScheduleRequest);
@@ -5448,9 +5621,16 @@
       renderEndedStaffList();
     });
     $('#openScheduleEditorBtn').addEventListener('click', openScheduleEditor);
-    $('#scheduleEditPanel').querySelector('.edit-tabs').addEventListener('click', event => {
-      const tab = event.target.closest('[data-edit-view]');
-      if (tab && !tab.hidden) setEditView(tab.dataset.editView);
+    // 편집할 달 ‹ ›: 연·월을 한 달씩 옮기고 바로 불러온다.
+    [['#editMonthPrevBtn', -1], ['#editMonthNextBtn', 1]].forEach(([selector, step]) => {
+      $(selector).addEventListener('click', () => {
+        const year = $('#scheduleEditYear'), month = $('#scheduleEditMonth');
+        const next = new Date(Number(year.value), Number(month.value) + step, 1);
+        if (![...year.options].some(option => Number(option.value) === next.getFullYear())) return;
+        year.value = String(next.getFullYear());
+        month.value = String(next.getMonth());
+        $('#loadScheduleEditMonthBtn').click();
+      });
     });
     $('#loadScheduleEditMonthBtn').addEventListener('click', renderScheduleEditor);
     $('#addScheduleRangeBtn').addEventListener('click', addScheduleRange);
