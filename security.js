@@ -42,6 +42,75 @@ const SCHEDULE_KEYS = ['scheduleOverrides', 'scheduleSnapshots', 'scheduleRanges
 // 시스템 설정(직원 구성·담당자·설정). 시스템 관리자와 승인 담당자(로그인)만 바꿀 수 있다.
 // 2026-11-27 사용자: 승인 담당자와 관리자의 권한은 기본적으로 같게 — 화면에서 무엇을 보여 주느냐만 다르다.
 const SYSTEM_KEYS = ['settings', 'employees', 'approvers', 'deletedEmployeesTrash', 'formerEmployees'];
+// 신규 날짜별 순서·인계 기록도 직원 구성과 같은 권한이다. 이전 저장소에는 키가 없을 수 있다.
+const STAFF_HISTORY_KEYS = ['employeeOrderHistory', 'staffHandoverEvents'];
+function validStaffDate(date) {
+  return typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date))
+    && new Date(date).toISOString().slice(0, 10) === date;
+}
+function validateStaffHistory(old, next) {
+  const before = list(old, 'staffHandoverEvents'), events = list(next, 'staffHandoverEvents');
+  const today = kstToday();
+  const orderHistory = next.employeeOrderHistory || [];
+  if (!Array.isArray(orderHistory)) fail(400, '직원 순서 이력 형식이 잘못되었습니다.');
+  for (const entry of orderHistory) {
+    if (entry?.from && (!validStaffDate(entry.from) || (entry.eventId ? !entry.move?.incoming : !Array.isArray(entry.order) || new Set(entry.order).size !== entry.order.length))) {
+      fail(400, '날짜별 직원 순서 이력이 잘못되었습니다.');
+    }
+  }
+  // 확정/과거 근무의 출처인 이미 시작된 인계 자체는 덮어쓰거나 제거하지 않는다.
+  for (const event of before) {
+    if (event.from <= today && !equal(event, events.find(e => e.id === event.id))) fail(409, '이미 시작된 직원 인계는 변경할 수 없습니다.');
+  }
+  const ids = new Set(), employees = list(next, 'employees'), anchors = next.rotationAnchors || [];
+  for (const event of events) {
+    const prior = before.find(e => e.id === event.id);
+    if (!validStaffDate(event.from) || (!prior && event.from < today) || !['NC', 'TC', 'transfer'].includes(event.target)
+      || !['TC', 'transfer'].includes(event.outgoingAction)) fail(400, '직원 인계 날짜·형태를 확인해주세요.');
+    // 이전에 완료된 직원의 완전 삭제 등 기존 관리 기능은 계속 허용한다.
+    if (event.from < today) continue;
+    const outgoing = employees.find(e => e.id === event.outgoingId), incoming = employees.find(e => e.id === event.incomingId);
+    if ((!outgoing && event.outgoingId) || (!incoming && event.incomingId) || (!outgoing && !incoming) || (outgoing && outgoing.id === incoming?.id)
+      || (event.primaryId !== outgoing?.id && event.primaryId !== incoming?.id)) fail(400, '인계 직원 정보가 일치하지 않습니다.');
+    for (const emp of [outgoing, incoming].filter(Boolean)) {
+      if (ids.has(emp.id)) fail(409, '한 직원에게 예정된 인계가 중복됩니다.');
+      ids.add(emp.id);
+      if ((emp.startDate || '2026-01-01') > event.from || (emp.adaptationPeriods || []).some(p => p.endDate >= event.from)) fail(409, '적응기간 또는 재직 기간과 인계가 겹칩니다.');
+    }
+    if (outgoing && event.outgoingAction === 'transfer') {
+      const previousDay = new Date(Date.parse(event.from) - 86400000).toISOString().slice(0, 10);
+      if (outgoing.endDate !== previousDay) fail(409, '전출일과 인계일이 일치하지 않습니다.');
+    } else if (outgoing && (!(outgoing.workTypeChanges || []).some(c => c.eventId === event.id && c.from === event.from && c.workType === 'TC')
+      || (outgoing.endDate && outgoing.endDate < event.from))) fail(409, '기존 직원의 근무 형태 변경이 인계와 연결되어야 합니다.');
+    if (incoming) {
+      const type = [...(incoming.workTypeChanges || [])].filter(c => c.from <= event.from)
+        .sort((a, b) => a.from.localeCompare(b.from) || String(a.at).localeCompare(String(b.at))).at(-1)?.workType || incoming.workType;
+      const matchingAnchors = anchors.filter(a => a.eventId === event.id);
+      const matchingOrders = orderHistory.filter(e => e.eventId === event.id);
+      if (type !== 'NC' || (incoming.endDate && incoming.endDate < event.from)
+        || (incoming.onboarding && (!incoming.soloDeployment?.from || incoming.soloDeployment.from > event.from))
+        || matchingAnchors.length !== 1 || matchingAnchors[0].empId !== incoming.id || matchingAnchors[0].startDate !== event.from
+        || matchingAnchors[0].startShift !== event.startShift || !['일', '야', '조', 'O'].includes(event.startShift)
+        || matchingOrders.length !== 1 || matchingOrders[0].from !== event.from || matchingOrders[0].move?.incoming !== incoming.id
+        || (matchingOrders[0].move?.outgoing || null) !== (outgoing?.id || null)) fail(409, '교대 자리·단독 투입·로테이션이 같은 인계로 연결되어야 합니다.');
+    }
+  }
+  const eventIds = new Set(events.map(e => e.id));
+  const linked = [...anchors, ...orderHistory, ...employees.flatMap(e => e.workTypeChanges || [])];
+  if (linked.some(e => e.eventId && !eventIds.has(e.eventId))) fail(409, '직원 인계와 연결된 이력이 남아 있습니다.');
+  for (const emp of employees) {
+    const periods = emp.adaptationPeriods || [];
+    if (!Array.isArray(periods)) fail(400, '적응기간 형식이 잘못되었습니다.');
+    if (periods.some((p, i) => !validStaffDate(p.startDate) || !validStaffDate(p.endDate) || p.startDate > p.endDate || p.empId !== emp.id
+      || p.startDate < (emp.startDate || '2026-01-01') || (emp.endDate && p.endDate > emp.endDate)
+      || !Array.isArray(p.pattern) || !p.pattern.length || p.pattern.some(s => typeof s !== 'string' || !s.length || s.length > 4)
+      || periods.slice(i + 1).some(q => p.startDate <= q.endDate && q.startDate <= p.endDate)
+      || (emp.soloDeployment && p.endDate >= emp.soloDeployment.from))) fail(409, '적응기간이 중복되거나 단독 투입일과 겹칩니다.');
+    if (emp.soloDeployment?.eventId && !eventIds.has(emp.soloDeployment.eventId)) fail(409, '단독 투입의 인계 정보가 없습니다.');
+    const previousPeriods = list(old, 'employees').find(e => e.id === emp.id)?.adaptationPeriods || [];
+    if (previousPeriods.some(p => p.startDate <= today && !periods.some(q => equal(p, q)))) fail(409, '이미 시작된 적응기간은 변경할 수 없습니다.');
+  }
+}
 function validateSave(previous, incoming, admin, employeeId = null, scheduleEditor = false) {
   validateTree(incoming);
   const next = publicState(incoming), old = publicState(previous || {});
@@ -54,12 +123,16 @@ function validateSave(previous, incoming, admin, employeeId = null, scheduleEdit
     for (const key of SYSTEM_KEYS) {
       if (!equal(old[key], next[key])) fail(403, '직원 구성·담당자·시스템 설정 변경은 시스템 관리자 인증이 필요합니다.');
     }
+    for (const key of STAFF_HISTORY_KEYS) {
+      if (!equal(old[key] || [], next[key] || [])) fail(403, '직원 구성 변경은 관리자 또는 승인 담당자 인증이 필요합니다.');
+    }
   }
   if (!canEditSchedule) {
     for (const key of SCHEDULE_KEYS) {
       if (!equal(old[key], next[key])) fail(403, '근무표 수동 편집은 시스템 관리자 또는 승인 담당자 로그인이 필요합니다.');
     }
   }
+  if (admin && ['employees', 'rotationAnchors', ...STAFF_HISTORY_KEYS].some(key => !equal(old[key] || [], next[key] || []))) validateStaffHistory(old, next);
   // Even administrators must use the decision endpoint. Old approvals cannot be removed/replaced.
   if (!equal(old.monthlyApprovals || {}, next.monthlyApprovals || {})) fail(409, '월 확정은 승인함에서 처리해주세요.');
   // versions(월 확정본·변경 이력 등 과거 스냅샷)는 항목 형태가 제각각이라 id 스키마를 강제하지
