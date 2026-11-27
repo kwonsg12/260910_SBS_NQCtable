@@ -259,7 +259,7 @@ test('근무 형태 바꾸기: 바꾼 날부터만 형태가 바뀌고, TC 는 �
 
 test('근무 형태 바꾸기 창: 파견사원은 고를 수 없고, 날짜는 직접 고르며, 대신 들어올 사람 단계가 크게 있다', () => {
   assert.match(script, /const WT_CHOICES = \['NC', 'TC'\];/);
-  assert.match(script, /<input type="date" name="from" required min="\$\{today\}">/);
+  assert.match(script, /<input type="date" name="from" required min="\$\{today\}"/);
   assert.match(script, /class="wt-step wt-partner-step"/);
   assert.match(script, /data-work-type-change=/);
   // 대신 들어올 사람에 '새 사람'(이름·사내메일)을 바로 등록할 수 있다.
@@ -267,6 +267,23 @@ test('근무 형태 바꾸기 창: 파견사원은 고를 수 없고, 날짜는 
   assert.match(script, /name="newName"/);
   assert.match(script, /새 사람의 이름을 입력해 주세요/);
   assert.ok(!/on[a-z]+="/.test(script.slice(script.indexOf('function openWorkTypeDialog'), script.indexOf('function createEmployeeEditor'))));
+});
+
+test('근무 형태 바꾸기와 퇴사·전출일이 겹치지 않는다: 저장된 직원은 바꾸기 창으로만, 끝 날짜는 퇴사·전출일', () => {
+  // 고르는 칸(지난 달까지 통째로 바뀜)은 아직 저장 안 된 새 직원에게만 보인다.
+  const cell = script.slice(script.indexOf('function workTypeCell(row)'), script.indexOf('let selectedId'));
+  assert.ok(cell.indexOf('if (!saved)') >= 0 && cell.indexOf('if (!saved)') < cell.indexOf('<select data-work-type'));
+  // 끝 날짜는 '퇴사·전출일'이고 근무 형태 바꾸기 안내가 붙는다.
+  assert.ok(!/>근무 끝</.test(script));
+  assert.match(script, />퇴사·전출일<input type="date" data-field="endDate"/);
+  // 반영 안 한 수정이 있어도 막지 않고 먼저 반영한 뒤 창을 연다.
+  assert.match(script, /if \(isDirty\(\) && !apply\(\)\) return;\s*openWorkTypeDialog\(id\);/);
+  assert.ok(!/먼저 \[직원 구성 반영\]을 눌러 주세요/.test(script));
+  // 대신 들어올 사람 후보는 바꾸는 날에 근무 중인 사람만.
+  const dialog = script.slice(script.indexOf('function openWorkTypeDialog'), script.indexOf('function createEmployeeEditor'));
+  assert.match(dialog, /isEmployeeActiveOnDate\(e, month\)/);
+  // 퇴사·전출일이 있으면 그 날까지만 고를 수 있다.
+  assert.match(dialog, /max="\$\{escapeAttribute\(emp\.endDate\)\}"/);
 });
 
 test('설정: 왼쪽 메뉴에서 근무표 편집 · 직원 구성을 고르고, 직원 구성은 근무 형태별 목록 + 고른 사람 패널(투입 일정 포함)', () => {
