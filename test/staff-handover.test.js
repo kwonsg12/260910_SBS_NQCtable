@@ -18,7 +18,8 @@ const functions = ['fmt', 'stripTime', 'addDays', 'dateInRange', 'dayIndex', 'wo
   'isDispatchedDayWorker', 'dispatchedNameKey', 'dayWorkerName', 'isRoutineWorker', 'workTypeOf', 'staffOrderDate', 'getOrderedEmployeeIds', 'getActiveStaff',
   'isEmployeeActiveOnDate', 'getRotationAnchorFor', 'rotationShift', 'getHolidayInfo', 'isWeekendOrHoliday', 'baseShift', 'shiftKey', 'isPastDate',
   'getScheduleRange', 'findChainAssignment', 'calculatedShift', 'getShiftForDate', 'effectiveShift', 'snapshotHistoricalSchedule', 'bulkFillValueFor',
-  'wtOrderFor', 'wtRoutineIds', 'wtRoutineNames', 'staffEventIds', 'staffEventList', 'staffEventsFor', 'staffEventUndoError', 'removeStaffEventData',
+  'wtOrderFor', 'wtRoutineIds', 'wtRoutineNames', 'staffEventIds', 'staffEventList', 'staffEventsFor', 'staffEventUndoError', 'legacyAnchorMatches',
+  'legacyRepairOptions', 'prepareLegacyRepair', 'removeStaffEventData',
   'withStaffEventRemoved', 'staffAdaptationPeriods', 'staffNeedsOnboarding', 'staffImpact', 'staffAffectedMonths', 'wtPlan', 'wtApply', 'cancelStaffEvent'];
 const json = value => JSON.parse(JSON.stringify(value));
 function fixture({ extra = true, history = true } = {}) {
@@ -238,6 +239,74 @@ test('이전 월별 인계의 감사 로그가 일치하면 안전하게 취소�
   assert.deepEqual(routine(from), ['a', 'b', 'c', 'd']);
 });
 
+function overlappingLegacyFixture() {
+  const f = fixture();
+  const { state, emp } = f;
+  const at = '2026-11-26T00:00:00Z', from = '2026-12-10', secondFrom = '2026-12-15';
+  const first = [{empId:'a', from, workType:'TC', at}, {empId:'tc', from, workType:'NC', at}];
+  const second = [{empId:'b', from:secondFrom, workType:'TC', at}];
+  delete emp('new').onboarding;
+  for (const {empId, ...change} of [...first, ...second]) emp(empId).workTypeChanges = [change];
+  const firstAnchor = {id:'old_a', empId:'tc', startDate:from, startShift:'야', at, inheritFrom:'a'};
+  const secondAnchor = {id:'old_b', empId:'new', startDate:secondFrom, startShift:'조', at, inheritFrom:'b'};
+  state.rotationAnchors.push(firstAnchor, secondAnchor);
+  state.employeeOrderHistory.push({month:'2026-12', order:['tc','new','c','d','a','dispatch','b']});
+  state.auditLogs.push({id:'legacy_a', at, action:'직원 구성 편집', details:{from, orderMonth:'2026-12', workTypeChange:first, anchors:[firstAnchor]}},
+    {id:'legacy_b', at, action:'직원 구성 편집', details:{from:secondFrom, orderMonth:'2026-12', workTypeChange:second, anchors:[secondAnchor]}});
+  return f;
+}
+
+test('같은 달에 겹친 이전 인계는 관련 직원 순서만 복구하고 다른 인계와 과거 기록은 보존한다', () => {
+  const { c, state, emp, type, routine } = overlappingLegacyFixture();
+  state.scheduleSnapshots['2026-11-01::a'] = '보존';
+  state.scheduleOverrides['2026-12-24::a'] = {shift:'수동',at:'2026-11-20'};
+  const event = c.staffEventsFor('a')[0];
+  assert.equal(event.legacy.ambiguous, true);
+  assert.match(c.staffEventUndoError(event), /겹쳐/);
+  const choices = c.legacyRepairOptions(event);
+  assert.deepEqual(json(choices.current), ['tc','new','c','d','a','dispatch','b']);
+  assert.deepEqual(json(choices.restored), ['a','new','c','d','tc','dispatch','b']);
+  assert.equal(choices.suggestion, 'restore');
+  const repaired = c.prepareLegacyRepair(event, 'restore');
+  assert.equal(c.staffEventUndoError(repaired), '');
+  assert.ok(c.cancelStaffEvent(repaired));
+  assert.equal(type('a','2026-12-20'), 'NC');
+  assert.equal(type('tc','2026-12-20'), 'TC');
+  assert.equal(type('b','2026-12-20'), 'TC');
+  assert.equal(state.rotationAnchors.length, 1);
+  assert.equal(state.rotationAnchors[0].id,'old_b');
+  assert.deepEqual(routine('2026-12-20'), ['a','new','c','d']);
+  assert.ok(state.employeeOrderHistory.some(e => e.month === '2026-12'), '기존 월별 기록을 지우지 않는다');
+  assert.equal(state.scheduleSnapshots['2026-11-01::a'],'보존');
+  assert.equal(state.scheduleOverrides['2026-12-24::a'].shift,'수동');
+  assert.equal(c.staffEventsFor('a').length,0);
+  assert.equal(c.staffEventsFor('b').length,1);
+});
+
+test('겹친 이전 인계 복구 후 새 날짜로 수정하면 같은 날짜의 새 인계 순서가 복구 순서 다음으로 적용된다', () => {
+  const { c, state, plan, routine } = overlappingLegacyFixture();
+  const event = c.prepareLegacyRepair(c.staffEventsFor('a')[0], 'restore');
+  const p = c.withStaffEventRemoved(event, () => plan('a', 'TC', '2026-12-01', 'tc'));
+  assert.equal(p.error, '');
+  assert.ok(c.wtApply(p, event));
+  assert.deepEqual(routine('2026-12-01'), ['tc','new','c','d']);
+  assert.equal(state.rotationAnchors.some(a => a.id === 'old_b'), true);
+  assert.equal(state.staffHandoverEvents[0].from,'2026-12-01');
+});
+
+test('현재 순서를 선택하면 겹친 월별 이력과 일치하지 않는 로테이션은 수정하지 않는다', () => {
+  const { c, state, type } = overlappingLegacyFixture();
+  state.rotationAnchors[0] = {...state.rotationAnchors[0], startShift:'O'};
+  const before = json(state.employeeOrderHistory);
+  const event = c.prepareLegacyRepair(c.staffEventsFor('a')[0], 'keep');
+  assert.equal(c.staffEventUndoError(event), '');
+  assert.ok(c.cancelStaffEvent(event));
+  assert.deepEqual(json(state.employeeOrderHistory), before);
+  assert.equal(state.rotationAnchors.find(a => a.id==='old_a').startShift,'O');
+  assert.equal(type('a','2026-12-20'),'NC');
+  assert.equal(type('b','2026-12-20'),'TC');
+});
+
 test('이미 시작된 인계는 수정/취소할 수 없다', () => {
   const { c, plan } = fixture();
   c.wtApply(plan('a', 'TC', '2026-11-27', 'tc'));
@@ -267,11 +336,15 @@ test('서버는 순서·인계 권한 및 연결 원자성, 미래 기록 취소
   assert.throws(() => validateSave(past, baseline, true), /이미 시작/);
 });
 
-test('직원 구성 불러오기/날짜 조회 및 인계 양쪽 UI가 연결되어 있다', () => {
+test('직원 구성 날짜별 불러오기는 월 근무표와 독립적이며 인계 양쪽 UI가 연결되어 있다', () => {
   assert.match(html, /id="staffEffectiveDate"/);
-  assert.match(script, /loadScheduleEditMonthBtn[^\n]+settingsEmployeeEditor\.load\(\)/);
-  assert.match(script, /staffEffectiveDate[^\n]+addEventListener\('change'/);
+  assert.match(html, /class="edit-month" data-for-view="cells"/);
+  assert.match(html, /class="staff-date-controls" data-for-view="staff"/);
+  assert.match(script, /loadScheduleEditMonthBtn[^\n]+renderScheduleEditor/);
+  assert.match(script, /loadStaffDateBtn[^\n]+settingsEmployeeEditor\.load\(\$\('#staffEffectiveDate'\)\.value\)/);
+  assert.match(script, /staffEffectiveDate[^\n]+addEventListener\('change'[^\n]+updateDateStatus/);
   assert.match(script, /staffEventControls\(staffEventsFor\(row\.id\)/);
   assert.match(script, /staffNeedsOnboarding\(row, viewDate\)/);
   assert.match(script, /openWorkTypeDialog\(empId, \{ onboarding: true, from: startDate, partnerId: ref \}\)/);
+  assert.match(script, /event\.legacy\?\.ambiguous\) openLegacyRepairDialog/);
 });
