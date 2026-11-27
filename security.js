@@ -39,7 +39,8 @@ function targets(state) {
 }
 // 근무표 수동 편집으로 바뀌는 값(달별 비고 포함). 시스템 관리자와 승인 담당자(scheduleEditor)가 바꿀 수 있다.
 const SCHEDULE_KEYS = ['scheduleOverrides', 'scheduleSnapshots', 'scheduleRanges', 'rotationAnchors', 'monthNotes'];
-// 시스템 설정(직원 구성·담당자·설정)은 시스템 관리자만 바꿀 수 있다.
+// 시스템 설정(직원 구성·담당자·설정). 시스템 관리자와 승인 담당자(로그인)만 바꿀 수 있다.
+// 2026-11-27 사용자: 승인 담당자와 관리자의 권한은 기본적으로 같게 — 화면에서 무엇을 보여 주느냐만 다르다.
 const SYSTEM_KEYS = ['settings', 'employees', 'approvers', 'deletedEmployeesTrash', 'formerEmployees'];
 function validateSave(previous, incoming, admin, employeeId = null, scheduleEditor = false) {
   validateTree(incoming);
@@ -228,6 +229,11 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
     sessions.delete(token);
     return false;
   }
+  // 권한 판단용: 시스템 관리자 또는 승인 담당자 로그인. 둘의 서버 권한은 같다(2026-11-27).
+  // 누가 했는지(잠금 이름·기록)는 여전히 각자의 이름으로 남는다(callerKey, decide 의 actor).
+  function isManager(req) {
+    return isAdmin(req) || !!approverSession(req);
+  }
   // 기본 PIN으로 로그인한 세션(mustChange)은 PIN을 바꾸기 전까지 직원 권한으로 인정하지 않는다.
   function employeeSession(req) {
     const token = req.get('X-Employee-Token');
@@ -319,9 +325,8 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
       const incoming = req.body?.state;
       if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) fail(400, 'invalid state payload');
       touch(req);
-      const admin = isAdmin(req), employeeId = admin ? null : isEmployee(req);
-      const scheduleEditor = !admin && !!approverSession(req);
-      const next = validateSave(row?.state, incoming, admin, employeeId, scheduleEditor);
+      const admin = isManager(req), employeeId = admin ? null : isEmployee(req);
+      const next = validateSave(row?.state, incoming, admin, employeeId, admin);
       const pins = req.body.approverPins || {};
       if (typeof pins !== 'object' || Array.isArray(pins)) fail(400, 'PIN 형식을 확인해주세요.');
       if (Object.keys(pins).length && !admin) fail(403, '담당자 PIN 변경은 관리자 인증이 필요합니다.');
@@ -363,13 +368,13 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
     const { id, approverId, pin, approved, reason = '' } = req.body || {};
     if (typeof approved !== 'boolean' || typeof reason !== 'string' || reason.length > 2000 || (!approved && !reason.trim())) fail(400, '승인 여부와 반려 사유를 확인해주세요.');
     touch(req);
-    const admin = isAdmin(req);
+    const admin = isManager(req);
     let approvedVersion = null;
     const result = transaction(() => {
       const row = getState(), state = row?.state;
       const actor = state?.approvers?.find(a => a.id === approverId);
       if (admin) {
-        // 관리자는 PIN 없이도 처리할 수 있다 — 다만 기록(decidedBy)에 남길 담당자는 골라야 한다.
+        // 관리자·승인 담당자 로그인은 PIN 없이도 처리할 수 있다 — 다만 기록(decidedBy)에 남길 담당자는 골라야 한다.
         if (!actor) fail(400, '기록에 남길 담당자를 선택해주세요.');
       } else if (!actor || approverSession(req) !== actor.id) {
         // 담당자로 로그인한 세션이면 그 담당자 이름의 처리는 PIN을 다시 묻지 않는다.
@@ -533,6 +538,6 @@ function createSecurity({ db, getState, setState, adminPassword = process.env.AD
     if (l && (!who || l.holderKey === who.key)) lock = null;
     return { ok: true };
   }
-  return { login, touch, save, decide, isAdmin, employeeSession, employeeLogin, changeEmployeePin, approverLogin, cancelOwn, lockStatus, acquireLock, heartbeatLock, releaseLock };
+  return { login, touch, save, decide, isAdmin, isManager, employeeSession, employeeLogin, changeEmployeePin, approverLogin, cancelOwn, lockStatus, acquireLock, heartbeatLock, releaseLock };
 }
 module.exports = { createSecurity, publicState, validateSave, targets };

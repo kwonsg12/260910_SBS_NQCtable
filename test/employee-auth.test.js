@@ -24,7 +24,8 @@ function seed() {
       { id: 'p2', empId: 'e1', date: '2026-11-06', status: 'pending', needsApproval: true }],
     approvals: [{ id: 'ap1', refId: 'r1', type: 'leave', requestedBy: 'e1', approverIds: ['a1'], title: '휴가', summary: '', status: 'pending', decidedBy: null, decidedAt: null, decisionReason: '' }],
     settings: { quotaMax: 3 },
-    monthlyApprovals: {}, auditLogs: [], excuses: []
+    // 2099-01 은 이미 확정된 달 — 확정된 달도 관리자·담당자가 고칠 수 있는지 본다.
+    monthlyApprovals: { '2099-01': { approverId: 'a1', approverName: '담당', at: '2026-01-01T00:00:00.000Z' } }, auditLogs: [], excuses: []
   };
 }
 
@@ -236,7 +237,7 @@ test('지난 날짜의 확정 휴가와 남의 확정 휴가는 취소 신청할
   assert.equal((await f.state()).approvals.filter(a => a.type === 'leave-cancel').length, 0);
 });
 
-test('승인 담당자: 근무표는 저장하고 잠금을 잡지만, 직원 구성·설정은 못 바꾼다. touch 로 로그인이 연장된다', async t => {
+test('승인 담당자: 시스템 관리자와 같은 권한 — 근무표(확정된 달 포함)·설정을 저장하고 잠금을 잡는다. touch 로 로그인이 연장된다', async t => {
   const f = await fixture(t);
   const login = await f.api('/api/auth/approver', { approverId: 'a1', pin: '123456' });
   assert.equal(login.status, 200, JSON.stringify(login.data));
@@ -245,16 +246,23 @@ test('승인 담당자: 근무표는 저장하고 잠금을 잡지만, 직원 �
   const lock = await f.api('/api/lock/acquire', {}, headers);
   assert.equal(lock.status, 200);
   assert.equal(lock.data.holderName, '담당 담당자');
-  // 근무표 수동 편집 저장은 된다.
+  // 근무표 수동 편집 저장은 된다 — 2099-01 은 이미 확정된 달이지만 상관없다.
   let current = (await f.api('/api/state')).data;
+  assert.ok(current.state.monthlyApprovals['2099-01'], '확정된 달이 준비돼 있어야 한다');
   current.state.scheduleOverrides = { '2099-01-10::e1': { shift: '교육', at: 'x' } };
   assert.equal((await f.api('/api/state', { state: current.state, baseRevision: current.revision }, headers)).status, 200);
-  // 시스템 설정은 거부된다.
+  // 시스템 설정·직원 구성도 시스템 관리자처럼 바꿀 수 있다 (2026-11-27 권한 통일).
   current = (await f.api('/api/state')).data;
   current.state.settings.quotaMax = 7;
-  const denied = await f.api('/api/state', { state: current.state, baseRevision: current.revision }, headers);
-  assert.equal(denied.status, 403);
-  assert.match(denied.data.error, /시스템 관리자/);
+  current.state.employees[0].name = '직원1-이름변경';
+  const allowed = await f.api('/api/state', { state: current.state, baseRevision: current.revision }, headers);
+  assert.equal(allowed.status, 200, JSON.stringify(allowed.data));
+  current = (await f.api('/api/state')).data;
+  assert.equal(current.state.settings.quotaMax, 7);
+  assert.equal(current.state.employees[0].name, '직원1-이름변경');
+  // 월 확정 도장은 여전히 승인함(decide)으로만 바뀐다.
+  current.state.monthlyApprovals = {};
+  assert.equal((await f.api('/api/state', { state: current.state, baseRevision: current.revision }, headers)).status, 409);
   // 동작 알림(touch): 살아 있는 세션만 true
   const touched = await f.api('/api/auth/touch', {}, headers);
   assert.deepEqual(touched.data, { ok: true, admin: false, employee: false, approver: true });

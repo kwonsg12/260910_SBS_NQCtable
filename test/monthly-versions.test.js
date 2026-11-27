@@ -36,6 +36,7 @@ function setup(){
     DEFAULT_STATION_NAME: '관제실', STORE_KEY: 'test', LOCAL_MODE: true, localSaveFailed: false, editSessionDirty: () => false,
     alerts: [], securityMessages: [], actor: { id: 'boss', name: '담당' },
     adminToken: '', adminUntil: 0, approverToken: '', approverUntil: 0, approverLoginId: '',
+    approverSessionActive: () => false,
     getCurrentMonthView: () => ({ year: 2099, monthIndex: 0 }),
     getToday: () => new Date('2099-01-01T00:00:00'),
     getActiveStaff: () => c.staff,

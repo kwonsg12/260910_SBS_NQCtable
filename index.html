@@ -1972,8 +1972,9 @@
   function addAuditLog(action, details){
     STATE.auditLogs.unshift({ id: uid(), action, details, at: new Date().toISOString() });
   }
+  // 시스템 관리자와 승인 담당자의 권한은 같다(2026-11-27). 화면에서 무엇을 보여 주느냐는 applyEmployeeGate 가 정한다.
   function requireAdmin(action){
-    if (!adminToken || Date.now() >= adminUntil) {
+    if ((!adminToken || Date.now() >= adminUntil) && !approverSessionActive()) {
       const message = action + ': 로그인에서 "시스템 관리자"를 선택해 로그인해주세요.';
       securityMessage(message);
       showToast(message, 'info');
@@ -2952,8 +2953,8 @@
     const approval = STATE.approvals.find(a => a.id === id);
     const actor = approverById($('#approvalActorSelect')?.value || '');
     if (!approval || approval.status !== 'pending' || !actor) return;
-    const isAdminSession = !!adminToken && Date.now() < adminUntil;
-    // 관리자는 이 건에 지정된 담당자가 아니어도(=담당 범위 밖이어도) 대신 처리할 수 있다.
+    const isAdminSession = (!!adminToken && Date.now() < adminUntil) || approverSessionActive();
+    // 관리자·승인 담당자 로그인은 이 건에 지정된 담당자가 아니어도(=담당 범위 밖이어도) 대신 처리할 수 있다.
     if (!isAdminSession && !approval.approverIds?.includes(actor.id)) { securityMessage('이 신청의 담당자를 선택해주세요.'); return; }
     if (ok && approval.type === 'monthly'){
       const error = monthlyApprovalError(approval);
