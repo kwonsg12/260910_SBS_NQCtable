@@ -4200,6 +4200,17 @@
     return [...saved, ...legacy].sort((a, b) => a.from.localeCompare(b.from));
   }
   function staffEventsFor(id){ return staffEventList().filter(event => staffEventIds(event).includes(id)); }
+  function laterStaffEvent(event){
+    const ids = staffEventIds(event);
+    // 새 인계는 이전 일정의 결과를 사용하므로 뒤 일정이 남아 있으면 이전 일정을 없앨 수 없다.
+    // 연결 자료가 없는 옛 월별 이력끼리는 기존 복구 절차를 그대로 사용한다.
+    return staffEventList().find(other => other.id !== event.id && other.from > event.from
+      && !(event.legacy && other.legacy) && staffEventIds(other).some(id => ids.includes(id)));
+  }
+  function staffChangeLinked(empId, change, events){
+    return events.some(event => change.eventId ? event.id === change.eventId && event.from === change.from && staffEventIds(event).includes(empId)
+      : event.legacy?.changes.some(c => c.empId === empId && c.from === change.from && c.workType === change.workType && c.at === change.at));
+  }
   function staffEventControls(events, empId = null){
     const known = new Set(events.flatMap(e => staffEventIds(e)));
     const unknown = empId && !known.has(empId) && EMPLOYEES.some(e => e.id === empId && workTypeChangesOf(e).some(c => c.from > fmt(stripTime(new Date()))));
@@ -4208,8 +4219,8 @@
       const from = escapeAttribute(event.from);
       const id = escapeAttribute(event.id);
       const label = event.outgoingId ? `${empName(event.outgoingId)} ${event.outgoingAction === 'transfer' ? '전출' : 'TC 전환'}` : '';
-      const incoming = event.incomingId ? `${empName(event.incomingId)} ${event.placement === 'extra' ? '추가 교대' : 'NC 투입'}` : '';
-      const repairable = event.legacy?.ambiguous && event.from > fmt(stripTime(new Date()));
+      const incoming = event.incomingId ? `${empName(event.incomingId)} ${event.placement === 'extra' ? '추가 교대' : event.placement === 'routine' ? 'NC 투입 · 자동대근' : 'NC 투입'}` : '';
+      const repairable = event.legacy?.ambiguous && event.from > fmt(stripTime(new Date())) && !laterStaffEvent(event);
       return `<div class="staff-event-row"><b>${from}</b> ${escapeAttribute([label, incoming].filter(Boolean).join(' → '))}
         ${repairable ? '<span class="wt-warn">순서 이력 겹침 · 복구 필요</span>' : problem ? `<span class="wt-warn">${escapeAttribute(problem)}</span>` : ''}
         ${!problem || repairable ? `<button type="button" class="btn secondary" data-staff-event="${id}" data-event-action="edit">${repairable ? '복구 후 수정' : '수정'}</button> <button type="button" class="btn ghost" data-staff-event="${id}" data-event-action="cancel">${repairable ? '복구·취소' : '취소'}</button>` : ''}</div>`;
@@ -4217,6 +4228,8 @@
   }
   function staffEventUndoError(event){
     if (!event || event.from <= fmt(stripTime(new Date()))) return '이미 시작된 인계는 수정하거나 취소할 수 없습니다.';
+    const later = laterStaffEvent(event);
+    if (later) return `${later.from} 후속 인계가 있습니다. 뒤 일정부터 수정·취소해 주세요.`;
     if (event.legacy?.ambiguous && !event.legacy.repair) return '이전 버전의 순서·로테이션 이력이 다른 변경과 겹쳐 확인 후 복구가 필요합니다.';
     return '';
   }
@@ -4389,9 +4402,13 @@
     // 기존 TC에서 새 자리를 선택하던 이전 호출 방식(빈 partnerId)도 추가 교대로 해석한다.
     const extraPlacement = !leaving && (partnerId === '__extra__' || (!partnerId && currentType === 'TC'));
     const involvedIds = [outgoing?.id, incoming?.id].filter(Boolean);
+    const events = staffEventList();
+    const conflictingEvent = events.find(event => event.from >= from && staffEventIds(event).some(id => involvedIds.includes(id)));
+    const incomingNeedsOnboarding = incoming && (fresh || staffNeedsOnboarding(incoming, from));
     const at = new Date().toISOString();
     const error = !from || from < today ? '오늘 이후의 날짜를 선택해 주세요.'
       : !emp || !isEmployeeActiveOnDate(emp, fromDate) ? '선택한 직원의 재직 기간 안의 날짜를 선택해 주세요.'
+      : conflictingEvent ? (conflictingEvent.from === from ? '해당 직원에게 같은 날짜의 다른 인계가 있습니다.' : `해당 직원에게 ${conflictingEvent.from} 예정된 다른 인계가 있습니다. 뒤 일정부터 수정하거나 날짜 순서대로 등록해 주세요.`)
       : leaving && currentType !== 'NC' ? '그 날 NC 교대근무 중인 직원만 전환/전출할 수 있습니다.'
       : !leaving && currentlyExtra && !outgoing ? '이미 추가 교대근무 중입니다. 자동대근 자리로 변경하려면 기존 NC 직원을 선택해 주세요.'
       : !leaving && currentType === 'NC' && !currentlyExtra && !staffNeedsOnboarding(emp, from) ? '이미 단독 투입된 직원입니다.'
@@ -4405,8 +4422,7 @@
       : fresh && (fresh.startDate < today || fresh.startDate > from) ? '신규 직원 시작일은 오늘부터 단독 투입일까지로 선택해 주세요.'
       : fresh && EMPLOYEES.some(e => e.id === fresh.id || (e.name.trim() === fresh.name && (!e.endDate || e.endDate >= fresh.startDate))) ? '이미 등록된 직원입니다. 기존 직원을 선택해 주세요.'
       : fresh && fresh.email && !/^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(fresh.email) ? '사내메일 주소를 확인해 주세요.'
-      : staffEventList().some(event => event.from >= today && staffEventIds(event).some(id => involvedIds.includes(id))) ? '해당 직원에게 예정된 다른 인계가 있습니다. 먼저 기존 인계를 수정하거나 취소해 주세요.'
-      : [outgoing, incoming].filter(Boolean).some(e => workTypeChangesOf(e).some(c => c.from >= today)) ? '해당 직원에게 연결되지 않은 예정 근무 형태 변경이 있습니다.'
+      : [outgoing, incoming].filter(Boolean).some(e => workTypeChangesOf(e).some(c => c.from >= today && !staffChangeLinked(e.id, c, events))) ? '해당 직원에게 연결되지 않은 예정 근무 형태 변경이 있습니다.'
       : incoming && (STATE.rotationAnchors || []).some(a => a.empId === incoming.id && a.startDate >= from) ? '단독 투입일 이후에 이미 로테이션 시작점이 지정되어 있습니다.'
       : [outgoing, incoming].filter(Boolean).some(e => staffAdaptationPeriods(e).some(p => p.endDate >= from)) ? '적응기간이 단독 투입일/전환일과 겹칩니다. 먼저 적응기간을 조정해 주세요.'
       : incoming && (pendingBulkFills || []).some(p => p.empId === incoming.id && p.endDate >= from) ? '대기 중인 적응기간과 단독 투입일이 겹칩니다.'
@@ -4426,7 +4442,7 @@
       let next = mine.length ? { ...e, workTypeChanges: [...workTypeChangesOf(e), ...mine] } : { ...e };
       if (e.id === outgoing?.id && action === 'transfer') next.endDate = fmt(addDays(fromDate, -1));
       if (e.id === incoming?.id) next.rotationRoleChanges = [...(e.rotationRoleChanges || []), { from, role: event.placement, eventId }];
-      if (e.id === incoming?.id && (!e.soloDeployment || e.soloDeployment.from > from) && (e.onboarding || workTypeAt(e, from) === 'NC')) {
+      if (e.id === incoming?.id && incomingNeedsOnboarding && (!e.soloDeployment || e.soloDeployment.from > from)) {
         // 이전에 가입한 적응 NC도 이 이벤트를 단독 투입일로 쓴다.
         if (!e.onboarding) { next.onboarding = true; next.onboardingFrom = today; }
         next.soloDeployment = { from, eventId };
@@ -4540,7 +4556,7 @@
       const staff = getActiveStaff(month.getFullYear(), month.getMonth(), month)
         .filter(e => e.id !== primaryId && !isDispatchedDayWorker(e) && isEmployeeActiveOnDate(e, month));
       return (ui.target === 'NC' ? staff.filter(e => routine.includes(e.id)) : routine.includes(primaryId) ? staff.filter(e => !routine.includes(e.id)) : [])
-        .map(e => ({ id: e.id, name: e.name, note: ui.target === 'NC' ? '' : workTypeOf(e, month) === 'TC' ? 'TC 상일근' : '적응·추가 NC' }));
+        .map(e => ({ id: e.id, name: e.name, note: ui.target === 'NC' ? '' : workTypeOf(e, month) === 'TC' ? 'TC 상일근' : rotationRoleAt(e, ui.from) === 'extra' ? '추가 교대' : '적응·추가 NC' }));
     });
     const renderPreview = () => {
       const box = $d('.wt-preview'), impact = $d('.wt-impact'), error = $d('.wt-error');
@@ -4701,9 +4717,11 @@
     const GROUP_HINT = { NC: '자동대근 자리 4명', TC: '평일 일 · 휴일 O', dispatch: 'PDF 제외' };
     const dot = value => value ? value.replace(/-/g, '.') : '';
     function nextChangeTag(row){
-      const today = fmt(stripTime(new Date()));
-      const next = workTypeChangesOf(row).find(change => change.from > today);
-      return next ? `<span class="tag t-next">${escapeAttribute(Number(next.from.slice(5, 7)) + '/' + Number(next.from.slice(8)))}부터 ${escapeAttribute(WORK_TYPE_LABEL[next.workType])}</span>` : '';
+      const nextType = workTypeChangesOf(row).find(change => change.from > viewDate);
+      const nextRole = (row.rotationRoleChanges || []).slice().sort((a,b) => a.from.localeCompare(b.from)).find(change => change.from > viewDate);
+      const next = nextRole && (!nextType || nextRole.from <= nextType.from) ? nextRole : nextType;
+      const label = next?.role === 'extra' ? '추가 교대' : next?.role === 'routine' ? '자동대근' : WORK_TYPE_LABEL[next?.workType];
+      return next ? `<span class="tag t-next">${escapeAttribute(Number(next.from.slice(5, 7)) + '/' + Number(next.from.slice(8)))}부터 ${escapeAttribute(label)}</span>` : '';
     }
     // 고른 사람에 맞춰 아래 투입 일정 폼의 직원을 맞춘다(새 직원은 반영 전이라 잠근다).
     function syncOnboarding(row){
