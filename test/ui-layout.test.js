@@ -96,6 +96,7 @@ test('엑셀 양식 근무표: 묶음은 엑셀 내보내기와 같은 NC/TC 기
   const context = vm.createContext({
     isDispatchedDayWorker: emp => emp.id === 'seo',
     isRoutineWorker: emp => ['a', 'b', 'c', 'd'].includes(emp.id),
+    getOrderedEmployeeIds: () => null, isEmployeeActiveOnDate: () => true,
     workTypeOf: emp => emp.id === 'seo' ? 'dispatch' : ['a', 'b', 'c', 'd'].includes(emp.id) ? 'NC' : 'TC'
   });
   vm.runInContext(fn + '\nthis.groups = scheduleGroups;', context);
@@ -104,7 +105,7 @@ test('엑셀 양식 근무표: 묶음은 엑셀 내보내기와 같은 NC/TC 기
     [['NC', 'a,b,c,d', false], ['TC', 'edu', false], ['일근', 'seo', true]]);
   assert.equal(context.groups(staff.slice(0, 4), 2026, 11).map(g => g.label).join(','), 'NC', 'TC 가 없으면 TC 묶음은 없다');
   // 엑셀 내보내기도 같은 기준(근무 형태 workTypeOf)으로 나눈다.
-  assert.match(script, /getActiveStaff\(year, monthIndex\)\.forEach\(emp => groups\[workTypeOf\(emp, month\)\]\?\.push\(emp\)\)/);
+  assert.match(script, /scheduleGroups\(getActiveStaff\(year, monthIndex\), year, monthIndex\)\.forEach/);
 });
 
 test('엑셀 양식 근무표: 머리줄 두 줄, 오늘 강조 없음, 비고는 표에 붙은 칸 + 근무 시간 줄', () => {

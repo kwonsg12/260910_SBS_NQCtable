@@ -446,6 +446,7 @@
   .schedule-edit-table th:first-child{width:120px;}
   .schedule-edit-table th:first-child,.schedule-edit-table td.name{position:sticky;left:0;z-index:1;text-align:left;padding-left:16px;box-shadow:1px 0 0 var(--line);}
   .schedule-edit-table td.name{font-size:14px;font-weight:600;white-space:nowrap;background:#fff;}
+  .schedule-edit-table td.name small{display:block;font-size:10px;font-weight:500;color:var(--muted);line-height:1.2;}
   .schedule-edit-table tbody tr:last-child td{border-bottom:0;}
   .schedule-edit-table input{width:100%;max-width:100%;min-width:0;height:36px;padding:2px 1px;border:1px solid transparent;border-radius:8px;background:var(--bg);text-align:center;font-size:13px;font-weight:700;transition:background-color .15s cubic-bezier(.22,1,.36,1),border-color .15s cubic-bezier(.22,1,.36,1);}
   .schedule-edit-table input:hover:not(:disabled){border-color:var(--line2);background:#fff;}
@@ -809,7 +810,7 @@
             <div class="export-actions more-panel" id="moreActionsPanel" hidden>
               <button class="btn secondary" id="requestHistoryBtn" type="button">신청 내역</button>
               <button class="btn secondary export" id="exportPdfBtn" type="button">PDF</button>
-              <button class="btn secondary export" id="exportExcelBtn" type="button" title="샘플 양식 · NC 교대근무자 최대 4명 · TC 추가 인원">엑셀</button>
+              <button class="btn secondary export" id="exportExcelBtn" type="button" title="근무표와 같은 근무 형태별 표시">엑셀</button>
               <button class="btn secondary export" id="mailMyScheduleBtn" type="button" hidden title="보고 있는 달의 내 근무를 CSV 파일로 내 사내메일에 보냅니다">내 근무표 메일로</button>
               <button class="btn" id="requestMonthlyBtn" type="button">이 달 근무표 확정 요청</button>
             </div>
@@ -1365,7 +1366,7 @@
   // 일근 묶음(파견사원). 2년마다 바뀌므로 설정 탭에서 이름을 바꿀 수 있다.
   const DEFAULT_DAY_WORKER_NAME = '이주형';
 
-  // date 기준으로 그 달의 활성 직원 순서에서 위 ROUTINE_HEADCOUNT명 안에 드는지로 판단한다.
+  // 날짜별 인계 순서(표시 전용 정렬 제외)에서 자동대근 자리를 판단한다.
   function isRoutineWorker(emp, date){
     if (!emp) return false;
     const ref = (date instanceof Date && !Number.isNaN(date.getTime())) ? date : getToday();
@@ -1373,7 +1374,7 @@
     // (근무 형태를 정한 적 없는 예전 데이터는 NC 후보로 본다 — 예전처럼 순서로 정해진다.)
     // 그 날 근무 중인 사람만 센다(달 중간에 들어오거나 나가는 사람이 그 전·후 날짜에 끼지 않게).
     const key = fmt(ref);
-    const top = getActiveStaff(ref.getFullYear(), ref.getMonth(), ref)
+    const top = getActiveStaff(ref.getFullYear(), ref.getMonth(), ref, false)
       .filter(e => (e.startDate || '2026-01-01') <= key && (!e.endDate || e.endDate >= key))
       .filter(e => !isDispatchedDayWorker(e) && (workTypeAt(e, ref) || 'NC') === 'NC' && rotationRoleAt(e, key) !== 'extra'
         && (!e.onboarding || (e.onboardingFrom && key < e.onboardingFrom) || (e.soloDeployment?.from && e.soloDeployment.from <= key))).slice(0, ROUTINE_HEADCOUNT);
@@ -2144,9 +2145,9 @@
   // 이전 월별 기록은 해당 월 1일로 해석한다. 인계는 순서를 통째로 복사하지 않고
   // 두 자리의 이동만 기록해 별개 인계의 수정/취소가 서로의 순서를 되돌리지 않게 한다.
   function staffOrderDate(entry){ return entry?.from || (entry?.month ? `${entry.month}-01` : ''); }
-  function getOrderedEmployeeIds(year, monthIndex, date = null){
+  function getOrderedEmployeeIds(year, monthIndex, date = null, display = true){
     const target = date ? (typeof date === 'string' ? date : fmt(date)) : fmt(new Date(year, monthIndex, 1));
-    const history = (STATE.employeeOrderHistory || []).filter(entry => staffOrderDate(entry) && staffOrderDate(entry) <= target)
+    const history = (STATE.employeeOrderHistory || []).filter(entry => staffOrderDate(entry) && staffOrderDate(entry) <= target && (display || !entry.displayOnly))
       // 같은 날의 날짜 이력은 등록 순서대로 적용한다. 이전 월별 기준은 날짜 이력보다 먼저 적용한다.
       .slice().sort((a, b) => staffOrderDate(a).localeCompare(staffOrderDate(b)) || Number(!!a.from) - Number(!!b.from));
     let order = null;
@@ -2166,11 +2167,11 @@
   }
 
   // 월 근무표는 그 달 중 재직한 모든 행을 유지하고, 직원 설정/대근은 특정일만 조회한다.
-  function getActiveStaff(year, monthIndex, date = null){
+  function getActiveStaff(year, monthIndex, date = null, display = true){
     const firstDateStr = date ? (typeof date === 'string' ? date : fmt(date)) : fmt(new Date(year, monthIndex, 1));
     const lastDateStr = date ? firstDateStr : fmt(new Date(year, monthIndex + 1, 0));
     const active = EMPLOYEES.filter(emp => (emp.startDate || '2026-01-01') <= lastDateStr && (!emp.endDate || emp.endDate >= firstDateStr));
-    const order = getOrderedEmployeeIds(year, monthIndex, date);
+    const order = getOrderedEmployeeIds(year, monthIndex, date, display);
     if (!order) return active;
     const rank = new Map(order.map((id, index) => [id, index]));
     return active.map((emp, index) => ({ emp, index }))
@@ -2622,20 +2623,18 @@
       // 파견사원 줄은 PDF 에서 빠진다. 묶음 칸도 그 줄 안에 있어서 다른 묶음의 rowspan 이 깨지지 않는다.
       const pdfIgnore = group.pdfIgnore ? ' data-html2canvas-ignore="true"' : '';
       const groupCell = index === 0 ? `<td class="grp xl-sticky" rowspan="${group.staff.length}">${escapeAttribute(group.label)}</td>` : '';
-      let r = `<tr class="${rowClass}"${pdfIgnore}>${groupCell}<td class="name xl-sticky" title="${escapeAttribute(emp.name)}">${escapeAttribute(emp.name)}</td>`;
+      let r = `<tr class="${rowClass}" data-staff-id="${escapeAttribute(emp.id)}" data-schedule-type="${escapeAttribute(emp.scheduleType)}"${pdfIgnore}>${groupCell}<td class="name xl-sticky" title="${escapeAttribute(emp.name)}">${escapeAttribute(emp.name)}</td>`;
       for(let d = 1; d <= daysInMonth; d++){
         const date = dayInfo[d].date;
         const dateColClass = dayInfo[d].colClass;
-        if (!isEmployeeActiveOnDate(emp, date)) {
+        if (!emp.scheduleDays.includes(d)) {
           r += `<td class="${dateColClass}"></td>`;
           continue;
         }
         const range = getScheduleRange(emp.id, date);
-        if (range && range.startDate < fmt(date) && d !== 1) continue;
-        const rangeEnd = range ? new Date(range.endDate + 'T00:00:00') : date;
-        const span = range
-          ? Math.max(1, Math.min(daysInMonth - d + 1, Math.floor((rangeEnd - date) / 86400000) + 1))
-          : 1;
+        // 한 병합 범위가 근무 형태 변경일을 지나면 각 행에서 해당 날짜까지만 병합한다.
+        let span = 1;
+        while (range && d + span <= daysInMonth && emp.scheduleDays.includes(d + span) && fmt(dayInfo[d + span].date) <= range.endDate) span++;
         const sh = effectiveShift(emp.id, date);
         const isSubstitute = isSubstituteShift(emp.id, date);
         const cellClass = sh === '휴가' ? 'cell-휴가' : sh === '대일' ? 'cell-대일' : isSubstitute && (sh === '야' || sh === '조') ? 'cell-대근' : isStandardShift(sh) ? 'cell-' + sh : 'cell-custom';
@@ -2650,6 +2649,7 @@
           ? `<button type="button" class="${chipClass}" data-request-date="${fmt(date)}" title="휴가·비번 보장 신청" aria-label="${fmt(date)} ${escapeAttribute(sh)} 신청">${escapeAttribute(sh)}</button>`
           : `<span class="${chipClass}">${escapeAttribute(sh)}</span>`;
         r += `<td class="${escapeAttribute(dateColClass)}"${span > 1 ? ` colspan="${span}"` : ''}>${chip}</td>`;
+        d += span - 1;
       }
       r += '</tr>';
       rows += r;
@@ -2690,17 +2690,38 @@
         : '이 달에는 새로 신청할 수 있는 내 근무 칸이 없어요';
   }
 
-  // 근무표 왼쪽 묶음. 엑셀 내보내기(exportExcel)와 같은 기준:
-  // NC = 그 달 교대 루틴 인원(isRoutineWorker), TC = 교대 루틴을 끈 추가 일근자·교육생. 파견사원은 둘 다 아니고 따로(PDF 제외).
-  // 빈 묶음은 그리지 않는다(TC 가 없으면 TC 묶음 생략). 묶음 안 순서는 화면 순서 그대로.
+  // 한 달에 근무 형태가 바뀐 직원은 NC/TC에 각각 한 줄을 만든다. 날짜마다 해당 줄에만 근무를 표시한다.
+  // 같은 형태로 다시 돌아오는 경우에도 같은 줄을 쓰고, 각 줄의 마지막 근무일 표시 순서로 정렬한다.
   function scheduleGroups(staff, year, monthIndex){
-    const month = new Date(year, monthIndex, 1);
-    // 직원 편집의 [근무 형태]로 묶는다. NC 안에서 위 4명이 자동대근 대상(isRoutineWorker)이고, 그 아래는 적응·추가 인원이다.
-    return [
-      { label: 'NC', staff: staff.filter(emp => workTypeOf(emp, month) === 'NC'), pdfIgnore: false },
-      { label: 'TC', staff: staff.filter(emp => workTypeOf(emp, month) === 'TC'), pdfIgnore: false },
-      { label: '일근', staff: staff.filter(emp => workTypeOf(emp, month) === 'dispatch'), pdfIgnore: true }
-    ].filter(group => group.staff.length);
+    const groups = { NC: { label:'NC', staff:[], pdfIgnore:false }, TC: { label:'TC', staff:[], pdfIgnore:false }, dispatch: { label:'일근', staff:[], pdfIgnore:true } };
+    const dates = Array.from({ length:new Date(year, monthIndex + 1, 0).getDate() }, (_, i) => new Date(year, monthIndex, i + 1));
+    const ranks = new Map();
+    const rank = row => {
+      const day = row.scheduleDays.at(-1);
+      if (!ranks.has(day)) {
+        const order = [...(getOrderedEmployeeIds(year, monthIndex, dates[day - 1]) || [])];
+        staff.forEach(emp => { if (!order.includes(emp.id)) order.push(emp.id); });
+        ranks.set(day, new Map(order.map((id, i) => [id, i])));
+      }
+      return ranks.get(day).get(row.id) ?? Infinity;
+    };
+    for (const emp of staff) {
+      const rows = {};
+      for (const date of dates) {
+        if (!isEmployeeActiveOnDate(emp, date)) continue;
+        const type = workTypeOf(emp, date);
+        if (!groups[type]) continue;
+        if (!rows[type]) {
+          rows[type] = { ...emp, scheduleType:type, scheduleDays:[] };
+          groups[type].staff.push(rows[type]);
+        }
+        rows[type].scheduleDays.push(date.getDate());
+      }
+    }
+    return Object.values(groups).filter(group => group.staff.length).map(group => {
+      group.staff.sort((a, b) => rank(a) - rank(b) || a.scheduleDays[0] - b.scheduleDays[0]);
+      return group;
+    });
   }
 
   // 사람별로 보기 (2026-11 사용자 요청: 화면을 여는 사람은 대개 "나는 언제 근무지?" 를 본다).
@@ -3486,11 +3507,14 @@
   function monthlySnapshot(key){
     const [year, month] = key.split('-').map(Number);
     const days = new Date(year, month, 0).getDate();
+    const staff = getActiveStaff(year, month - 1);
     return {
       monthKey: key, stationName: STATE.settings.stationName || DEFAULT_STATION_NAME,
       notes: notesFor(key),
       approvalLines: getApprovalLines().map(line => ({ title: line.title, name: line.name })),
-      employees: getActiveStaff(year, month - 1).map(emp => ({
+      // 직원별 근무값은 예전 확정본과 같은 구조, 표시 행만 날짜별 형태로 별도 보관한다.
+      displayRows: scheduleGroups(staff, year, month - 1).flatMap(group => group.staff.map(row => ({ id:row.id, type:row.scheduleType, days:row.scheduleDays }))),
+      employees: staff.map(emp => ({
         id: emp.id, name: emp.name, startDate: emp.startDate || '', endDate: emp.endDate || '',
         shifts: Array.from({ length: days }, (_, i) => {
           const date = new Date(year, month - 1, i + 1);
@@ -3518,7 +3542,14 @@
         compare(b.name + ' · ' + after.monthKey + '-' + String(i + 1).padStart(2, '0'), a.shifts[i], b.shifts[i]);
       }
     }
-    compare('직원 표시 순서', before.employees.map(e => e.id).join(','), after.employees.map(e => e.id).join(','));
+    if (Array.isArray(before.displayRows) && Array.isArray(after.displayRows)) {
+      const order = rows => rows.map(row => `${row.id}(${row.type})`).join(',');
+      compare('직원 표시 순서', order(before.displayRows), order(after.displayRows));
+      for (const row of before.displayRows) {
+        const next = after.displayRows.find(r => r.id === row.id && r.type === row.type);
+        if (next) compare(`${after.employees.find(e => e.id === row.id)?.name || row.id} ${row.type} 적용일`, row.days.join(','), next.days.join(','));
+      }
+    } else compare('직원 표시 순서', before.employees.map(e => e.id).join(','), after.employees.map(e => e.id).join(','));
     return changes;
   }
   function approvedMonthlyVersion(key){
@@ -3566,7 +3597,12 @@
       versions.map(v => '<option value="' + escape(v.id) + '"' + (v.id === selected.id ? ' selected' : '') + '>v' + v.number + ' · ' + escape(v.approverName) + ' · ' + escape(new Date(v.at).toLocaleString('ko-KR')) + '</option>').join('') +
       '</select></label><p><b>' + escape(snapshot.stationName) + ' · ' + escape(key) + ' 확정본 v' + selected.number + '</b></p>' +
       '<div style="overflow:auto"><table><thead><tr><th>직원</th>' + Array.from({length:days},(_,i)=>'<th>'+(i+1)+'</th>').join('') + '</tr></thead><tbody>' +
-      snapshot.employees.map(emp=>'<tr><th>'+escape(emp.name)+'</th>'+emp.shifts.map(shift=>'<td>'+escape(shift ?? '')+'</td>').join('')+'</tr>').join('') +
+      (snapshot.displayRows || snapshot.employees.map(emp => ({id:emp.id}))).map(row => {
+        const emp = snapshot.employees.find(e => e.id === row.id);
+        if (!emp) return '';
+        const type = row.type === 'dispatch' ? '일근' : row.type;
+        return '<tr><th>'+escape(emp.name + (type ? ` (${type})` : ''))+'</th>'+emp.shifts.map((shift, i)=>'<td>'+escape(!row.days || row.days.includes(i + 1) ? (shift ?? '') : '')+'</td>').join('')+'</tr>';
+      }).join('') +
       '</tbody></table></div><p style="white-space:pre-wrap">비고: ' + escape(snapshot.notes) + '</p>' +
       '<p>현재 표와 다른 항목: ' + diff.length + '건</p><ul>' + changesHtml(diff) + '</ul>' +
       '<h4>이 확정 이후 저장된 변경 이력</h4>' + (history.length ? history.map(event=>'<details><summary>'+escape(new Date(event.at).toLocaleString('ko-KR'))+' · '+event.changes.length+'건</summary><ul>'+changesHtml(event.changes)+'</ul></details>').join('') : '<p>저장된 변경이 없습니다.</p>');
@@ -3822,15 +3858,14 @@
   // 엑셀(서버 /api/export/excel)과 PDF 가 같은 데이터로 그린다. 묶음은 직원 편집의 [근무 형태]를 따른다.
   // includeDayWorkers=false 이면 파견사원(일근) 줄을 뺀다(PDF).
   function buildExcelPayload(year, monthIndex, { includeDayWorkers = true } = {}){
-    const month = new Date(year, monthIndex, 1);
     const groups = { NC: [], TC: [], dispatch: [] };
-    getActiveStaff(year, monthIndex).forEach(emp => groups[workTypeOf(emp, month)]?.push(emp));
+    scheduleGroups(getActiveStaff(year, monthIndex), year, monthIndex).forEach(group => { groups[group.pdfIgnore ? 'dispatch' : group.label] = group.staff; });
     if (groups.NC.length > 20) throw new Error('NC 교대근무 인원이 너무 많습니다(최대 20명). 직원 구성을 확인해 주세요.');
     const dates = Array.from({length:new Date(year, monthIndex + 1, 0).getDate()}, (_, i) => new Date(year, monthIndex, i + 1));
     const row = emp => {
       const shifts = [], kinds = [], spans = [];
       dates.forEach((date, i) => {
-        if (!isEmployeeActiveOnDate(emp, date)) { shifts.push(''); kinds.push(''); return; }
+        if (!emp.scheduleDays.includes(date.getDate())) { shifts.push(''); kinds.push(''); return; }
         const sh = effectiveShift(emp.id, date) || '';
         const kind = shiftKind(emp.id, date, sh);
         shifts.push(sh); kinds.push(kind);
@@ -4133,11 +4168,22 @@
   // 이미 잡힌 휴가·대근 기록은 서버가 고칠 수 없게 막아 두어서, 그대로 두고 경고만 보여 준다.
   const WT_CHOICES = ['NC', 'TC'];
   function wtLabel(dateKey){ return `${Number(dateKey.slice(5, 7))}/${Number(dateKey.slice(8))}`; }
-  function wtOrderFor(dateKey){
+  function wtOrderFor(dateKey, display = false){
     const [y, m] = dateKey.split('-').map(Number);
-    const ids = (getOrderedEmployeeIds(y, m - 1, dateKey.length === 10 ? dateKey : null) || EMPLOYEES.map(e => e.id)).slice();
+    const ids = (getOrderedEmployeeIds(y, m - 1, dateKey.length === 10 ? dateKey : null, display) || EMPLOYEES.map(e => e.id)).slice();
     EMPLOYEES.forEach(e => { if (!ids.includes(e.id)) ids.push(e.id); });
     return ids;
+  }
+  function recordStaffDisplayOrder(dateKey, order){
+    if (!STATE.employeeOrderHistory.length) STATE.employeeOrderHistory.push({ month:'0000-01', order:EMPLOYEES.map(e => e.id) });
+    STATE.employeeOrderHistory = STATE.employeeOrderHistory.filter(entry => !entry.displayOnly || staffOrderDate(entry) !== dateKey);
+    STATE.employeeOrderHistory.push({ from:dateKey, order, displayOnly:true });
+  }
+  function insertLegacyStaffOrder(entry){
+    // 예전 인계 복구와 별도로 이미 지정한 같은 날 표시 순서는 유지한다.
+    const index = STATE.employeeOrderHistory.findIndex(e => e.displayOnly && staffOrderDate(e) === entry.from);
+    if (index < 0) STATE.employeeOrderHistory.push(entry);
+    else STATE.employeeOrderHistory.splice(index, 0, entry);
   }
   // 바꾼 뒤의 직원들(사본)과 순서로 그 날의 자동대근 4명을 다시 센다.
   function wtRoutineIds(people, order, dateKey){
@@ -4207,7 +4253,7 @@
       const normalized = ids => ids.filter(id => EMPLOYEES.some(e => e.id === id)).join();
       const ambiguous = !orderEntry || !Array.isArray(orderEntry.order) || normalized(orderEntry.order) !== normalized(expected)
         || logs.filter(other => (other.details.orderMonth || other.details.from.slice(0, 7)) === orderMonth).length !== 1
-        || (STATE.employeeOrderHistory || []).some(e => e.from && e.from >= orderMonth + '-01' && e.from <= d.from)
+        || (STATE.employeeOrderHistory || []).some(e => !e.displayOnly && e.from && e.from >= orderMonth + '-01' && e.from <= d.from)
         || (STATE.auditLogs || []).some(other => other.id !== log.id && other.at >= log.at && other.details?.orderEffectiveMonth === orderMonth)
         || anchors.some(a => !(STATE.rotationAnchors || []).some(x => legacyAnchorMatches(x, a)));
       return [{ id: `legacy:${log.id}`, from: d.from, primaryId, target, partnerId, outgoingId, incomingId,
@@ -4344,7 +4390,7 @@
     if (legacy?.ambiguous && legacy.repair) {
       // 겹친 월 이력 자체는 삭제하지 않는다. 선택한 관련 직원만 현재/미래의 보정 순서로 기록한다.
       if (legacy.repair.mode === 'restore' && Array.isArray(legacy.repair.order)) {
-        STATE.employeeOrderHistory.push({ from: legacy.repair.from, order: legacy.repair.order.slice(), repairId: legacy.repair.id });
+        insertLegacyStaffOrder({ from: legacy.repair.from, order: legacy.repair.order.slice(), repairId: legacy.repair.id });
       }
     } else if (legacy) {
       const today = fmt(stripTime(new Date()));
@@ -4352,8 +4398,8 @@
       // 이미 지난 월별 순서는 그대로 두고 오늘부터만 복원한다.
       if (first >= today) STATE.employeeOrderHistory = (STATE.employeeOrderHistory || []).filter(e => e.month !== legacy.orderMonth);
       else {
-        STATE.employeeOrderHistory = (STATE.employeeOrderHistory || []).filter(e => staffOrderDate(e) !== today);
-        STATE.employeeOrderHistory.push({ from: today, order: legacy.beforeOrder });
+        STATE.employeeOrderHistory = (STATE.employeeOrderHistory || []).filter(e => e.displayOnly || staffOrderDate(e) !== today);
+        insertLegacyStaffOrder({ from: today, order: legacy.beforeOrder });
       }
     } else STATE.employeeOrderHistory = (STATE.employeeOrderHistory || []).filter(e => e.eventId !== event.id);
     STATE.staffHandoverEvents = (STATE.staffHandoverEvents || []).filter(e => e.id !== event.id);
@@ -4678,11 +4724,9 @@
         .sort((x, y) => (WORK_TYPES.indexOf(typeOf(x.row)) - WORK_TYPES.indexOf(typeOf(y.row))) || (x.index - y.index))
         .map(item => item.row);
     }
-    // NC 교대근무 중 위 4명(오늘 기준 종료되지 않은 사람)이 자동대근 대상이다.
+    // 표시 순서를 바꾼 초안에서도 자동대근 자리는 별도의 인계 순서로 계산한다.
     function autoSubstituteIds(){
-      return new Set(draft.filter(row => (row.startDate || '2026-01-01') <= viewDate && (!row.endDate || row.endDate >= viewDate)
-        && typeOf(row) === 'NC' && rotationRoleAt(row, viewDate) !== 'extra' && (!row.onboarding || (row.onboardingFrom && viewDate < row.onboardingFrom) || (row.soloDeployment?.from && row.soloDeployment.from <= viewDate)))
-        .slice(0, ROUTINE_HEADCOUNT).map(row => row.id));
+      return new Set(wtRoutineIds(draft, wtOrderFor(viewDate), viewDate));
     }
     function workTypeNote(row, auto){
       const type = typeOf(row);
@@ -5065,7 +5109,7 @@
         alert('재직 기간과 등록된 적응기간이 겹칩니다. 먼저 적응기간을 조정해 주세요.'); return false;
       }
       // 화면에 없던 직원과 종료일까지의 재직 기록은 그대로 두고, 표시 순서만 날짜 이력에 남긴다.
-      const previousOrder = wtOrderFor(effectiveDate);
+      const previousOrder = wtOrderFor(effectiveDate, true);
       const orderedActive = clean.map(e => e.id);
       const newOrder = previousOrder.flatMap(id => visibleIds.has(id) && nextIds.has(id) && orderedActive.length ? [orderedActive.shift()] : [id]);
       newOrder.push(...orderedActive);
@@ -5074,16 +5118,13 @@
       const changedExistingOrder = oldVisibleOrder.filter(id => nextIds.has(id)).join() !== clean.filter(e => existingIds.has(e.id)).map(e => e.id).join();
       const newPlacement = clean.some((e, i) => !existingIds.has(e.id) && clean.slice(i + 1).some(other => existingIds.has(other.id) && typeOf(e) === typeOf(other)));
       const orderChanged = changedExistingOrder || newPlacement;
-      if (orderChanged && (STATE.employeeOrderHistory || []).some(entry => entry.eventId && staffOrderDate(entry) >= effectiveDate)) {
-        alert('이 날짜 이후 예정된 인계가 있습니다. 순서를 변경하려면 먼저 예정된 인계를 수정 또는 취소해 주세요.'); return false;
-      }
       const dateAfter = date => fmt(addDays(new Date(date + 'T00:00:00'), 1));
       const checkDates = [...new Set([effectiveDate, ...clean.filter(e => !original.has(e.id)).map(e => e.startDate),
         ...datesChanged.flatMap(e => [e.startDate, original.get(e.id).startDate, e.endDate && dateAfter(e.endDate), original.get(e.id).endDate && dateAfter(original.get(e.id).endDate)]),
         ...ended.map(e => dateAfter(e.endDate))].filter(date => date && date >= today))].sort();
       const gaps = checkDates.filter(date => {
         const before = wtRoutineIds(EMPLOYEES, wtOrderFor(date), date).length;
-        const after = wtRoutineIds(combined, orderChanged && date >= effectiveDate ? newOrder : wtOrderFor(date), date).length;
+        const after = wtRoutineIds(combined, wtOrderFor(date), date).length;
         return after < before && after < ROUTINE_HEADCOUNT;
       });
       if (gaps.length && !confirm(`자동대근 4명 미만 공백이 생깁니다: ${gaps.join(', ')}. 계속 반영할까요?`)) return false;
@@ -5092,11 +5133,7 @@
         if ((impact.covers.length || impact.manual || impact.confirmed.length) && !confirm(`기존 휴가·대근 ${impact.covers.length}건, 수동 기록 ${impact.manual}건, 확정 월 ${impact.confirmed.join(', ') || '없음'}이 있습니다. 기존 기록을 보존하고 재직 기간을 반영할까요?`)) return false;
       }
       snapshotHistoricalSchedule();
-      if (orderChanged) {
-        if (!STATE.employeeOrderHistory.length) STATE.employeeOrderHistory.push({ month: '0000-01', order: EMPLOYEES.map(e => e.id) });
-        STATE.employeeOrderHistory = STATE.employeeOrderHistory.filter(entry => entry.eventId || staffOrderDate(entry) !== effectiveDate);
-        STATE.employeeOrderHistory.push({ from: effectiveDate, order: newOrder });
-      }
+      if (orderChanged) recordStaffDisplayOrder(effectiveDate, newOrder);
       const endedById = new Map(ended.map(e => [e.id, e]));
       EMPLOYEES = EMPLOYEES.map(e => cleanById.get(e.id) || endedById.get(e.id) || e).concat(clean.filter(e => !original.has(e.id)));
       STATE.employees = EMPLOYEES;
@@ -5534,18 +5571,18 @@
       header += `<th>${day}<br>${WEEKDAY_KO[date.getDay()]}</th>`;
     }
     header += '</tr></thead><tbody>';
-    const rows = getActiveStaff(year, monthIndex).map((emp, staffIndex) => {
-      // 파란 테두리 = 이 달 활성 직원 순서상 위 ROUTINE_HEADCOUNT명(=자동 대근을 서로 서는
-      // 루틴 근무자). "직원 구성 편집"에서 순서를 바꾸면 그 즉시 이 표시도 따라 바뀐다.
-      let row = `<tr class="${isRoutineWorker(emp, new Date(year, monthIndex, 1)) ? 'routine-row' : ''}"><td class="name">${escapeAttribute(emp.name)}</td>`;
+    const rows = scheduleGroups(getActiveStaff(year, monthIndex), year, monthIndex).flatMap(group => group.staff).map(emp => {
+      const lastDay = new Date(year, monthIndex, emp.scheduleDays.at(-1));
+      const label = emp.scheduleType === 'dispatch' ? '일근' : emp.scheduleType;
+      let row = `<tr class="${isRoutineWorker(emp, lastDay) ? 'routine-row' : ''}" data-staff-id="${escapeAttribute(emp.id)}" data-schedule-type="${escapeAttribute(emp.scheduleType)}"><td class="name">${escapeAttribute(emp.name)} <small>${escapeAttribute(label)}</small></td>`;
       for (let day = 1; day <= daysInMonth; day += 1) {
         const date = new Date(year, monthIndex, day);
-        const active = isEmployeeActiveOnDate(emp, date);
+        const active = emp.scheduleDays.includes(day);
         const pendingRange = active ? getPendingScheduleRange(emp.id, date) : null;
         const pendingFill = active && !pendingRange ? getPendingBulkFill(emp.id, date) : null;
         const value = active ? scheduleEditorCellValue(emp.id, date) : '';
         const cellClass = !active ? 'edit-inactive' : ((pendingRange || pendingFill) ? 'edit-covered' : '');
-        row += `<td class="${escapeAttribute(cellClass)}"><input type="text" maxlength="4" class="${editToneClass(value)}" value="${escapeAttribute(value)}" data-emp-id="${escapeAttribute(emp.id)}" data-date="${fmt(date)}" ${active ? '' : 'disabled'}></td>`;
+        row += `<td class="${escapeAttribute(cellClass)}"><input type="text" maxlength="4" class="${editToneClass(value)}" value="${escapeAttribute(value)}" ${active ? `data-emp-id="${escapeAttribute(emp.id)}" data-date="${fmt(date)}"` : 'disabled'}></td>`;
       }
       return row + '</tr>';
     }).join('');

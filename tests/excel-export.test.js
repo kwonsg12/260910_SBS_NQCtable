@@ -73,7 +73,7 @@ test('XML special characters are text and no extra workers silently disappear', 
 test('browser export uses visible month, work types, active dates, colors, merged ranges and approval names', async () => {
   const html = await fs.readFile(path.join(__dirname,'../index.html'),'utf8');
   const pick = name => { const s = html.indexOf('  function ' + name + '('); return html.slice(s, html.indexOf('\n  function ', s + 1)); };
-  const fn = ['shiftKind', 'buildExcelPayload'].map(pick).join('\n')
+  const fn = ['scheduleGroups', 'shiftKind', 'buildExcelPayload'].map(pick).join('\n')
     + html.slice(html.indexOf('  async function exportExcel(){'), html.indexOf('  async function mailMySchedule(){'));
   let body; let downloaded; let revoked; const button={disabled:false};
   const types = {b:'NC', a:'NC', tc:'TC', day:'dispatch'};
@@ -81,6 +81,7 @@ test('browser export uses visible month, work types, active dates, colors, merge
   const context = {
     $:()=>button, getCurrentMonthView:()=>({year:2028,monthIndex:1}),
     getActiveStaff:()=>[{id:'b',name:'B'},{id:'day',name:'이주형'},{id:'tc',name:'교육생'},{id:'a',name:'A'}],
+    getOrderedEmployeeIds:()=>null,
     workTypeOf:e=>types[e.id], isEmployeeActiveOnDate:(e,d)=>e.id!=='b'||d.getDate()>1,
     effectiveShift:(id,d)=>id==='a'&&d.getDate()===2?'휴가':id==='a'&&d.getDate()>=10&&d.getDate()<=12?'경조휴가':id==='tc'&&d.getDate()===3?'대일':'야',
     isSubstituteShift:(id,d)=>id==='b'&&d.getDate()===5, isStandardShift:v=>['일','야','조','O','휴가','대일','대근'].includes(v),
