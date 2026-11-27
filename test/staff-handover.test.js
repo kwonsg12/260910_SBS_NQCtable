@@ -21,7 +21,7 @@ const functions = ['fmt', 'stripTime', 'addDays', 'dateInRange', 'dayIndex', 'wo
   'wtOrderFor', 'wtRoutineIds', 'wtRoutineNames', 'staffEventIds', 'staffEventList', 'staffEventsFor', 'staffEventUndoError', 'legacyAnchorMatches',
   'legacyRepairOptions', 'prepareLegacyRepair', 'removeStaffEventData',
   'withStaffEventRemoved', 'staffAdaptationPeriods', 'staffNeedsOnboarding', 'staffImpact', 'staffAffectedMonths', 'wtPlan', 'wtApply', 'cancelStaffEvent',
-  'isRotationAnchorLinked', 'setStandaloneRotationAnchor', 'removeRotationAnchor'];
+  'isRotationAnchorLinked', 'regularOverridesForRotationCorrection', 'rotationAppliedPreview', 'setStandaloneRotationAnchor', 'removeRotationAnchor', 'wtLabel'];
 const json = value => JSON.parse(JSON.stringify(value));
 function fixture({ extra = true, history = true } = {}) {
   let today = '2026-11-27';
@@ -267,6 +267,46 @@ test('교대 루틴 보정은 지정일부터 반복하며 기존 휴가·수동
   assert.ok(c.removeRotationAnchor(state.rotationAnchors.find(a=>a.startDate==='2026-12-10').id,{staffOnly:true}));
   assert.equal(shift('a','2026-12-10'),'야');assert.equal(shift('a','2026-11-01'),'과거');
   assert.deepEqual(routine('2026-12-10'),['a','b','c','d']);
+});
+
+test('일일일일로 저장된 일반 근무 입력은 보정 즉시 새 교대가 표시되고 명시적 예외는 보존된다', () => {
+  const {c,state,shift}=fixture();
+  const initial={shift:'일',at:'2026-11-01T00:00:00Z'};
+  for(const day of ['2026-11-26','2026-11-30','2026-12-01','2026-12-02','2026-12-03','2026-12-04','2026-12-05','2026-12-06','2026-12-07','2026-12-08','2026-12-09','2026-12-10']) {
+    state.scheduleOverrides[`${day}::a`]={...initial};
+  }
+  state.scheduleOverrides['2026-12-04::a']={shift:'교육',at:initial.at};
+  state.scheduleOverrides['2026-12-05::a']={shift:'대일',at:initial.at};
+  state.scheduleOverrides['2026-12-06::b']={...initial};
+  state.scheduleRanges.push({empId:'a',startDate:'2026-12-07',endDate:'2026-12-07',value:'출장'});
+  state.requests.push({id:'leave',empId:'a',status:'approved',submittedAt:'2026-11-25T00:00:00Z',chain:[{empId:'a',date:'2026-12-06',shift:'휴가'}]});
+  state.rotationAnchors.push({id:'next',empId:'a',startDate:'2026-12-09',startShift:'조',at:initial.at});
+  let confirmations=0;c.confirm=()=>{confirmations++;return false;};
+  assert.ok(c.setStandaloneRotationAnchor({empId:'a',startDate:'2026-12-01',startShift:'일'},{staffOnly:true,replace:true}));
+  assert.equal(confirmations,0,'직원 정보의 적용은 중간 확인 없이 편집 세션에 반영한다');
+  assert.deepEqual(['2026-12-01','2026-12-02','2026-12-03','2026-12-04','2026-12-05','2026-12-06','2026-12-07','2026-12-08'].map(d=>shift('a',d)),['일','야','조','교육','대일','휴가','출장','O']);
+  assert.equal(state.scheduleOverrides['2026-12-02::a'],undefined);
+  assert.equal(state.scheduleOverrides['2026-12-03::a'],undefined);
+  assert.equal(state.scheduleOverrides['2026-11-26::a'].shift,'일');
+  assert.equal(state.scheduleOverrides['2026-11-30::a'].shift,'일');
+  assert.equal(state.scheduleOverrides['2026-12-06::a'].shift,'일','휴가가 겹치는 수동 기록은 보존한다');
+  assert.equal(state.scheduleOverrides['2026-12-06::b'].shift,'일');
+  assert.equal(state.scheduleOverrides['2026-12-09::a'].shift,'일','다음 시작점 이후 수동 입력은 보존한다');
+  const log=state.auditLogs.find(l=>l.action==='로테이션 시작점 지정');
+  assert.ok(log.details.regularOverridesReset.some(x=>x.key==='2026-12-02::a'&&x.previous.shift==='일'));
+  assert.match(c.rotationAppliedPreview('a','2026-12-01'),/12\/1 일 · 12\/2 야 · 12\/3 조/);
+});
+
+test('같은 날짜 보정을 바로 다시 적용하면 이전 일반 입력값도 새 루틴으로 갱신된다', () => {
+  const {c,state,shift}=fixture();
+  const set=startShift=>c.setStandaloneRotationAnchor({empId:'a',startDate:'2026-12-10',startShift},{staffOnly:true,replace:true});
+  assert.ok(set('일'));
+  state.scheduleOverrides['2026-12-10::a']={shift:'일',at:'2026-11-27T01:00:00Z'};
+  c.confirm=()=>{throw Error('중간 확인을 띄우면 안 됨');};
+  assert.ok(set('야'));assert.equal(shift('a','2026-12-10'),'야');assert.equal(state.rotationAnchors.length,1);
+  // 루틴 보정 이후 관리자가 직접 지정한 새로운 값은 그대로 우선한다.
+  state.scheduleOverrides['2026-12-11::a']={shift:'O',at:'2026-11-28T01:00:00Z'};
+  assert.equal(shift('a','2026-12-11'),'O');
 });
 
 test('추가 교대 루틴 보정은 자동대근 역할을 바꾸지 않고 과거 날짜·상일근·예정 인계는 거절한다', () => {

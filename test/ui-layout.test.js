@@ -333,6 +333,9 @@ test('설정: 왼쪽 메뉴에서 근무표 편집 · 직원 구성을 고르고
   assert.ok(staff.indexOf('id="staffEvents"') < staff.indexOf('id="endedStaffPanel"'));
   assert.match(script, /<details class="sp-rotation-sub" id="staffRotationTools"><summary>교대 루틴 보정/);
   assert.match(script, /setStandaloneRotationAnchor\(values, \{ staffOnly: true, replace: true \}\)/);
+  assert.match(script, /focusRotationMonth\(values.startDate\)/);
+  assert.match(script, /rotationAppliedPreview\(values.empId, values.startDate\)/);
+  assert.ok(!script.includes('data-staff-rotation-remove'), '직원 정보에는 별도의 보정 해제 버튼을 두지 않는다');
   // 투입 일정은 고른 직원 패널의 탭(정보 · 투입 일정)으로 들어가고, 처음엔 정보 탭이 보인다.
   assert.match(staff, /data-sp-tab="info"[^>]*>정보</);
   assert.match(staff, /data-sp-tab="onboard"[^>]*>투입 일정</);
