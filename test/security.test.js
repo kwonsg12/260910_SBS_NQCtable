@@ -98,7 +98,7 @@ test('legacy secrets migrate to salted hashes; API and static paths do not discl
   const row = db.prepare('SELECT * FROM approval_credentials WHERE id=?').get('a1');
   assert.equal(row.hash.length, 64);
   assert.notEqual(row.hash, '123456');
-  const stored = db.prepare('SELECT value FROM kv_store').get().value;
+  const stored = db.prepare("SELECT value FROM kv_store WHERE key = 'schedule_state'").get().value;
   assert.ok(!stored.includes('nested-pin'));
   db.close();
   for (const url of ['/geunmupyo.db', '/.env', '/security.js', '/server.js', '/package.json', '/%67eunmupyo.db']) assert.equal((await f.api(url)).status, 404, url);

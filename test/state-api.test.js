@@ -126,6 +126,20 @@ test('existing databases gain a revision while preserving their saved data', asy
   assert.equal((await get()).revision, 3);
 });
 
+test('TC 휴일 정책 최초 적용일은 공유 서버에서 보관되고 근무표 revision에는 영향을 주지 않는다', async t => {
+  const { get, fixture } = await start(t, true);
+  const initial = await get();
+  assert.match(initial.tcHolidayPolicyFrom, /^\d{4}-\d{2}-\d{2}$/);
+  const reopened = require(path.join(fixture, 'db.js'));
+  try {
+    assert.equal(reopened.getTcHolidayPolicyFrom(new Date('2099-01-01T00:00:00Z')), initial.tcHolidayPolicyFrom);
+  } finally { reopened.db.close(); }
+  const later = await get();
+  assert.equal(later.tcHolidayPolicyFrom, initial.tcHolidayPolicyFrom);
+  assert.equal(later.revision, initial.revision);
+  assert.deepEqual(later.state, initial.state);
+});
+
 test('separate SQLite connections use the same atomic revision check', async t => {
   const { get, post, fixture, login } = await start(t, true);
   await login();
