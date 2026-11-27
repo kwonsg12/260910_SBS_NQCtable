@@ -318,8 +318,10 @@ test('설정: 왼쪽 메뉴에서 근무표 편집 · 직원 구성을 고르고
   assert.match(nav, />승인 담당자</);
   assert.ok(!/edit-tabs/.test(html), '편집 창 안 탭은 없앴다');
   const panel = html.slice(html.indexOf('id="scheduleEditPanel"'), html.indexOf('id="editSessionBar"'));
-  // 편집할 달은 두 화면 공통(위)에 있고, 기존 id 는 그대로 있다.
+  // 근무표의 월별 선택과 직원 구성의 날짜별 선택은 각각 별도이고 기존 근무표 id는 그대로 있다.
   assert.ok(panel.indexOf('id="scheduleEditYear"') < panel.indexOf('id="scheduleEditorView"'));
+  assert.match(panel, /class="edit-month" data-for-view="cells"/);
+  assert.match(panel, /class="staff-date-controls" data-for-view="staff"/);
   for (const id of ['scheduleEditTable', 'rangeEditEmp', 'addScheduleRangeBtn', 'employeeEditTableBody', 'staffPanel', 'applyEmployeeEditorBtn',
     'bulkFillEmp', 'addBulkFillBtn', 'anchorEmp', 'applyRotationAnchorBtn', 'endedStaffList', 'deletedStaffTrashList', 'onboardingEditorView']) {
     assert.match(panel, new RegExp(`id="${id}"`), id);
